@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 
@@ -42,6 +42,41 @@ function PositionBadges({ position }: { position: string }) {
   );
 }
 
+function escapeCsv(val: string): string {
+  if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+function downloadVAInfo(vaList: VAProfile[]) {
+  const headers = [
+    "VA ID", "First Name", "Middle Name", "Last Name", "Suffix", "Date of Birth",
+    "Phone", "Alt Phone", "Email", "Position", "Date Hired", "Current Rate",
+    "Contractor ID", "Street", "Subdivision", "Barangay", "City", "Province",
+    "Postal Code", "Temporary Address", "Emergency Contact", "Emergency Phone",
+    "Bank Name", "Bank Account Number", "Bank Account Name",
+  ];
+  const rows = vaList.map((va) => [
+    va.id, va.firstName, va.middleName, va.lastName, va.suffix, va.dateOfBirth || "",
+    va.phone, va.altPhone, va.email, va.position, va.dateHired, va.currentRate,
+    va.contractorId, va.permanentAddress.street, va.permanentAddress.subdivision,
+    va.permanentAddress.barangay, va.permanentAddress.city, va.permanentAddress.province,
+    va.permanentAddress.postalCode, va.temporaryAddress,
+    va.emergencyContact, va.emergencyPhone,
+    va.bankName || "", va.bankAccountNumber || "", va.bankAccountName || "",
+  ].map(escapeCsv).join(","));
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `VA-Info-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function VAManagementPage() {
   const [vas, setVAs] = useState<VAProfile[]>([]);
   const [selectedVA, setSelectedVA] = useState<string | null>(null);
@@ -51,7 +86,7 @@ export default function VAManagementPage() {
   const [editTarget, setEditTarget] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "", firstName: "", middleName: "", lastName: "", suffix: "",
-    phone: "", altPhone: "", email: "", street: "", subdivision: "",
+    dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
     temporaryAddress: "", positions: ["Telemarketer"] as string[], dateHired: "",
     currentRate: "", emergencyContact: "", emergencyPhone: "",
@@ -59,7 +94,7 @@ export default function VAManagementPage() {
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
-    phone: "", altPhone: "", email: "", street: "", subdivision: "",
+    dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
     temporaryAddress: "", positions: [] as string[], dateHired: "",
     currentRate: "", emergencyContact: "", emergencyPhone: "",
@@ -84,6 +119,7 @@ export default function VAManagementPage() {
       lastName: form.lastName, suffix: form.suffix,
       phone: form.phone, altPhone: form.altPhone || "N/A",
       email: form.email,
+      dateOfBirth: form.dateOfBirth,
       permanentAddress: {
         street: form.street, subdivision: form.subdivision,
         barangay: form.barangay, city: form.city,
@@ -106,7 +142,7 @@ export default function VAManagementPage() {
     setShowCreate(false);
     setForm({
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
-      phone: "", altPhone: "", email: "", street: "", subdivision: "",
+      dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
       barangay: "", city: "", province: "", postalCode: "",
       temporaryAddress: "", positions: ["Telemarketer"], dateHired: "",
       currentRate: "", emergencyContact: "", emergencyPhone: "",
@@ -119,6 +155,7 @@ export default function VAManagementPage() {
     setEditForm({
       firstName: va.firstName, middleName: va.middleName,
       lastName: va.lastName, suffix: va.suffix,
+      dateOfBirth: va.dateOfBirth || "",
       phone: va.phone, altPhone: va.altPhone, email: va.email,
       street: va.permanentAddress.street, subdivision: va.permanentAddress.subdivision,
       barangay: va.permanentAddress.barangay, city: va.permanentAddress.city,
@@ -139,6 +176,7 @@ export default function VAManagementPage() {
     store.updateProfile(editTarget, {
       firstName: editForm.firstName, middleName: editForm.middleName,
       lastName: editForm.lastName, suffix: editForm.suffix,
+      dateOfBirth: editForm.dateOfBirth,
       phone: editForm.phone, altPhone: editForm.altPhone, email: editForm.email,
       permanentAddress: {
         street: editForm.street, subdivision: editForm.subdivision,
@@ -176,6 +214,12 @@ export default function VAManagementPage() {
         <h1 className="text-2xl font-bold text-foreground">VA Management</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted">{vas.length} active VAs</span>
+          <button
+            onClick={() => downloadVAInfo(vas)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          >
+            <Download size={16} /> Download All ({vas.length})
+          </button>
           <button
             onClick={() => { setForm((f) => ({ ...f, id: generateNextId() })); setShowCreate(true); }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
@@ -362,6 +406,7 @@ export default function VAManagementPage() {
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={form.middleName} onChange={(e) => setForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Suffix</label><input type="text" value={form.suffix} onChange={(e) => setForm((f) => ({ ...f, suffix: e.target.value }))} className={inputClass} placeholder="Jr., Sr., III" /></div>
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
                 </div>
               </div>
               <div>
@@ -422,6 +467,7 @@ export default function VAManagementPage() {
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={editForm.middleName} onChange={(e) => setEditForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Suffix</label><input type="text" value={editForm.suffix} onChange={(e) => setEditForm((f) => ({ ...f, suffix: e.target.value }))} className={inputClass} placeholder="Jr., Sr., III" /></div>
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={editForm.dateOfBirth} onChange={(e) => setEditForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
                 </div>
               </div>
               <div>

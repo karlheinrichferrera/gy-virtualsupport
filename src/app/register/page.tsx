@@ -15,6 +15,7 @@ export default function RegisterPage() {
     middleName: "",
     lastName: "",
     suffix: "",
+    dateOfBirth: "",
     email: "",
     phone: "",
     altPhone: "",
@@ -82,6 +83,7 @@ export default function RegisterPage() {
         phone: form.phone,
         altPhone: form.altPhone || "N/A",
         email: form.email,
+        dateOfBirth: form.dateOfBirth,
         permanentAddress: {
           street: form.street,
           subdivision: form.subdivision,
@@ -241,6 +243,16 @@ export default function RegisterPage() {
                     placeholder="Jr. / Sr. / III"
                   />
                 </div>
+              </div>
+              <div>
+                <label className={labelClass}>Date of Birth</label>
+                <input
+                  type="text"
+                  value={form.dateOfBirth}
+                  onChange={(e) => update("dateOfBirth", e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. January 15, 1995"
+                />
               </div>
               <div>
                 <label className={labelClass}>

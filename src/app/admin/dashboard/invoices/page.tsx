@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
-import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save } from "lucide-react";
+import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save, Search, Filter } from "lucide-react";
 
 function downloadInvoice(inv: Invoice, vaName: string, vaId: string) {
   const html = `<!DOCTYPE html>
@@ -38,9 +38,46 @@ td{padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:14px}
   URL.revokeObjectURL(url);
 }
 
+function escapeCsv(val: string): string {
+  if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+function downloadAllInvoices(items: { vaId: string; vaName: string; invoice: Invoice }[]) {
+  const headers = ["Invoice #", "VA Name", "VA ID", "Date Covered", "Amount", "Transaction Fee", "Amount Disbursed", "Status"];
+  const rows = items.map((item) => [
+    item.invoice.invoiceNumber,
+    item.vaName,
+    item.vaId,
+    item.invoice.dateCovered,
+    item.invoice.amount,
+    item.invoice.transactionFee || "",
+    item.invoice.amountDisbursed,
+    item.invoice.status,
+  ].map(escapeCsv).join(","));
+
+  const totalAmount = items.reduce((s, i) => s + parseFloat(i.invoice.amount.replace("$", "") || "0"), 0);
+  const totalFee = items.reduce((s, i) => s + parseFloat(i.invoice.transactionFee.replace("$", "") || "0"), 0);
+  const totalDisbursed = items.reduce((s, i) => s + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
+  const totalRow = ["TOTAL", "", "", "", `$${totalAmount.toFixed(2)}`, `$${totalFee.toFixed(2)}`, `$${totalDisbursed.toFixed(2)}`, ""].map(escapeCsv).join(",");
+
+  const csv = [headers.join(","), ...rows, "", totalRow].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Invoice-Report-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminInvoicesPage() {
   const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: Invoice }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [filterVA, setFilterVA] = useState<string>("All");
+  const [searchDate, setSearchDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
   const [editTarget, setEditTarget] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
@@ -86,9 +123,17 @@ export default function AdminInvoicesPage() {
     setEditTarget(null);
   }
 
-  const filtered = filterStatus === "All"
-    ? allInvoices
-    : allInvoices.filter((i) => i.invoice.status === filterStatus);
+  const vaOptions = Array.from(new Set(allInvoices.map((i) => i.vaId))).map((vaId) => {
+    const match = allInvoices.find((i) => i.vaId === vaId);
+    return { vaId, vaName: match?.vaName || vaId };
+  });
+
+  const filtered = allInvoices.filter((i) => {
+    if (filterStatus !== "All" && i.invoice.status !== filterStatus) return false;
+    if (filterVA !== "All" && i.vaId !== filterVA) return false;
+    if (searchDate && !i.invoice.dateCovered.toLowerCase().includes(searchDate.toLowerCase())) return false;
+    return true;
+  });
 
   const totalDisbursed = allInvoices
     .filter((i) => i.invoice.status === "Paid")
@@ -100,6 +145,12 @@ export default function AdminInvoicesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Invoice Management</h1>
+        <button
+          onClick={() => downloadAllInvoices(filtered)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+        >
+          <Download size={16} /> Download {filterStatus !== "All" || filterVA !== "All" || searchDate ? "Filtered" : "All"} ({filtered.length})
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -125,20 +176,53 @@ export default function AdminInvoicesPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {["All", "Paid", "Pending", "Draft"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
-              filterStatus === status
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          {["All", "Paid", "Pending", "Draft"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                filterStatus === status
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-muted" />
+          <select
+            value={filterVA}
+            onChange={(e) => setFilterVA(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {status}
-          </button>
-        ))}
+            <option value="All">All VAs</option>
+            {vaOptions.map((va) => (
+              <option key={va.vaId} value={va.vaId}>{va.vaName} ({va.vaId})</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Search size={16} className="text-muted" />
+          <input
+            type="text"
+            value={searchDate}
+            onChange={(e) => setSearchDate(e.target.value)}
+            placeholder="Search by date (e.g. July, August 2026)"
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-72"
+          />
+          {(filterVA !== "All" || searchDate || filterStatus !== "All") && (
+            <button
+              onClick={() => { setFilterVA("All"); setSearchDate(""); setFilterStatus("All"); }}
+              className="px-3 py-1.5 text-sm rounded-lg text-red-600 bg-red-50 hover:bg-red-100 font-medium transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -157,70 +241,74 @@ export default function AdminInvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
-                <tr key={item.invoice.invoiceNumber} className="border-b border-border hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-medium text-foreground">{item.invoice.invoiceNumber}</td>
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-foreground">{item.vaName}</p>
-                    <p className="text-xs text-muted">ID: {item.vaId}</p>
-                  </td>
-                  <td className="px-6 py-4 text-foreground">{item.invoice.dateCovered}</td>
-                  <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amount}</td>
-                  <td className="px-6 py-4 text-right text-muted">{item.invoice.transactionFee || "—"}</td>
-                  <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amountDisbursed}</td>
-                  <td className="px-6 py-4 text-center"><StatusBadge status={item.invoice.status} /></td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => setShowPreview(item)}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
-                        title="View"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => openEdit(item)}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-amber-600 transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => downloadInvoice(item.invoice, item.vaName, item.vaId)}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
-                        title="Download"
-                      >
-                        <Download size={16} />
-                      </button>
-                      {item.invoice.status === "Pending" && (
+              {filtered.length === 0 ? (
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-muted">No invoices match the current filters.</td></tr>
+              ) : (
+                filtered.map((item) => (
+                  <tr key={item.invoice.invoiceNumber} className="border-b border-border hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4 font-mono font-medium text-foreground">{item.invoice.invoiceNumber}</td>
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-foreground">{item.vaName}</p>
+                      <p className="text-xs text-muted">ID: {item.vaId}</p>
+                    </td>
+                    <td className="px-6 py-4 text-foreground">{item.invoice.dateCovered}</td>
+                    <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amount}</td>
+                    <td className="px-6 py-4 text-right text-muted">{item.invoice.transactionFee || "—"}</td>
+                    <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amountDisbursed}</td>
+                    <td className="px-6 py-4 text-center"><StatusBadge status={item.invoice.status} /></td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Paid")}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
-                          title="Mark Paid"
+                          onClick={() => setShowPreview(item)}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                          title="View"
                         >
-                          <Check size={14} />
+                          <Eye size={16} />
                         </button>
-                      )}
-                      {item.invoice.status === "Paid" && (
                         <button
-                          onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Pending")}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-                          title="Revert to Pending"
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-amber-600 transition-colors"
+                          title="Edit"
                         >
-                          <X size={14} />
+                          <Pencil size={16} />
                         </button>
-                      )}
-                      <button
-                        onClick={() => setDeleteTarget(item.invoice.invoiceNumber)}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <button
+                          onClick={() => downloadInvoice(item.invoice, item.vaName, item.vaId)}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
+                          title="Download"
+                        >
+                          <Download size={16} />
+                        </button>
+                        {item.invoice.status === "Pending" && (
+                          <button
+                            onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Paid")}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                            title="Mark Paid"
+                          >
+                            <Check size={14} />
+                          </button>
+                        )}
+                        {item.invoice.status === "Paid" && (
+                          <button
+                            onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Pending")}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                            title="Revert to Pending"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setDeleteTarget(item.invoice.invoiceNumber)}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

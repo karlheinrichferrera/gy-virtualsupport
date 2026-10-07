@@ -7,6 +7,7 @@ export interface VAProfile {
   phone: string;
   altPhone: string;
   email: string;
+  dateOfBirth: string;
   permanentAddress: {
     street: string;
     subdivision: string;
@@ -68,6 +69,7 @@ export const vaProfiles: VAProfile[] = [
     phone: "(+63) 950 556 8148",
     altPhone: "N/A",
     email: "dom.soltes@goldenyears.com",
+    dateOfBirth: "March 15, 1995",
     permanentAddress: {
       street: "Phase 2, Blk 1 Lot 6",
       subdivision: "Eco Verde Homes",
@@ -97,6 +99,7 @@ export const vaProfiles: VAProfile[] = [
     phone: "(+63) 912 345 6789",
     altPhone: "N/A",
     email: "maria.santos@goldenyears.com",
+    dateOfBirth: "July 22, 1998",
     permanentAddress: {
       street: "123 Rizal Street",
       subdivision: "Green Meadows",

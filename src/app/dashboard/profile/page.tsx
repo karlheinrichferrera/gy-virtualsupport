@@ -177,6 +177,7 @@ export default function ProfilePage() {
               <Field label="Last Name" value={profile.lastName} />
               <Field label="Suffix" value={profile.suffix || "N/A"} />
               <Field label="Email" value={profile.email} />
+              <Field label="Date of Birth" value={profile.dateOfBirth || "N/A"} />
               <Field label="Contractor ID" value={profile.contractorId || "N/A"} />
             </Section>
 
