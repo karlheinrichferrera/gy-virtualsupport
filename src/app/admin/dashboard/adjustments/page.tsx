@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile, SalaryAdjustment } from "@/lib/data";
-import { DollarSign, Plus, X } from "lucide-react";
+import { DollarSign, Plus, X, Trash2, AlertTriangle } from "lucide-react";
 
 export default function AdminAdjustmentsPage() {
   const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
   const [selectedVA, setSelectedVA] = useState("");
   const [adjustments, setAdjustments] = useState<Record<string, SalaryAdjustment[]>>({});
   const [showAdd, setShowAdd] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ vaId: string; idx: number } | null>(null);
   const [form, setForm] = useState({
     effectivityDate: "",
     type: "",
@@ -40,6 +41,16 @@ export default function AdminAdjustmentsPage() {
     setAdjustments(store.getAllAdjustments());
     setShowAdd(false);
     setForm({ effectivityDate: "", type: "", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
+  }
+
+  function handleDelete(vaId: string, idx: number) {
+    const all = { ...adjustments };
+    const list = [...(all[vaId] || [])];
+    list.splice(idx, 1);
+    all[vaId] = list;
+    store.saveAllAdjustments(all);
+    setAdjustments(store.getAllAdjustments());
+    setDeleteTarget(null);
   }
 
   const currentAdj = adjustments[selectedVA] || [];
@@ -97,6 +108,7 @@ export default function AdminAdjustmentsPage() {
                   <th className="text-left px-6 py-3 font-semibold text-slate-600">Sales Commission</th>
                   <th className="text-left px-6 py-3 font-semibold text-slate-600">Referral Bonus</th>
                   <th className="text-left px-6 py-3 font-semibold text-slate-600">Notes</th>
+                  <th className="text-center px-6 py-3 font-semibold text-slate-600">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -113,6 +125,15 @@ export default function AdminAdjustmentsPage() {
                     <td className="px-6 py-4 text-foreground">{adj.salesCommission}</td>
                     <td className="px-6 py-4 text-foreground">{adj.referralBonus}</td>
                     <td className="px-6 py-4 text-muted">{adj.notes}</td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => setDeleteTarget({ vaId: selectedVA, idx })}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -173,6 +194,28 @@ export default function AdminAdjustmentsPage() {
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors">Add Adjustment</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <AlertTriangle className="text-red-600" size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Adjustment</h3>
+              <p className="text-sm text-slate-600">
+                Are you sure you want to delete this salary adjustment? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setDeleteTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancel</button>
+                <button onClick={() => handleDelete(deleteTarget.vaId, deleteTarget.idx)} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                  <Trash2 size={16} /> Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

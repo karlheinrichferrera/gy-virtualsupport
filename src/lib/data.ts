@@ -122,68 +122,7 @@ export const vaProfiles: VAProfile[] = [
   },
 ];
 
-export const salaryAdjustments: Record<string, SalaryAdjustment[]> = {
-  "500102": [
-    {
-      effectivityDate: "April 20, 2020",
-      type: "HIRED AS PART TIME CALLER",
-      hourlyRate: "$2.90 per hour",
-      salesCommission: "$4.00 / lead",
-      referralBonus: "$25.00",
-      notes: "Initial hire as part-time caller",
-    },
-    {
-      effectivityDate: "May 4, 2020",
-      type: "PROMOTED AS FULL TIME CALLER",
-      hourlyRate: "$3.00 / Hour",
-      salesCommission: "$5.00 / lead",
-      referralBonus: "No Adjustment",
-      notes: "Promoted to full-time position",
-    },
-    {
-      effectivityDate: "April 12, 2021",
-      type: "SALARY ADJUSTMENT",
-      hourlyRate: "$3.75 / Hour",
-      salesCommission: "No Adjustment",
-      referralBonus: "No Adjustment",
-      notes: "Annual salary review adjustment",
-    },
-    {
-      effectivityDate: "July 12, 2021",
-      type: "SALARY ADJUSTMENT",
-      hourlyRate: "$4.00 / Hour",
-      salesCommission: "No Adjustment",
-      referralBonus: "No Adjustment",
-      notes: "Performance-based adjustment",
-    },
-    {
-      effectivityDate: "July 12, 2023",
-      type: "SALARY ADJUSTMENT",
-      hourlyRate: "$5.00 / Hour",
-      salesCommission: "No Adjustment",
-      referralBonus: "No Adjustment",
-      notes: "Annual salary review adjustment",
-    },
-  ],
-  "500103": [
-    {
-      effectivityDate: "June 15, 2021",
-      type: "HIRED AS FULL TIME SUPPORT",
-      hourlyRate: "$3.50 / Hour",
-      salesCommission: "N/A",
-      referralBonus: "N/A",
-      notes: "Initial hire",
-    },
-    {
-      effectivityDate: "January 10, 2023",
-      type: "SALARY ADJUSTMENT",
-      hourlyRate: "$4.50 / Hour",
-      salesCommission: "N/A",
-      referralBonus: "N/A",
-      notes: "Performance review adjustment",
-    },
-  ],
-};
+export const salaryAdjustments: Record<string, SalaryAdjustment[]> = {};
 
 export const invoices: Record<string, Invoice[]> = {
   "500102": [
