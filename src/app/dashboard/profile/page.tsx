@@ -201,7 +201,14 @@ export default function ProfilePage() {
             </Section>
 
             <Section icon={Briefcase} title="Employment Details">
-              <Field label="Position" value={profile.position} />
+              <div>
+                <span className="text-xs text-muted uppercase tracking-wide">Position</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {profile.position.split(",").map((p) => p.trim()).filter(Boolean).map((p) => (
+                    <span key={p} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{p}</span>
+                  ))}
+                </div>
+              </div>
               <Field label="Date Hired" value={profile.dateHired} />
               <Field label="Current Rate" value={profile.currentRate} />
             </Section>

@@ -3,7 +3,44 @@
 import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart } from "lucide-react";
+
+const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service"];
+
+function PositionMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  function toggle(pos: string) {
+    onChange(selected.includes(pos) ? selected.filter((p) => p !== pos) : [...selected, pos]);
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {POSITION_OPTIONS.map((pos) => (
+        <button
+          key={pos}
+          type="button"
+          onClick={() => toggle(pos)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            selected.includes(pos)
+              ? "bg-indigo-600 text-white border-indigo-600"
+              : "bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+          }`}
+        >
+          {pos}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PositionBadges({ position }: { position: string }) {
+  const positions = position.split(",").map((p) => p.trim()).filter(Boolean);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {positions.map((p) => (
+        <span key={p} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{p}</span>
+      ))}
+    </div>
+  );
+}
 
 export default function VAManagementPage() {
   const [vas, setVAs] = useState<VAProfile[]>([]);
@@ -11,13 +48,23 @@ export default function VAManagementPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "", firstName: "", middleName: "", lastName: "", suffix: "",
     phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
-    temporaryAddress: "", position: "Telemarketer", dateHired: "",
+    temporaryAddress: "", positions: ["Telemarketer"] as string[], dateHired: "",
     currentRate: "", emergencyContact: "", emergencyPhone: "",
     contractorId: "",
+  });
+  const [editForm, setEditForm] = useState({
+    firstName: "", middleName: "", lastName: "", suffix: "",
+    phone: "", altPhone: "", email: "", street: "", subdivision: "",
+    barangay: "", city: "", province: "", postalCode: "",
+    temporaryAddress: "", positions: [] as string[], dateHired: "",
+    currentRate: "", emergencyContact: "", emergencyPhone: "",
+    contractorId: "",
+    bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
 
   useEffect(() => { setVAs(store.getProfiles()); }, []);
@@ -43,7 +90,7 @@ export default function VAManagementPage() {
         province: form.province, postalCode: form.postalCode,
       },
       temporaryAddress: form.temporaryAddress || "Same as permanent address",
-      position: form.position,
+      position: form.positions.join(", "),
       dateHired: form.dateHired || new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
       currentRate: form.currentRate,
       emergencyContact: form.emergencyContact,
@@ -61,10 +108,53 @@ export default function VAManagementPage() {
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
       phone: "", altPhone: "", email: "", street: "", subdivision: "",
       barangay: "", city: "", province: "", postalCode: "",
-      temporaryAddress: "", position: "Telemarketer", dateHired: "",
+      temporaryAddress: "", positions: ["Telemarketer"], dateHired: "",
       currentRate: "", emergencyContact: "", emergencyPhone: "",
       contractorId: "",
     });
+  }
+
+  function openEdit(va: VAProfile) {
+    const positions = va.position.split(",").map((p) => p.trim()).filter(Boolean);
+    setEditForm({
+      firstName: va.firstName, middleName: va.middleName,
+      lastName: va.lastName, suffix: va.suffix,
+      phone: va.phone, altPhone: va.altPhone, email: va.email,
+      street: va.permanentAddress.street, subdivision: va.permanentAddress.subdivision,
+      barangay: va.permanentAddress.barangay, city: va.permanentAddress.city,
+      province: va.permanentAddress.province, postalCode: va.permanentAddress.postalCode,
+      temporaryAddress: va.temporaryAddress,
+      positions, dateHired: va.dateHired, currentRate: va.currentRate,
+      emergencyContact: va.emergencyContact, emergencyPhone: va.emergencyPhone,
+      contractorId: va.contractorId,
+      bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
+      bankAccountName: va.bankAccountName || "",
+    });
+    setEditTarget(va.id);
+  }
+
+  function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    store.updateProfile(editTarget, {
+      firstName: editForm.firstName, middleName: editForm.middleName,
+      lastName: editForm.lastName, suffix: editForm.suffix,
+      phone: editForm.phone, altPhone: editForm.altPhone, email: editForm.email,
+      permanentAddress: {
+        street: editForm.street, subdivision: editForm.subdivision,
+        barangay: editForm.barangay, city: editForm.city,
+        province: editForm.province, postalCode: editForm.postalCode,
+      },
+      temporaryAddress: editForm.temporaryAddress,
+      position: editForm.positions.join(", "),
+      dateHired: editForm.dateHired, currentRate: editForm.currentRate,
+      emergencyContact: editForm.emergencyContact, emergencyPhone: editForm.emergencyPhone,
+      contractorId: editForm.contractorId,
+      bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
+      bankAccountName: editForm.bankAccountName,
+    });
+    setVAs(store.getProfiles());
+    setEditTarget(null);
   }
 
   function handleDelete(id: string) {
@@ -131,7 +221,7 @@ export default function VAManagementPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{va.position}</span>
+                      <PositionBadges position={va.position} />
                     </td>
                     <td className="px-6 py-4 text-foreground">{va.email}</td>
                     <td className="px-6 py-4 text-foreground">{va.dateHired}</td>
@@ -140,6 +230,9 @@ export default function VAManagementPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => setSelectedVA(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                           <Eye size={14} /> View
+                        </button>
+                        <button onClick={() => openEdit(va)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                          <Pencil size={14} /> Edit
                         </button>
                         <button onClick={() => setResetTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
                           <KeyRound size={14} /> Reset PW
@@ -175,12 +268,13 @@ export default function VAManagementPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{profile.firstName} {profile.middleName} {profile.lastName} {profile.suffix}</h3>
-                  <p className="text-sm text-slate-500">{profile.position}</p>
+                  <PositionBadges position={profile.position} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="flex items-start gap-2"><Mail size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Email</p><p className="font-medium text-slate-900">{profile.email}</p></div></div>
                 <div className="flex items-start gap-2"><Phone size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Phone</p><p className="font-medium text-slate-900">{profile.phone}</p></div></div>
+                <div className="flex items-start gap-2"><Briefcase size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Contractor ID</p><p className="font-medium text-slate-900">{profile.contractorId || "N/A"}</p></div></div>
                 <div className="flex items-start gap-2"><Briefcase size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Date Hired</p><p className="font-medium text-slate-900">{profile.dateHired}</p></div></div>
                 <div className="flex items-start gap-2"><Briefcase size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Current Rate</p><p className="font-medium text-slate-900">{profile.currentRate}</p></div></div>
               </div>
@@ -188,9 +282,19 @@ export default function VAManagementPage() {
                 <MapPin size={16} className="text-slate-400 mt-0.5" />
                 <div><p className="text-slate-500">Permanent Address</p><p className="font-medium text-slate-900">{profile.permanentAddress.street}, {profile.permanentAddress.subdivision}, {profile.permanentAddress.barangay}, {profile.permanentAddress.city}, {profile.permanentAddress.province} {profile.permanentAddress.postalCode}</p></div>
               </div>
+              {profile.temporaryAddress && profile.temporaryAddress !== "Same as permanent address" && (
+                <div className="flex items-start gap-2 text-sm">
+                  <MapPin size={16} className="text-slate-400 mt-0.5" />
+                  <div><p className="text-slate-500">Temporary Address</p><p className="font-medium text-slate-900">{profile.temporaryAddress}</p></div>
+                </div>
+              )}
+              <div className="text-sm pt-2 border-t border-slate-100 grid grid-cols-2 gap-4">
+                <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
+                <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
+                <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+              </div>
               <div className="text-sm pt-2 border-t border-slate-100">
-                <p className="text-slate-500">Emergency Contact</p>
-                <p className="font-medium text-slate-900">{profile.emergencyContact} - {profile.emergencyPhone}</p>
+                <div className="flex items-start gap-2"><Heart size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Emergency Contact</p><p className="font-medium text-slate-900">{profile.emergencyContact} - {profile.emergencyPhone}</p></div></div>
               </div>
             </div>
           </div>
@@ -250,7 +354,10 @@ export default function VAManagementPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">VA ID</label><input type="text" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} className={inputClass} placeholder="Auto-generated" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Contractor ID</label><input type="text" value={form.contractorId} onChange={(e) => setForm((f) => ({ ...f, contractorId: e.target.value }))} className={inputClass} placeholder="e.g. CTR-2026-0001" /></div>
-                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Position</label><select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className={inputClass}><option>Telemarketer</option><option>Sales Support</option><option>Operations Support</option><option>Admin Support</option><option>Customer Service</option></select></div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-2">Position(s) *</label>
+                    <PositionMultiSelect selected={form.positions} onChange={(v) => setForm((f) => ({ ...f, positions: v }))} />
+                  </div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">First Name *</label><input type="text" required value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={form.middleName} onChange={(e) => setForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
@@ -289,6 +396,74 @@ export default function VAManagementPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Plus size={16} /> Create VA Account</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl z-10">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Pencil size={20} className="text-emerald-600" /> Edit VA - {editTarget}</h2>
+              <button onClick={() => setEditTarget(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+            </div>
+            <form onSubmit={handleEditSave} className="p-6 space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Contractor ID</label><input type="text" value={editForm.contractorId} onChange={(e) => setEditForm((f) => ({ ...f, contractorId: e.target.value }))} className={inputClass} /></div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-2">Position(s) *</label>
+                    <PositionMultiSelect selected={editForm.positions} onChange={(v) => setEditForm((f) => ({ ...f, positions: v }))} />
+                  </div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">First Name *</label><input type="text" required value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={editForm.middleName} onChange={(e) => setEditForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Suffix</label><input type="text" value={editForm.suffix} onChange={(e) => setEditForm((f) => ({ ...f, suffix: e.target.value }))} className={inputClass} placeholder="Jr., Sr., III" /></div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Contact Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone *</label><input type="text" required value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Alt Phone</label><input type="text" value={editForm.altPhone} onChange={(e) => setEditForm((f) => ({ ...f, altPhone: e.target.value }))} className={inputClass} /></div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Permanent Address</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Street</label><input type="text" value={editForm.street} onChange={(e) => setEditForm((f) => ({ ...f, street: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Subdivision</label><input type="text" value={editForm.subdivision} onChange={(e) => setEditForm((f) => ({ ...f, subdivision: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Barangay</label><input type="text" value={editForm.barangay} onChange={(e) => setEditForm((f) => ({ ...f, barangay: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">City</label><input type="text" value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Province</label><input type="text" value={editForm.province} onChange={(e) => setEditForm((f) => ({ ...f, province: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Postal Code</label><input type="text" value={editForm.postalCode} onChange={(e) => setEditForm((f) => ({ ...f, postalCode: e.target.value }))} className={inputClass} /></div>
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Temporary Address</label><input type="text" value={editForm.temporaryAddress} onChange={(e) => setEditForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={inputClass} /></div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Employment & Emergency</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={editForm.dateHired} onChange={(e) => setEditForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={editForm.currentRate} onChange={(e) => setEditForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Contact</label><input type="text" value={editForm.emergencyContact} onChange={(e) => setEditForm((f) => ({ ...f, emergencyContact: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Phone</label><input type="text" value={editForm.emergencyPhone} onChange={(e) => setEditForm((f) => ({ ...f, emergencyPhone: e.target.value }))} className={inputClass} /></div>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Bank Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
               </div>
             </form>
           </div>

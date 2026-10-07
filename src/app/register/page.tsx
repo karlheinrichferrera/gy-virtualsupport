@@ -347,18 +347,30 @@ export default function RegisterPage() {
                 <label className={labelClass}>
                   Position Applying For <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={form.position}
-                  onChange={(e) => update("position", e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Select a position</option>
-                  <option value="Telemarketer">Telemarketer</option>
-                  <option value="Sales Support">Sales Support</option>
-                  <option value="Operations Support">Operations Support</option>
-                  <option value="Admin Support">Admin Support</option>
-                  <option value="Customer Service">Customer Service</option>
-                </select>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service"].map((pos) => {
+                    const selected = form.position.split(", ").filter(Boolean);
+                    const isSelected = selected.includes(pos);
+                    return (
+                      <button
+                        key={pos}
+                        type="button"
+                        onClick={() => {
+                          const current = form.position.split(", ").filter(Boolean);
+                          const next = isSelected ? current.filter((p) => p !== pos) : [...current, pos];
+                          update("position", next.join(", "));
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        {pos}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Contractor ID</label>
