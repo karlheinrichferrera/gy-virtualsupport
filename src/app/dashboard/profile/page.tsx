@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getVAProfile, type VAProfile } from "@/lib/data";
+import * as store from "@/lib/store";
+import type { VAProfile } from "@/lib/data";
 import { User, Phone, MapPin, Briefcase, Heart } from "lucide-react";
 
 export default function ProfilePage() {
@@ -9,7 +10,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const id = localStorage.getItem("vaId") || "";
-    setProfile(getVAProfile(id) || null);
+    setProfile(store.getProfile(id) || null);
   }, []);
 
   if (!profile) return null;

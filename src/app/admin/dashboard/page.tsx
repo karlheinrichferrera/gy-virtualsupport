@@ -1,13 +1,24 @@
 "use client";
 
-import { vaProfiles, getAllInvoices, getAllLeaveRequests, pendingRegistrations } from "@/lib/data";
+import { useEffect, useState } from "react";
+import * as store from "@/lib/store";
+import type { VAProfile } from "@/lib/data";
 import { Users, FileText, CalendarDays, UserPlus, DollarSign, Clock } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
-  const allInvoices = getAllInvoices();
-  const allRequests = getAllLeaveRequests();
-  const pendingRegs = pendingRegistrations.filter((r) => r.status === "Pending");
+  const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
+  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: { status: string; amountDisbursed: string } }[]>([]);
+  const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: { id: string; type: string; reason: string; status: string } }[]>([]);
+  const [pendingRegsCount, setPendingRegsCount] = useState(0);
+
+  useEffect(() => {
+    setVaProfiles(store.getProfiles());
+    setAllInvoices(store.getAllInvoicesFlat());
+    setAllRequests(store.getAllRequestsFlat());
+    setPendingRegsCount(store.getRegistrations().filter((r) => r.status === "Pending").length);
+  }, []);
+
   const pendingInvoices = allInvoices.filter((i) => i.invoice.status === "Pending");
   const pendingRequests = allRequests.filter((r) => r.request.status === "Pending");
 
@@ -17,7 +28,7 @@ export default function AdminDashboardPage() {
 
   const stats = [
     { label: "Active VAs", value: vaProfiles.length, icon: Users, color: "bg-blue-100 text-blue-700", href: "/admin/dashboard/vas" },
-    { label: "Pending Registrations", value: pendingRegs.length, icon: UserPlus, color: "bg-purple-100 text-purple-700", href: "/admin/dashboard/registrations" },
+    { label: "Pending Registrations", value: pendingRegsCount, icon: UserPlus, color: "bg-purple-100 text-purple-700", href: "/admin/dashboard/registrations" },
     { label: "Total Invoices", value: allInvoices.length, icon: FileText, color: "bg-emerald-100 text-emerald-700", href: "/admin/dashboard/invoices" },
     { label: "Pending Invoices", value: pendingInvoices.length, icon: Clock, color: "bg-amber-100 text-amber-700", href: "/admin/dashboard/invoices" },
     { label: "Pending Requests", value: pendingRequests.length, icon: CalendarDays, color: "bg-rose-100 text-rose-700", href: "/admin/dashboard/requests" },

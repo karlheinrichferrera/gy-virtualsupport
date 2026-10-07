@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  getInvoices,
-  getVAProfile,
-  generateNextInvoiceNumber,
-  type Invoice,
-  type VAProfile,
-} from "@/lib/data";
+import * as store from "@/lib/store";
+import type { Invoice, VAProfile } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, FileText, Download, X, Eye } from "lucide-react";
 
@@ -28,8 +23,8 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     const id = localStorage.getItem("vaId") || "";
-    setInvoiceList(getInvoices(id));
-    setProfile(getVAProfile(id) || null);
+    setInvoiceList(store.getInvoicesFor(id));
+    setProfile(store.getProfile(id) || null);
   }, []);
 
   function handleCreate(e: React.FormEvent) {
@@ -42,7 +37,7 @@ export default function InvoicesPage() {
     const fee = amount * 0.01;
 
     const newInvoice: Invoice = {
-      invoiceNumber: generateNextInvoiceNumber(id),
+      invoiceNumber: store.generateNextInvoiceNumber(id),
       dateCovered: `${form.dateFrom} - ${form.dateTo}`,
       amount: `$${amount.toFixed(2)}`,
       transactionFee: `$${fee.toFixed(2)}`,
@@ -50,7 +45,8 @@ export default function InvoicesPage() {
       invoiceCopy: "",
       status: "Pending",
     };
-    setInvoiceList((prev) => [...prev, newInvoice]);
+    store.addInvoice(id, newInvoice);
+    setInvoiceList(store.getInvoicesFor(id));
     setSubmitted(true);
   }
 

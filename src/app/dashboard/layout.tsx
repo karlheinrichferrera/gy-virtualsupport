@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
-import { getVAProfile } from "@/lib/data";
+import * as store from "@/lib/store";
 
 export default function DashboardLayout({
   children,
@@ -22,7 +22,7 @@ export default function DashboardLayout({
       router.push("/");
       return;
     }
-    const profile = getVAProfile(id);
+    const profile = store.getProfile(id);
     if (!profile) {
       router.push("/");
       return;

@@ -1,37 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import { getAllLeaveRequests } from "@/lib/data";
+import { useState, useEffect } from "react";
+import * as store from "@/lib/store";
+import type { LeaveRequest } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { CalendarDays, Check, X, MessageSquare, Trash2, AlertTriangle } from "lucide-react";
 
 export default function AdminRequestsPage() {
-  const [allRequests, setAllRequests] = useState(getAllLeaveRequests());
+  const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: LeaveRequest }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [remarkModal, setRemarkModal] = useState<string | null>(null);
   const [remarkText, setRemarkText] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  function updateRequestStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
-    setAllRequests((prev) =>
-      prev.map((item) =>
-        item.request.id === id
-          ? { ...item, request: { ...item.request, status, remarks: remarks || item.request.remarks } }
-          : item
-      )
-    );
+  useEffect(() => {
+    setAllRequests(store.getAllRequestsFlat());
+  }, []);
+
+  function handleUpdateStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
+    store.updateRequestStatus(id, status, remarks);
+    setAllRequests(store.getAllRequestsFlat());
   }
 
   function handleAddRemark(id: string) {
-    setAllRequests((prev) =>
-      prev.map((item) =>
-        item.request.id === id
-          ? { ...item, request: { ...item.request, remarks: remarkText } }
-          : item
-      )
-    );
+    store.updateRequestRemarks(id, remarkText);
+    setAllRequests(store.getAllRequestsFlat());
     setRemarkModal(null);
     setRemarkText("");
+  }
+
+  function handleDelete(id: string) {
+    store.deleteRequest(id);
+    setAllRequests(store.getAllRequestsFlat());
+    setDeleteTarget(null);
   }
 
   const filtered = filterStatus === "All"
@@ -147,14 +148,14 @@ export default function AdminRequestsPage() {
                       {item.request.status === "Pending" ? (
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => updateRequestStatus(item.request.id, "Approved", "Approved by admin")}
+                            onClick={() => handleUpdateStatus(item.request.id, "Approved", "Approved by admin")}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
                           >
                             <Check size={14} />
                             Approve
                           </button>
                           <button
-                            onClick={() => updateRequestStatus(item.request.id, "Denied", "Denied by admin")}
+                            onClick={() => handleUpdateStatus(item.request.id, "Denied", "Denied by admin")}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                           >
                             <X size={14} />
@@ -163,7 +164,7 @@ export default function AdminRequestsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => updateRequestStatus(item.request.id, "Pending", "")}
+                          onClick={() => handleUpdateStatus(item.request.id, "Pending", "")}
                           className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
                         >
                           Revert
@@ -236,10 +237,7 @@ export default function AdminRequestsPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setAllRequests((prev) => prev.filter((r) => r.request.id !== deleteTarget));
-                    setDeleteTarget(null);
-                  }}
+                  onClick={() => handleDelete(deleteTarget)}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
                 >
                   <Trash2 size={16} />

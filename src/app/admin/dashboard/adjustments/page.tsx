@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { vaProfiles, getAdjustments, type SalaryAdjustment } from "@/lib/data";
+import { useState, useEffect } from "react";
+import * as store from "@/lib/store";
+import type { VAProfile, SalaryAdjustment } from "@/lib/data";
 import { DollarSign, Plus, X } from "lucide-react";
 
 export default function AdminAdjustmentsPage() {
-  const [selectedVA, setSelectedVA] = useState(vaProfiles[0]?.id || "");
-  const [adjustments, setAdjustments] = useState<Record<string, SalaryAdjustment[]>>(() => {
-    const init: Record<string, SalaryAdjustment[]> = {};
-    vaProfiles.forEach((va) => { init[va.id] = getAdjustments(va.id); });
-    return init;
-  });
+  const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
+  const [selectedVA, setSelectedVA] = useState("");
+  const [adjustments, setAdjustments] = useState<Record<string, SalaryAdjustment[]>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     effectivityDate: "",
@@ -20,6 +18,13 @@ export default function AdminAdjustmentsPage() {
     referralBonus: "",
     notes: "",
   });
+
+  useEffect(() => {
+    const profiles = store.getProfiles();
+    setVaProfiles(profiles);
+    setSelectedVA(profiles[0]?.id || "");
+    setAdjustments(store.getAllAdjustments());
+  }, []);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -31,10 +36,8 @@ export default function AdminAdjustmentsPage() {
       referralBonus: form.referralBonus || "No Adjustment",
       notes: form.notes,
     };
-    setAdjustments((prev) => ({
-      ...prev,
-      [selectedVA]: [...(prev[selectedVA] || []), newAdj],
-    }));
+    store.addAdjustment(selectedVA, newAdj);
+    setAdjustments(store.getAllAdjustments());
     setShowAdd(false);
     setForm({ effectivityDate: "", type: "", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   }

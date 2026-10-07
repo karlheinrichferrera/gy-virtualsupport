@@ -1,32 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { getAllInvoices } from "@/lib/data";
+import { useState, useEffect } from "react";
+import * as store from "@/lib/store";
+import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { FileText, Check, X, Trash2, AlertTriangle } from "lucide-react";
 
 export default function AdminInvoicesPage() {
-  const [allInvoices, setAllInvoices] = useState(getAllInvoices());
+  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: Invoice }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
+  useEffect(() => {
+    setAllInvoices(store.getAllInvoicesFlat());
+  }, []);
+
   function updateInvoiceStatus(invoiceNumber: string, status: "Paid" | "Pending" | "Draft") {
-    setAllInvoices((prev) =>
-      prev.map((item) =>
-        item.invoice.invoiceNumber === invoiceNumber
-          ? { ...item, invoice: { ...item.invoice, status } }
-          : item
-      )
-    );
+    store.updateInvoiceStatus(invoiceNumber, status);
+    setAllInvoices(store.getAllInvoicesFlat());
+  }
+
+  function handleDelete(invoiceNumber: string) {
+    store.deleteInvoice(invoiceNumber);
+    setAllInvoices(store.getAllInvoicesFlat());
+    setDeleteTarget(null);
   }
 
   const filtered = filterStatus === "All"
     ? allInvoices
     : allInvoices.filter((i) => i.invoice.status === filterStatus);
 
-  const totalAmount = allInvoices.reduce(
-    (sum, i) => sum + parseFloat(i.invoice.amount.replace("$", "") || "0"), 0
-  );
   const totalDisbursed = allInvoices
     .filter((i) => i.invoice.status === "Paid")
     .reduce((sum, i) => sum + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
@@ -158,10 +161,7 @@ export default function AdminInvoicesPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setAllInvoices((prev) => prev.filter((i) => i.invoice.invoiceNumber !== deleteTarget));
-                    setDeleteTarget(null);
-                  }}
+                  onClick={() => handleDelete(deleteTarget)}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
                 >
                   <Trash2 size={16} />

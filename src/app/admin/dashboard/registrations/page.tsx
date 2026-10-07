@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { pendingRegistrations, type PendingRegistration } from "@/lib/data";
+import { useState, useEffect } from "react";
+import * as store from "@/lib/store";
+import type { PendingRegistration } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { UserPlus, Check, X } from "lucide-react";
 
 export default function RegistrationsPage() {
-  const [regs, setRegs] = useState<PendingRegistration[]>(pendingRegistrations);
+  const [regs, setRegs] = useState<PendingRegistration[]>([]);
+
+  useEffect(() => {
+    setRegs(store.getRegistrations());
+  }, []);
 
   function updateStatus(id: string, status: "Approved" | "Denied") {
-    setRegs((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status } : r))
-    );
+    store.updateRegistrationStatus(id, status);
+    setRegs(store.getRegistrations());
   }
 
   return (

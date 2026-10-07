@@ -12,13 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import {
-  getVAProfile,
-  getInvoices,
-  getLeaveRequests,
-  getAdjustments,
-  type VAProfile,
-} from "@/lib/data";
+import * as store from "@/lib/store";
+import type { VAProfile } from "@/lib/data";
 
 export default function DashboardHome() {
   const [profile, setProfile] = useState<VAProfile | null>(null);
@@ -34,13 +29,13 @@ export default function DashboardHome() {
 
   useEffect(() => {
     const id = localStorage.getItem("vaId") || "";
-    const p = getVAProfile(id);
+    const p = store.getProfile(id);
     if (!p) return;
     setProfile(p);
 
-    const inv = getInvoices(id);
-    const requests = getLeaveRequests(id);
-    const adjustments = getAdjustments(id);
+    const inv = store.getInvoicesFor(id);
+    const requests = store.getRequestsFor(id);
+    const adjustments = store.getAdjustmentsFor(id);
     const paid = inv.filter((i) => i.status === "Paid");
     const pending = inv.filter((i) => i.status === "Pending");
     const totalEarned = paid.reduce((sum, i) => {

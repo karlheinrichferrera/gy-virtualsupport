@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { vaProfiles } from "@/lib/data";
+import * as store from "@/lib/store";
 import { LogIn, Shield } from "lucide-react";
 
 export default function LoginPage() {
@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const profile = vaProfiles.find((v) => v.id === vaId);
+    const profile = store.getProfile(vaId);
     if (!profile) {
       setError("VA ID not found. Please check and try again.");
       return;
