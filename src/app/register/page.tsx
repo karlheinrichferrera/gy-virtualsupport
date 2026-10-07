@@ -53,9 +53,14 @@ export default function RegisterPage() {
         setError("Please fill in all required fields.");
         return;
       }
-      const existing = await actions.getProfile(form.vaId);
-      if (existing) {
-        setError("This VA ID is already taken. Please choose a different one.");
+      try {
+        const existing = await actions.getProfile(form.vaId);
+        if (existing) {
+          setError("This VA ID is already taken. Please choose a different one.");
+          return;
+        }
+      } catch {
+        setError("Could not verify VA ID. Please try again.");
         return;
       }
       setStep(2);
@@ -117,8 +122,12 @@ export default function RegisterPage() {
         bankAccountNumber: form.bankAccountNumber,
         bankAccountName: form.bankAccountName,
       };
-      await actions.addProfile(newVA);
-      setSuccess(true);
+      try {
+        await actions.addProfile(newVA);
+        setSuccess(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      }
     }
   }
 

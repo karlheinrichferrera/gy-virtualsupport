@@ -16,6 +16,8 @@ export default function RequestsPage() {
     dateTo: "",
     reason: "",
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -26,26 +28,34 @@ export default function RequestsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const id = localStorage.getItem("vaId") || "";
-    const reqId = await actions.generateNextRequestId();
-    const newReq: LeaveRequest = {
-      id: reqId,
-      type: form.type,
-      dateSubmitted: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      dateFrom: form.dateFrom,
-      dateTo: form.dateTo,
-      reason: form.reason,
-      status: "Pending",
-      remarks: "",
-    };
-    await actions.addRequest(id, newReq);
-    const updated = await actions.getRequestsFor(id);
-    setRequests(updated);
-    setSubmitted(true);
+    setSubmitting(true);
+    setError("");
+    try {
+      const id = localStorage.getItem("vaId") || "";
+      const reqId = await actions.generateNextRequestId();
+      const newReq: LeaveRequest = {
+        id: reqId,
+        type: form.type,
+        dateSubmitted: new Date().toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        dateFrom: form.dateFrom,
+        dateTo: form.dateTo,
+        reason: form.reason,
+        status: "Pending",
+        remarks: "",
+      };
+      await actions.addRequest(id, newReq);
+      const updated = await actions.getRequestsFor(id);
+      setRequests(updated);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const inputClass =
@@ -293,6 +303,12 @@ export default function RequestsPage() {
                   />
                 </div>
 
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {error}
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
@@ -303,10 +319,11 @@ export default function RequestsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    disabled={submitting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <Send size={16} />
-                    Submit Request
+                    {submitting ? "Submitting..." : "Submit Request"}
                   </button>
                 </div>
               </form>

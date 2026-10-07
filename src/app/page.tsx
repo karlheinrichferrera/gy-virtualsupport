@@ -13,18 +13,22 @@ export default function LoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const profile = await actions.getProfile(vaId);
-    if (!profile) {
-      setError("VA ID not found. Please check and try again.");
-      return;
+    try {
+      const profile = await actions.getProfile(vaId);
+      if (!profile) {
+        setError("VA ID not found. Please check and try again.");
+        return;
+      }
+      const storedPassword = profile.password || "gyva2026";
+      if (password !== storedPassword) {
+        setError("Invalid password.");
+        return;
+      }
+      localStorage.setItem("vaId", vaId);
+      router.push("/dashboard");
+    } catch {
+      setError("Unable to connect. Please try again.");
     }
-    const storedPassword = profile.password || "gyva2026";
-    if (password !== storedPassword) {
-      setError("Invalid password.");
-      return;
-    }
-    localStorage.setItem("vaId", vaId);
-    router.push("/dashboard");
   }
 
   return (
