@@ -167,7 +167,7 @@ export default function RegisterPage() {
                     value={form.firstName}
                     onChange={(e) => update("firstName", e.target.value)}
                     className={inputClass}
-                    placeholder="Domingo"
+                    placeholder="Juan"
                   />
                 </div>
                 <div>
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                     value={form.middleName}
                     onChange={(e) => update("middleName", e.target.value)}
                     className={inputClass}
-                    placeholder="Munar"
+                    placeholder="Dela"
                   />
                 </div>
               </div>
@@ -191,7 +191,7 @@ export default function RegisterPage() {
                     value={form.lastName}
                     onChange={(e) => update("lastName", e.target.value)}
                     className={inputClass}
-                    placeholder="Soltes"
+                    placeholder="Cruz"
                   />
                 </div>
                 <div>
@@ -214,7 +214,7 @@ export default function RegisterPage() {
                   value={form.email}
                   onChange={(e) => update("email", e.target.value)}
                   className={inputClass}
-                  placeholder="you@email.com"
+                  placeholder="juan.delacruz@email.com"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -255,7 +255,7 @@ export default function RegisterPage() {
                   value={form.street}
                   onChange={(e) => update("street", e.target.value)}
                   className={inputClass}
-                  placeholder="Phase 2, Blk 1 Lot 6"
+                  placeholder="Blk 5 Lot 10"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -266,7 +266,7 @@ export default function RegisterPage() {
                     value={form.subdivision}
                     onChange={(e) => update("subdivision", e.target.value)}
                     className={inputClass}
-                    placeholder="Eco Verde Homes"
+                    placeholder="Sampaguita Village"
                   />
                 </div>
                 <div>
@@ -276,7 +276,7 @@ export default function RegisterPage() {
                     value={form.barangay}
                     onChange={(e) => update("barangay", e.target.value)}
                     className={inputClass}
-                    placeholder="Santo Nino"
+                    placeholder="San Isidro"
                   />
                 </div>
               </div>
@@ -290,7 +290,7 @@ export default function RegisterPage() {
                     value={form.city}
                     onChange={(e) => update("city", e.target.value)}
                     className={inputClass}
-                    placeholder="San Pascual"
+                    placeholder="Quezon City"
                   />
                 </div>
                 <div>
@@ -302,7 +302,7 @@ export default function RegisterPage() {
                     value={form.province}
                     onChange={(e) => update("province", e.target.value)}
                     className={inputClass}
-                    placeholder="Batangas"
+                    placeholder="Metro Manila"
                   />
                 </div>
                 <div>
@@ -312,7 +312,7 @@ export default function RegisterPage() {
                     value={form.postalCode}
                     onChange={(e) => update("postalCode", e.target.value)}
                     className={inputClass}
-                    placeholder="4204"
+                    placeholder="1100"
                   />
                 </div>
               </div>
@@ -324,7 +324,7 @@ export default function RegisterPage() {
                     value={form.emergencyContact}
                     onChange={(e) => update("emergencyContact", e.target.value)}
                     className={inputClass}
-                    placeholder="Full name"
+                    placeholder="Maria Reyes"
                   />
                 </div>
                 <div>
@@ -334,7 +334,7 @@ export default function RegisterPage() {
                     value={form.emergencyPhone}
                     onChange={(e) => update("emergencyPhone", e.target.value)}
                     className={inputClass}
-                    placeholder="(+63) 917 123 4567"
+                    placeholder="(+63) 9XX XXX XXXX"
                   />
                 </div>
               </div>
