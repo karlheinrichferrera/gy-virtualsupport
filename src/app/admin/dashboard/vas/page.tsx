@@ -434,8 +434,8 @@ export default function VAManagementPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={form.dateHired} onChange={(e) => setForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} placeholder="e.g. October 07, 2026" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate *</label><input type="text" required value={form.currentRate} onChange={(e) => setForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} placeholder="$X.XX / Hour" /></div>
-                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Contact *</label><input type="text" required value={form.emergencyContact} onChange={(e) => setForm((f) => ({ ...f, emergencyContact: e.target.value }))} className={inputClass} /></div>
-                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Phone *</label><input type="text" required value={form.emergencyPhone} onChange={(e) => setForm((f) => ({ ...f, emergencyPhone: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Contact</label><input type="text" value={form.emergencyContact} onChange={(e) => setForm((f) => ({ ...f, emergencyContact: e.target.value }))} className={inputClass} /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Phone</label><input type="text" value={form.emergencyPhone} onChange={(e) => setForm((f) => ({ ...f, emergencyPhone: e.target.value }))} className={inputClass} /></div>
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
