@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Shield, UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import * as store from "@/lib/store";
-import type { PendingRegistration } from "@/lib/data";
+import type { VAProfile } from "@/lib/data";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -36,6 +36,7 @@ export default function RegisterPage() {
     bankAccountName: "",
   });
   const [error, setError] = useState("");
+  const [generatedId, setGeneratedId] = useState("");
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -69,23 +70,44 @@ export default function RegisterPage() {
         setError("Password must be at least 6 characters.");
         return;
       }
-      const regs = store.getRegistrations();
-      const nextId = `REG-${String(regs.length + 1).padStart(3, "0")}`;
-      const newReg: PendingRegistration = {
+      const profiles = store.getProfiles();
+      const ids = profiles.map((v) => parseInt(v.id));
+      const nextId = String(Math.max(...ids, 500100) + 1);
+      const newVA: VAProfile = {
         id: nextId,
         firstName: form.firstName,
+        middleName: form.middleName,
         lastName: form.lastName,
-        email: form.email,
+        suffix: form.suffix,
         phone: form.phone,
+        altPhone: form.altPhone || "N/A",
+        email: form.email,
+        permanentAddress: {
+          street: form.street,
+          subdivision: form.subdivision,
+          barangay: form.barangay,
+          city: form.city,
+          province: form.province,
+          postalCode: form.postalCode,
+        },
+        temporaryAddress: "Same as permanent address",
         position: form.position,
-        dateApplied: new Date().toLocaleDateString("en-US", {
+        dateHired: new Date().toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
           day: "numeric",
         }),
-        status: "Pending",
+        currentRate: "TBD",
+        emergencyContact: form.emergencyContact,
+        emergencyPhone: form.emergencyPhone,
+        password: form.password,
+        contractorId: form.contractorId,
+        bankName: form.bankName,
+        bankAccountNumber: form.bankAccountNumber,
+        bankAccountName: form.bankAccountName,
       };
-      store.saveRegistrations([...regs, newReg]);
+      store.addProfile(newVA);
+      setGeneratedId(nextId);
       setSuccess(true);
     }
   }
@@ -102,14 +124,17 @@ export default function RegisterPage() {
             <UserPlus className="text-emerald-600" size={32} />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Registration Submitted!
+            Registration Successful!
           </h2>
           <p className="text-slate-600 mb-2">
-            Your account request has been submitted for admin review. You will
-            receive your VA ID once approved.
+            Your account has been created. You can now log in using your VA ID and password.
           </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+            <p className="text-sm text-blue-700 font-medium">Your VA ID</p>
+            <p className="text-2xl font-bold text-blue-900">{generatedId}</p>
+          </div>
           <p className="text-sm text-slate-500 mb-6">
-            Submitted name: <strong>{form.firstName} {form.lastName}</strong>
+            Name: <strong>{form.firstName} {form.lastName}</strong>
           </p>
           <Link
             href="/"
