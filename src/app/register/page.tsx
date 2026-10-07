@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import * as store from "@/lib/store";
+import type { PendingRegistration } from "@/lib/data";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -63,6 +65,23 @@ export default function RegisterPage() {
         setError("Password must be at least 6 characters.");
         return;
       }
+      const regs = store.getRegistrations();
+      const nextId = `REG-${String(regs.length + 1).padStart(3, "0")}`;
+      const newReg: PendingRegistration = {
+        id: nextId,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        position: form.position,
+        dateApplied: new Date().toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        status: "Pending",
+      };
+      store.saveRegistrations([...regs, newReg]);
       setSuccess(true);
     }
   }
