@@ -9,13 +9,11 @@ import {
   CalendarDays,
   LayoutDashboard,
   LogOut,
-  UserPlus,
 } from "lucide-react";
 
 const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/dashboard/vas", label: "VA Management", icon: Users },
-  { href: "/admin/dashboard/registrations", label: "Registrations", icon: UserPlus },
   { href: "/admin/dashboard/adjustments", label: "Salary Adjustments", icon: DollarSign },
   { href: "/admin/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
