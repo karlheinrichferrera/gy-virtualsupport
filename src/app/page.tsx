@@ -93,6 +93,11 @@ export default function LoginPage() {
               Create an account
             </a>
           </p>
+          <p className="text-center text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+            <a href="/admin" className="text-slate-500 hover:text-blue-600 hover:underline transition-colors">
+              Admin Login
+            </a>
+          </p>
         </form>
       </div>
     </div>

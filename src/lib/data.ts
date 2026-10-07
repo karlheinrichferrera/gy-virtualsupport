@@ -320,3 +320,63 @@ export function generateNextInvoiceNumber(id: string): string {
   const lastNum = existing.length;
   return `${id}-${String(lastNum + 1).padStart(3, "0")}`;
 }
+
+export interface PendingRegistration {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  position: string;
+  dateApplied: string;
+  status: "Pending" | "Approved" | "Denied";
+}
+
+export const pendingRegistrations: PendingRegistration[] = [
+  {
+    id: "REG-001",
+    firstName: "Anna",
+    lastName: "Reyes",
+    email: "anna.reyes@gmail.com",
+    phone: "(+63) 923 456 7890",
+    position: "Telemarketer",
+    dateApplied: "October 01, 2026",
+    status: "Pending",
+  },
+  {
+    id: "REG-002",
+    firstName: "Carlos",
+    lastName: "Mendoza",
+    email: "carlos.m@gmail.com",
+    phone: "(+63) 935 678 1234",
+    position: "Admin Support",
+    dateApplied: "October 03, 2026",
+    status: "Pending",
+  },
+];
+
+export function getAllInvoices(): { vaId: string; vaName: string; invoice: Invoice }[] {
+  const result: { vaId: string; vaName: string; invoice: Invoice }[] = [];
+  for (const [vaId, invList] of Object.entries(invoices)) {
+    const profile = getVAProfile(vaId);
+    const vaName = profile ? `${profile.firstName} ${profile.lastName}` : vaId;
+    for (const inv of invList) {
+      if (inv.invoiceNumber && inv.amount) {
+        result.push({ vaId, vaName, invoice: inv });
+      }
+    }
+  }
+  return result;
+}
+
+export function getAllLeaveRequests(): { vaId: string; vaName: string; request: LeaveRequest }[] {
+  const result: { vaId: string; vaName: string; request: LeaveRequest }[] = [];
+  for (const [vaId, reqList] of Object.entries(leaveRequests)) {
+    const profile = getVAProfile(vaId);
+    const vaName = profile ? `${profile.firstName} ${profile.lastName}` : vaId;
+    for (const req of reqList) {
+      result.push({ vaId, vaName, request: req });
+    }
+  }
+  return result;
+}
