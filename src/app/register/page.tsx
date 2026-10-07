@@ -348,7 +348,7 @@ export default function RegisterPage() {
                   Position Applying For <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service"].map((pos) => {
+                  {["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"].map((pos) => {
                     const selected = form.position.split(", ").filter(Boolean);
                     const isSelected = selected.includes(pos);
                     return (

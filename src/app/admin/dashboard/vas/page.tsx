@@ -5,7 +5,7 @@ import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
 import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart } from "lucide-react";
 
-const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service"];
+const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 
 function PositionMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   function toggle(pos: string) {
