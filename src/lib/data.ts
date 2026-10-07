@@ -256,15 +256,6 @@ export const invoices: Record<string, Invoice[]> = {
       invoiceCopy: "",
       status: "Paid",
     },
-    {
-      invoiceNumber: "500102-009",
-      dateCovered: "",
-      amount: "",
-      transactionFee: "",
-      amountDisbursed: "$0.00",
-      invoiceCopy: "",
-      status: "",
-    },
   ],
   "500103": [
     {
