@@ -31,6 +31,10 @@ export default function RegisterPage() {
     emergencyContact: "",
     emergencyPhone: "",
     contractorId: "",
+    payoutMode: "",
+    paypalLink: "",
+    ewalletName: "",
+    ewalletNumber: "",
     bankName: "",
     bankAccountNumber: "",
     bankAccountName: "",
@@ -105,6 +109,10 @@ export default function RegisterPage() {
         emergencyPhone: form.emergencyPhone,
         password: form.password,
         contractorId: form.contractorId,
+        payoutMode: form.payoutMode,
+        paypalLink: form.paypalLink,
+        ewalletName: form.ewalletName,
+        ewalletNumber: form.ewalletNumber,
         bankName: form.bankName,
         bankAccountNumber: form.bankAccountNumber,
         bankAccountName: form.bankAccountName,
@@ -459,40 +467,64 @@ export default function RegisterPage() {
                 </div>
               </div>
               <div className="border-t border-slate-200 pt-4 mt-2">
-                <p className="text-sm font-medium text-slate-700 mb-3">Bank Information</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">Payout Information</p>
                 <div className="space-y-3">
                   <div>
-                    <label className={labelClass}>Bank Name</label>
-                    <input
-                      type="text"
-                      value={form.bankName}
-                      onChange={(e) => update("bankName", e.target.value)}
+                    <label className={labelClass}>Mode of Payout</label>
+                    <select
+                      value={form.payoutMode}
+                      onChange={(e) => update("payoutMode", e.target.value)}
                       className={inputClass}
-                      placeholder="e.g. BDO, BPI, Metrobank"
-                    />
+                    >
+                      <option value="">Select payout mode</option>
+                      <option value="Paypal">Paypal</option>
+                      <option value="Wise">Wise</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Ewallet">Ewallet</option>
+                    </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  {form.payoutMode === "Paypal" && (
                     <div>
-                      <label className={labelClass}>Account Number</label>
-                      <input
-                        type="text"
-                        value={form.bankAccountNumber}
-                        onChange={(e) => update("bankAccountNumber", e.target.value)}
-                        className={inputClass}
-                        placeholder="Account number"
-                      />
+                      <label className={labelClass}>PayPal Link</label>
+                      <input type="text" value={form.paypalLink} onChange={(e) => update("paypalLink", e.target.value)} className={inputClass} placeholder="e.g. paypal.me/username" />
                     </div>
-                    <div>
-                      <label className={labelClass}>Account Name</label>
-                      <input
-                        type="text"
-                        value={form.bankAccountName}
-                        onChange={(e) => update("bankAccountName", e.target.value)}
-                        className={inputClass}
-                        placeholder="Name on account"
-                      />
+                  )}
+                  {form.payoutMode === "Ewallet" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>EWallet Name</label>
+                        <select value={form.ewalletName} onChange={(e) => update("ewalletName", e.target.value)} className={inputClass}>
+                          <option value="">Select ewallet</option>
+                          <option value="Gcash">Gcash</option>
+                          <option value="Maya">Maya</option>
+                          <option value="Maribank">Maribank</option>
+                          <option value="GoTyme">GoTyme</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>EWallet Number</label>
+                        <input type="text" value={form.ewalletNumber} onChange={(e) => update("ewalletNumber", e.target.value)} className={inputClass} placeholder="e.g. 09XX XXX XXXX" />
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {form.payoutMode === "Bank Transfer" && (
+                    <>
+                      <div>
+                        <label className={labelClass}>Bank Name</label>
+                        <input type="text" value={form.bankName} onChange={(e) => update("bankName", e.target.value)} className={inputClass} placeholder="e.g. BDO, BPI, Metrobank" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelClass}>Account Number</label>
+                          <input type="text" value={form.bankAccountNumber} onChange={(e) => update("bankAccountNumber", e.target.value)} className={inputClass} placeholder="Account number" />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Account Name</label>
+                          <input type="text" value={form.bankAccountName} onChange={(e) => update("bankAccountName", e.target.value)} className={inputClass} placeholder="Name on account" />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </>

@@ -25,6 +25,10 @@ export interface VAProfile {
   emergencyPhone: string;
   password: string;
   contractorId: string;
+  payoutMode: string;
+  paypalLink: string;
+  ewalletName: string;
+  ewalletNumber: string;
   bankName: string;
   bankAccountNumber: string;
   bankAccountName: string;
@@ -88,6 +92,10 @@ export const vaProfiles: VAProfile[] = [
     emergencyPhone: "(+63) 917 123 4567",
     password: "gyva2026",
     contractorId: "CTR-2020-0102",
+    payoutMode: "Bank Transfer",
+    paypalLink: "",
+    ewalletName: "",
+    ewalletNumber: "",
     bankName: "BDO Unibank",
     bankAccountNumber: "001234567890",
     bankAccountName: "Domingo M. Soltes Jr.",
@@ -119,6 +127,10 @@ export const vaProfiles: VAProfile[] = [
     emergencyPhone: "(+63) 918 765 4321",
     password: "gyva2026",
     contractorId: "CTR-2021-0103",
+    payoutMode: "Bank Transfer",
+    paypalLink: "",
+    ewalletName: "",
+    ewalletNumber: "",
     bankName: "BPI",
     bankAccountNumber: "9876543210",
     bankAccountName: "Maria C. Santos",

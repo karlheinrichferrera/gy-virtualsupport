@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
-import { User, Phone, MapPin, Briefcase, Heart, KeyRound, CreditCard, Pencil, Save, X } from "lucide-react";
+import { User, Phone, MapPin, Briefcase, Heart, KeyRound, CreditCard, Pencil, Save, X, Wallet } from "lucide-react";
+
+const PAYOUT_MODE_OPTIONS = ["Paypal", "Wise", "Bank Transfer", "Ewallet"];
+const EWALLET_NAME_OPTIONS = ["Gcash", "Maya", "Maribank", "GoTyme"];
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<VAProfile | null>(null);
@@ -16,6 +19,7 @@ export default function ProfilePage() {
     street: "", subdivision: "", barangay: "", city: "", province: "", postalCode: "",
     temporaryAddress: "",
     emergencyContact: "", emergencyPhone: "",
+    payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
 
@@ -31,6 +35,8 @@ export default function ProfilePage() {
         province: p.permanentAddress.province, postalCode: p.permanentAddress.postalCode,
         temporaryAddress: p.temporaryAddress,
         emergencyContact: p.emergencyContact, emergencyPhone: p.emergencyPhone,
+        payoutMode: p.payoutMode || "", paypalLink: p.paypalLink || "",
+        ewalletName: p.ewalletName || "", ewalletNumber: p.ewalletNumber || "",
         bankName: p.bankName || "", bankAccountNumber: p.bankAccountNumber || "",
         bankAccountName: p.bankAccountName || "",
       });
@@ -72,6 +78,8 @@ export default function ProfilePage() {
       },
       temporaryAddress: editForm.temporaryAddress,
       emergencyContact: editForm.emergencyContact, emergencyPhone: editForm.emergencyPhone,
+      payoutMode: editForm.payoutMode, paypalLink: editForm.paypalLink,
+      ewalletName: editForm.ewalletName, ewalletNumber: editForm.ewalletNumber,
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
     });
@@ -139,10 +147,24 @@ export default function ProfilePage() {
             <div><span className="text-xs text-muted uppercase tracking-wide">Contact Number</span><input type="text" value={editForm.emergencyPhone} onChange={(e) => setEditForm((f) => ({ ...f, emergencyPhone: e.target.value }))} className={inputClass} /></div>
           </Section>
 
-          <Section icon={CreditCard} title="Bank Information">
-            <div><span className="text-xs text-muted uppercase tracking-wide">Bank Name</span><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
-            <div><span className="text-xs text-muted uppercase tracking-wide">Account Number</span><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
-            <div><span className="text-xs text-muted uppercase tracking-wide">Account Name</span><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+          <Section icon={Wallet} title="Payout Information">
+            <div><span className="text-xs text-muted uppercase tracking-wide">Mode of Payout</span><select value={editForm.payoutMode} onChange={(e) => setEditForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
+            {editForm.payoutMode === "Paypal" && (
+              <div><span className="text-xs text-muted uppercase tracking-wide">PayPal Link</span><input type="text" value={editForm.paypalLink} onChange={(e) => setEditForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
+            )}
+            {editForm.payoutMode === "Ewallet" && (
+              <>
+                <div><span className="text-xs text-muted uppercase tracking-wide">EWallet Name</span><select value={editForm.ewalletName} onChange={(e) => setEditForm((f) => ({ ...f, ewalletName: e.target.value }))} className={inputClass}><option value="">Select ewallet</option>{EWALLET_NAME_OPTIONS.map((n) => (<option key={n} value={n}>{n}</option>))}</select></div>
+                <div><span className="text-xs text-muted uppercase tracking-wide">EWallet Number</span><input type="text" value={editForm.ewalletNumber} onChange={(e) => setEditForm((f) => ({ ...f, ewalletNumber: e.target.value }))} className={inputClass} placeholder="e.g. 09XX XXX XXXX" /></div>
+              </>
+            )}
+            {editForm.payoutMode === "Bank Transfer" && (
+              <>
+                <div><span className="text-xs text-muted uppercase tracking-wide">Bank Name</span><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                <div><span className="text-xs text-muted uppercase tracking-wide">Account Number</span><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
+                <div><span className="text-xs text-muted uppercase tracking-wide">Account Name</span><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+              </>
+            )}
           </Section>
 
           <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
@@ -229,10 +251,24 @@ export default function ProfilePage() {
               <Field label="Current Rate" value={profile.currentRate} />
             </Section>
 
-            <Section icon={CreditCard} title="Bank Information">
-              <Field label="Bank Name" value={profile.bankName || "N/A"} />
-              <Field label="Account Number" value={profile.bankAccountNumber || "N/A"} />
-              <Field label="Account Name" value={profile.bankAccountName || "N/A"} />
+            <Section icon={Wallet} title="Payout Information">
+              <Field label="Mode of Payout" value={profile.payoutMode || "N/A"} />
+              {profile.payoutMode === "Paypal" && (
+                <Field label="PayPal Link" value={profile.paypalLink || "N/A"} />
+              )}
+              {profile.payoutMode === "Ewallet" && (
+                <>
+                  <Field label="EWallet Name" value={profile.ewalletName || "N/A"} />
+                  <Field label="EWallet Number" value={profile.ewalletNumber || "N/A"} />
+                </>
+              )}
+              {profile.payoutMode === "Bank Transfer" && (
+                <>
+                  <Field label="Bank Name" value={profile.bankName || "N/A"} />
+                  <Field label="Account Number" value={profile.bankAccountNumber || "N/A"} />
+                  <Field label="Account Name" value={profile.bankAccountName || "N/A"} />
+                </>
+              )}
             </Section>
 
             <Section icon={Heart} title="Emergency Contact">

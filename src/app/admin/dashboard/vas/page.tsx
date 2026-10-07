@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
+const PAYOUT_MODE_OPTIONS = ["Paypal", "Wise", "Bank Transfer", "Ewallet"];
+const EWALLET_NAME_OPTIONS = ["Gcash", "Maya", "Maribank", "GoTyme"];
 
 function PositionMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   function toggle(pos: string) {
@@ -56,6 +58,7 @@ function downloadVAInfo(vaList: VAProfile[]) {
     "Phone", "Alt Phone", "Email", "Position", "Employment Status", "Date Hired", "Current Rate",
     "Contractor ID", "Street", "Subdivision", "Barangay", "City", "Province",
     "Postal Code", "Temporary Address", "Emergency Contact", "Emergency Phone",
+    "Payout Mode", "PayPal Link", "EWallet Name", "EWallet Number",
     "Bank Name", "Bank Account Number", "Bank Account Name",
   ];
   const rows = vaList.map((va) => [
@@ -65,6 +68,7 @@ function downloadVAInfo(vaList: VAProfile[]) {
     va.permanentAddress.barangay, va.permanentAddress.city, va.permanentAddress.province,
     va.permanentAddress.postalCode, va.temporaryAddress,
     va.emergencyContact, va.emergencyPhone,
+    va.payoutMode || "", va.paypalLink || "", va.ewalletName || "", va.ewalletNumber || "",
     va.bankName || "", va.bankAccountNumber || "", va.bankAccountName || "",
   ].map(escapeCsv).join(","));
 
@@ -92,6 +96,8 @@ export default function VAManagementPage() {
     temporaryAddress: "", positions: ["Telemarketer"] as string[], employmentStatus: "Probationary Hire",
     dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
     contractorId: "",
+    payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
+    bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
@@ -100,6 +106,7 @@ export default function VAManagementPage() {
     temporaryAddress: "", positions: [] as string[], employmentStatus: "",
     dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
     contractorId: "",
+    payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
 
@@ -135,9 +142,13 @@ export default function VAManagementPage() {
       emergencyPhone: form.emergencyPhone,
       password: "gyva2026",
       contractorId: form.contractorId,
-      bankName: "",
-      bankAccountNumber: "",
-      bankAccountName: "",
+      payoutMode: form.payoutMode,
+      paypalLink: form.paypalLink,
+      ewalletName: form.ewalletName,
+      ewalletNumber: form.ewalletNumber,
+      bankName: form.bankName,
+      bankAccountNumber: form.bankAccountNumber,
+      bankAccountName: form.bankAccountName,
     };
     store.addProfile(newVA);
     setVAs(store.getProfiles());
@@ -149,6 +160,8 @@ export default function VAManagementPage() {
       temporaryAddress: "", positions: ["Telemarketer"], employmentStatus: "Probationary Hire",
       dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
       contractorId: "",
+      payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
+      bankName: "", bankAccountNumber: "", bankAccountName: "",
     });
   }
 
@@ -166,6 +179,8 @@ export default function VAManagementPage() {
       positions, employmentStatus: va.employmentStatus || "", dateHired: va.dateHired, currentRate: va.currentRate,
       emergencyContact: va.emergencyContact, emergencyPhone: va.emergencyPhone,
       contractorId: va.contractorId,
+      payoutMode: va.payoutMode || "", paypalLink: va.paypalLink || "",
+      ewalletName: va.ewalletName || "", ewalletNumber: va.ewalletNumber || "",
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
       bankAccountName: va.bankAccountName || "",
     });
@@ -191,6 +206,8 @@ export default function VAManagementPage() {
       dateHired: editForm.dateHired, currentRate: editForm.currentRate,
       emergencyContact: editForm.emergencyContact, emergencyPhone: editForm.emergencyPhone,
       contractorId: editForm.contractorId,
+      payoutMode: editForm.payoutMode, paypalLink: editForm.paypalLink,
+      ewalletName: editForm.ewalletName, ewalletNumber: editForm.ewalletNumber,
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
     });
@@ -348,10 +365,31 @@ export default function VAManagementPage() {
                   <div><p className="text-slate-500">Temporary Address</p><p className="font-medium text-slate-900">{profile.temporaryAddress}</p></div>
                 </div>
               )}
-              <div className="text-sm pt-2 border-t border-slate-100 grid grid-cols-2 gap-4">
-                <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
-                <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
-                <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+              <div className="text-sm pt-2 border-t border-slate-100 space-y-3">
+                <div className="flex items-start gap-2"><Wallet size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Payout Mode</p><p className="font-medium text-slate-900">{profile.payoutMode || "N/A"}</p></div></div>
+                {profile.payoutMode === "Paypal" && (
+                  <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">PayPal Link</p><p className="font-medium text-slate-900">{profile.paypalLink || "N/A"}</p></div></div>
+                )}
+                {profile.payoutMode === "Ewallet" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">EWallet Name</p><p className="font-medium text-slate-900">{profile.ewalletName || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">EWallet Number</p><p className="font-medium text-slate-900">{profile.ewalletNumber || "N/A"}</p></div></div>
+                  </div>
+                )}
+                {profile.payoutMode === "Bank Transfer" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+                  </div>
+                )}
+                {(!profile.payoutMode || profile.payoutMode === "Wise") && profile.payoutMode !== "Paypal" && profile.payoutMode !== "Ewallet" && profile.payoutMode !== "Bank Transfer" && profile.bankName && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+                  </div>
+                )}
               </div>
               <div className="text-sm pt-2 border-t border-slate-100">
                 <div className="flex items-start gap-2"><Heart size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Emergency Contact</p><p className="font-medium text-slate-900">{profile.emergencyContact} - {profile.emergencyPhone}</p></div></div>
@@ -455,6 +493,28 @@ export default function VAManagementPage() {
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Phone</label><input type="text" value={form.emergencyPhone} onChange={(e) => setForm((f) => ({ ...f, emergencyPhone: e.target.value }))} className={inputClass} /></div>
                 </div>
               </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Payout Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={form.payoutMode} onChange={(e) => setForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
+                  {form.payoutMode === "Paypal" && (
+                    <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={form.paypalLink} onChange={(e) => setForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
+                  )}
+                  {form.payoutMode === "Ewallet" && (
+                    <>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">EWallet Name</label><select value={form.ewalletName} onChange={(e) => setForm((f) => ({ ...f, ewalletName: e.target.value }))} className={inputClass}><option value="">Select ewallet</option>{EWALLET_NAME_OPTIONS.map((n) => (<option key={n} value={n}>{n}</option>))}</select></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">EWallet Number</label><input type="text" value={form.ewalletNumber} onChange={(e) => setForm((f) => ({ ...f, ewalletNumber: e.target.value }))} className={inputClass} placeholder="e.g. 09XX XXX XXXX" /></div>
+                    </>
+                  )}
+                  {form.payoutMode === "Bank Transfer" && (
+                    <>
+                      <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={form.bankAccountNumber} onChange={(e) => setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={form.bankAccountName} onChange={(e) => setForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Plus size={16} /> Create VA Account</button>
@@ -518,11 +578,25 @@ export default function VAManagementPage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Bank Information</h3>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Payout Information</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
-                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
-                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={editForm.payoutMode} onChange={(e) => setEditForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
+                  {editForm.payoutMode === "Paypal" && (
+                    <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={editForm.paypalLink} onChange={(e) => setEditForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
+                  )}
+                  {editForm.payoutMode === "Ewallet" && (
+                    <>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">EWallet Name</label><select value={editForm.ewalletName} onChange={(e) => setEditForm((f) => ({ ...f, ewalletName: e.target.value }))} className={inputClass}><option value="">Select ewallet</option>{EWALLET_NAME_OPTIONS.map((n) => (<option key={n} value={n}>{n}</option>))}</select></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">EWallet Number</label><input type="text" value={editForm.ewalletNumber} onChange={(e) => setEditForm((f) => ({ ...f, ewalletNumber: e.target.value }))} className={inputClass} placeholder="e.g. 09XX XXX XXXX" /></div>
+                    </>
+                  )}
+                  {editForm.payoutMode === "Bank Transfer" && (
+                    <>
+                      <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
+                      <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
