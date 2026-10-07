@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { getAllInvoices } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
-import { FileText, Check, X } from "lucide-react";
+import { FileText, Check, X, Trash2, AlertTriangle } from "lucide-react";
 
 export default function AdminInvoicesPage() {
   const [allInvoices, setAllInvoices] = useState(getAllInvoices());
   const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   function updateInvoiceStatus(invoiceNumber: string, status: "Paid" | "Pending" | "Draft") {
     setAllInvoices((prev) =>
@@ -108,8 +109,8 @@ export default function AdminInvoicesPage() {
                     <StatusBadge status={item.invoice.status} />
                   </td>
                   <td className="px-6 py-4 text-center">
-                    {item.invoice.status === "Pending" ? (
-                      <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                      {item.invoice.status === "Pending" && (
                         <button
                           onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Paid")}
                           className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
@@ -117,18 +118,23 @@ export default function AdminInvoicesPage() {
                           <Check size={14} />
                           Mark Paid
                         </button>
-                      </div>
-                    ) : item.invoice.status === "Paid" ? (
+                      )}
+                      {item.invoice.status === "Paid" && (
+                        <button
+                          onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Pending")}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                        >
+                          <X size={14} />
+                          Revert
+                        </button>
+                      )}
                       <button
-                        onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Pending")}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                        onClick={() => setDeleteTarget(item.invoice.invoiceNumber)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                       >
-                        <X size={14} />
-                        Revert
+                        <Trash2 size={14} />
                       </button>
-                    ) : (
-                      <span className="text-xs text-muted">—</span>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -136,6 +142,36 @@ export default function AdminInvoicesPage() {
           </table>
         </div>
       </div>
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <AlertTriangle className="text-red-600" size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Invoice</h3>
+              <p className="text-sm text-slate-600">
+                Are you sure you want to delete invoice <strong>{deleteTarget}</strong>? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setDeleteTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setAllInvoices((prev) => prev.filter((i) => i.invoice.invoiceNumber !== deleteTarget));
+                    setDeleteTarget(null);
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
