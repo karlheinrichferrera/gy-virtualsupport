@@ -3,6 +3,14 @@
 import { sql } from "@vercel/postgres";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
 
+let tablesReady = false;
+async function ensureTablesOnce() {
+  if (tablesReady) return;
+  const { ensureTables } = await import("./db");
+  await ensureTables();
+  tablesReady = true;
+}
+
 function rowToProfile(r: Record<string, unknown>): VAProfile {
   return {
     id: r.id as string,
@@ -81,11 +89,13 @@ function rowToRequest(r: Record<string, unknown>): LeaveRequest {
 // ── Profiles ──
 
 export async function getProfiles(): Promise<VAProfile[]> {
+  await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM va_profiles ORDER BY id`;
   return rows.map(rowToProfile);
 }
 
 export async function getProfile(id: string): Promise<VAProfile | undefined> {
+  await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM va_profiles WHERE id = ${id}`;
   return rows.length > 0 ? rowToProfile(rows[0]) : undefined;
 }
@@ -249,9 +259,16 @@ export async function deleteInvoice(invoiceNumber: string): Promise<void> {
 }
 
 export async function generateNextInvoiceNumber(vaId: string): Promise<string> {
-  const { rows } = await sql`SELECT COUNT(*) as cnt FROM invoices WHERE va_id = ${vaId}`;
-  const count = parseInt(rows[0].cnt as string) || 0;
-  return `${vaId}-${String(count + 1).padStart(3, "0")}`;
+  const { rows } = await sql`
+    SELECT invoice_number FROM invoices WHERE va_id = ${vaId} ORDER BY id DESC LIMIT 1
+  `;
+  let next = 1;
+  if (rows.length > 0) {
+    const last = rows[0].invoice_number as string;
+    const match = last.match(/-(\d+)$/);
+    if (match) next = parseInt(match[1]) + 1;
+  }
+  return `${vaId}-${String(next).padStart(3, "0")}`;
 }
 
 // ── Leave Requests ──
@@ -299,9 +316,16 @@ export async function deleteRequest(id: string): Promise<void> {
 }
 
 export async function generateNextRequestId(): Promise<string> {
-  const { rows } = await sql`SELECT COUNT(*) as cnt FROM leave_requests`;
-  const count = parseInt(rows[0].cnt as string) || 0;
-  return `LR-${String(count + 1).padStart(3, "0")}`;
+  const { rows } = await sql`
+    SELECT request_id FROM leave_requests ORDER BY request_id DESC LIMIT 1
+  `;
+  let next = 1;
+  if (rows.length > 0) {
+    const last = rows[0].request_id as string;
+    const match = last.match(/-(\d+)$/);
+    if (match) next = parseInt(match[1]) + 1;
+  }
+  return `LR-${String(next).padStart(3, "0")}`;
 }
 
 // ── DB Init ──
