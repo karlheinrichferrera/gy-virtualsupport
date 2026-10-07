@@ -4,12 +4,47 @@ import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
-import { FileText, Check, X, Trash2, AlertTriangle } from "lucide-react";
+import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save } from "lucide-react";
+
+function downloadInvoice(inv: Invoice, vaName: string, vaId: string) {
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Invoice ${inv.invoiceNumber}</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1e293b}
+h1{color:#1e40af;margin-bottom:4px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e40af;padding-bottom:16px;margin-bottom:24px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.info-box{background:#f8fafc;padding:12px;border-radius:8px}
+.label{font-size:12px;color:#64748b;text-transform:uppercase;margin-bottom:4px}
+.value{font-weight:600;font-size:14px}
+table{width:100%;border-collapse:collapse;margin-bottom:24px}
+th{background:#f1f5f9;text-align:left;padding:10px 12px;font-size:13px;color:#475569;border-bottom:2px solid #e2e8f0}
+td{padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:14px}
+.total-row td{font-weight:700;font-size:16px;border-top:2px solid #1e40af;color:#059669}
+.status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:${inv.status==="Paid"?"#dcfce7;color:#166534":"#fef3c7;color:#92400e"}}
+@media print{body{margin:0;padding:20px}}
+</style></head><body>
+<div class="header"><div><h1>INVOICE</h1><p style="color:#64748b;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><p style="font-weight:700;margin:0">Golden Years Design Benefits</p><p style="color:#64748b;margin:4px 0 0">Virtual Support Services</p></div></div>
+<div class="info-grid"><div class="info-box"><div class="label">Bill To</div><div class="value">Devin Rubin</div><div style="font-size:13px;color:#64748b">Golden Years Design Benefits</div></div><div class="info-box"><div class="label">From</div><div class="value">${vaName}</div><div style="font-size:13px;color:#64748b">VA ID: ${vaId}</div></div><div class="info-box"><div class="label">Date Covered</div><div class="value">${inv.dateCovered}</div></div><div class="info-box"><div class="label">Status</div><div><span class="status">${inv.status}</span></div></div></div>
+<table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody><tr><td>Service Fee</td><td style="text-align:right">${inv.amount}</td></tr>${inv.transactionFee?`<tr><td>Transaction Fee</td><td style="text-align:right;color:#dc2626">-${inv.transactionFee}</td></tr>`:""}<tr class="total-row"><td>Amount Disbursed</td><td style="text-align:right">${inv.amountDisbursed}</td></tr></tbody></table>
+<p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:40px">Generated from GY Virtual Support Portal</p>
+</body></html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Invoice-${inv.invoiceNumber}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function AdminInvoicesPage() {
   const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: Invoice }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
+  const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "", status: "" as Invoice["status"] });
 
   useEffect(() => {
     setAllInvoices(store.getAllInvoicesFlat());
@@ -26,6 +61,31 @@ export default function AdminInvoicesPage() {
     setDeleteTarget(null);
   }
 
+  function openEdit(item: { vaId: string; vaName: string; invoice: Invoice }) {
+    setEditTarget(item);
+    setEditForm({
+      dateCovered: item.invoice.dateCovered,
+      amount: item.invoice.amount,
+      transactionFee: item.invoice.transactionFee,
+      amountDisbursed: item.invoice.amountDisbursed,
+      status: item.invoice.status,
+    });
+  }
+
+  function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    store.updateInvoice(editTarget.invoice.invoiceNumber, {
+      dateCovered: editForm.dateCovered,
+      amount: editForm.amount,
+      transactionFee: editForm.transactionFee,
+      amountDisbursed: editForm.amountDisbursed,
+      status: editForm.status,
+    });
+    setAllInvoices(store.getAllInvoicesFlat());
+    setEditTarget(null);
+  }
+
   const filtered = filterStatus === "All"
     ? allInvoices
     : allInvoices.filter((i) => i.invoice.status === filterStatus);
@@ -33,6 +93,8 @@ export default function AdminInvoicesPage() {
   const totalDisbursed = allInvoices
     .filter((i) => i.invoice.status === "Paid")
     .reduce((sum, i) => sum + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
+
+  const inputClass = "w-full px-4 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm";
 
   return (
     <div className="space-y-6">
@@ -97,9 +159,7 @@ export default function AdminInvoicesPage() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.invoice.invoiceNumber} className="border-b border-border hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-medium text-foreground">
-                    {item.invoice.invoiceNumber}
-                  </td>
+                  <td className="px-6 py-4 font-mono font-medium text-foreground">{item.invoice.invoiceNumber}</td>
                   <td className="px-6 py-4">
                     <p className="font-medium text-foreground">{item.vaName}</p>
                     <p className="text-xs text-muted">ID: {item.vaId}</p>
@@ -108,34 +168,54 @@ export default function AdminInvoicesPage() {
                   <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amount}</td>
                   <td className="px-6 py-4 text-right text-muted">{item.invoice.transactionFee || "—"}</td>
                   <td className="px-6 py-4 text-right font-medium text-foreground">{item.invoice.amountDisbursed}</td>
+                  <td className="px-6 py-4 text-center"><StatusBadge status={item.invoice.status} /></td>
                   <td className="px-6 py-4 text-center">
-                    <StatusBadge status={item.invoice.status} />
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => setShowPreview(item)}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                        title="View"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-amber-600 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => downloadInvoice(item.invoice, item.vaName, item.vaId)}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
+                        title="Download"
+                      >
+                        <Download size={16} />
+                      </button>
                       {item.invoice.status === "Pending" && (
                         <button
                           onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Paid")}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          title="Mark Paid"
                         >
                           <Check size={14} />
-                          Mark Paid
                         </button>
                       )}
                       {item.invoice.status === "Paid" && (
                         <button
                           onClick={() => updateInvoiceStatus(item.invoice.invoiceNumber, "Pending")}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                          title="Revert to Pending"
                         >
                           <X size={14} />
-                          Revert
                         </button>
                       )}
                       <button
                         onClick={() => setDeleteTarget(item.invoice.invoiceNumber)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
+                        title="Delete"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -145,6 +225,119 @@ export default function AdminInvoicesPage() {
           </table>
         </div>
       </div>
+
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Invoice Preview</h2>
+              <button onClick={() => setShowPreview(null)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase">Invoice</p>
+                  <p className="text-lg font-bold text-slate-900">{showPreview.invoice.invoiceNumber}</p>
+                </div>
+                <StatusBadge status={showPreview.invoice.status} />
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Bill To</span>
+                  <span className="font-medium text-slate-900">Devin Rubin</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Company</span>
+                  <span className="font-medium text-slate-900">Golden Years Design Benefits</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">From</span>
+                  <span className="font-medium text-slate-900">{showPreview.vaName} ({showPreview.vaId})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Coverage</span>
+                  <span className="font-medium text-slate-900">{showPreview.invoice.dateCovered}</span>
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Amount</span>
+                  <span className="font-medium text-slate-900">{showPreview.invoice.amount}</span>
+                </div>
+                {showPreview.invoice.transactionFee && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Transaction Fee</span>
+                    <span className="text-red-600">-{showPreview.invoice.transactionFee}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-slate-200 pt-2">
+                  <span className="font-semibold text-slate-900">Amount Disbursed</span>
+                  <span className="font-bold text-emerald-600 text-lg">{showPreview.invoice.amountDisbursed}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => downloadInvoice(showPreview.invoice, showPreview.vaName, showPreview.vaId)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <Download size={16} /> Download Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Pencil size={20} className="text-amber-600" /> Edit Invoice {editTarget.invoice.invoiceNumber}
+              </h2>
+              <button onClick={() => setEditTarget(null)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-3 text-sm">
+                <p className="text-slate-600"><strong>VA:</strong> {editTarget.vaName} ({editTarget.vaId})</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date Covered</label>
+                <input type="text" value={editForm.dateCovered} onChange={(e) => setEditForm((f) => ({ ...f, dateCovered: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                <input type="text" value={editForm.amount} onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="$0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Fee</label>
+                <input type="text" value={editForm.transactionFee} onChange={(e) => setEditForm((f) => ({ ...f, transactionFee: e.target.value }))} className={inputClass} placeholder="$0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Amount Disbursed</label>
+                <input type="text" value={editForm.amountDisbursed} onChange={(e) => setEditForm((f) => ({ ...f, amountDisbursed: e.target.value }))} className={inputClass} placeholder="$0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as Invoice["status"] }))} className={inputClass}>
+                  <option value="Pending">Pending</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Draft">Draft</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                  <Save size={16} /> Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
@@ -157,15 +350,9 @@ export default function AdminInvoicesPage() {
                 Are you sure you want to delete invoice <strong>{deleteTarget}</strong>? This action cannot be undone.
               </p>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setDeleteTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDelete(deleteTarget)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
-                >
-                  <Trash2 size={16} />
-                  Delete
+                <button onClick={() => setDeleteTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancel</button>
+                <button onClick={() => handleDelete(deleteTarget)} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                  <Trash2 size={16} /> Delete
                 </button>
               </div>
             </div>

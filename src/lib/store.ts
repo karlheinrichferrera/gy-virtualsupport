@@ -122,6 +122,16 @@ export function updateInvoiceStatus(invoiceNumber: string, status: Invoice["stat
   saveAllInvoices(all);
 }
 
+export function updateInvoice(invoiceNumber: string, updates: Partial<Invoice>) {
+  const all = getAllInvoicesMap();
+  for (const vaId of Object.keys(all)) {
+    all[vaId] = all[vaId].map((inv) =>
+      inv.invoiceNumber === invoiceNumber ? { ...inv, ...updates } : inv
+    );
+  }
+  saveAllInvoices(all);
+}
+
 export function deleteInvoice(invoiceNumber: string) {
   const all = getAllInvoicesMap();
   for (const vaId of Object.keys(all)) {
