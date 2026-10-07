@@ -82,7 +82,7 @@ export default function ProfilePage() {
   if (!profile) return null;
 
   const addr = profile.permanentAddress;
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm";
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm";
 
   return (
     <div className="space-y-6 max-w-4xl">
