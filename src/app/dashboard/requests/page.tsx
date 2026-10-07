@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, CalendarDays, X, Clock } from "lucide-react";
@@ -18,11 +18,13 @@ export default function RequestsPage() {
   });
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId") || "";
-    setRequests(store.getRequestsFor(id));
+    (async () => {
+      const id = localStorage.getItem("vaId") || "";
+      setRequests(await actions.getRequestsFor(id));
+    })();
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const id = localStorage.getItem("vaId") || "";
     const newReq: LeaveRequest = {
@@ -39,8 +41,9 @@ export default function RequestsPage() {
       status: "Pending",
       remarks: "",
     };
-    store.addRequest(id, newReq);
-    setRequests(store.getRequestsFor(id));
+    await actions.addRequest(id, newReq);
+    const updated = await actions.getRequestsFor(id);
+    setRequests(updated);
     setSubmitted(true);
   }
 

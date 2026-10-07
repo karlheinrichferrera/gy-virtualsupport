@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { Invoice, VAProfile } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, FileText, Download, X, Eye, Pencil, Save } from "lucide-react";
@@ -56,12 +56,14 @@ export default function InvoicesPage() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId") || "";
-    setInvoiceList(store.getInvoicesFor(id));
-    setProfile(store.getProfile(id) || null);
+    (async () => {
+      const id = localStorage.getItem("vaId") || "";
+      setInvoiceList(await actions.getInvoicesFor(id));
+      setProfile((await actions.getProfile(id)) || null);
+    })();
   }, []);
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const id = localStorage.getItem("vaId") || "";
     const hours = parseFloat(form.hours) || 0;
@@ -70,8 +72,9 @@ export default function InvoicesPage() {
     const amount = hours * rate + bonus;
     const fee = amount * 0.01;
 
+    const invoiceNumber = await actions.generateNextInvoiceNumber(id);
     const newInvoice: Invoice = {
-      invoiceNumber: store.generateNextInvoiceNumber(id),
+      invoiceNumber,
       dateCovered: `${form.dateFrom} - ${form.dateTo}`,
       amount: `$${amount.toFixed(2)}`,
       transactionFee: `$${fee.toFixed(2)}`,
@@ -79,8 +82,9 @@ export default function InvoicesPage() {
       invoiceCopy: "",
       status: "Pending",
     };
-    store.addInvoice(id, newInvoice);
-    setInvoiceList(store.getInvoicesFor(id));
+    await actions.addInvoice(id, newInvoice);
+    const updated = await actions.getInvoicesFor(id);
+    setInvoiceList(updated);
     setSubmitted(true);
   }
 
@@ -94,17 +98,18 @@ export default function InvoicesPage() {
     });
   }
 
-  function handleEditSave(e: React.FormEvent) {
+  async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
-    store.updateInvoice(editTarget.invoiceNumber, {
+    await actions.updateInvoice(editTarget.invoiceNumber, {
       dateCovered: editForm.dateCovered,
       amount: editForm.amount,
       transactionFee: editForm.transactionFee,
       amountDisbursed: editForm.amountDisbursed,
     });
     const id = localStorage.getItem("vaId") || "";
-    setInvoiceList(store.getInvoicesFor(id));
+    const updated = await actions.getInvoicesFor(id);
+    setInvoiceList(updated);
     setEditTarget(null);
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import { LogIn, Shield } from "lucide-react";
 
 export default function LoginPage() {
@@ -11,9 +11,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const profile = store.getProfile(vaId);
+    const profile = await actions.getProfile(vaId);
     if (!profile) {
       setError("VA ID not found. Please check and try again.");
       return;

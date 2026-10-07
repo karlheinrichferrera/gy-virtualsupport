@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { Users, FileText, CalendarDays, DollarSign, Clock } from "lucide-react";
 import Link from "next/link";
@@ -12,9 +12,11 @@ export default function AdminDashboardPage() {
   const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: { id: string; type: string; reason: string; status: string } }[]>([]);
 
   useEffect(() => {
-    setVaProfiles(store.getProfiles());
-    setAllInvoices(store.getAllInvoicesFlat());
-    setAllRequests(store.getAllRequestsFlat());
+    (async () => {
+      setVaProfiles(await actions.getProfiles());
+      setAllInvoices(await actions.getAllInvoicesFlat());
+      setAllRequests(await actions.getAllRequestsFlat());
+    })();
   }, []);
 
   const pendingInvoices = allInvoices.filter((i) => i.invoice.status === "Pending");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save, Search, Filter } from "lucide-react";
@@ -84,17 +84,19 @@ export default function AdminInvoicesPage() {
   const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "", status: "" as Invoice["status"] });
 
   useEffect(() => {
-    setAllInvoices(store.getAllInvoicesFlat());
+    (async () => {
+      setAllInvoices(await actions.getAllInvoicesFlat());
+    })();
   }, []);
 
-  function updateInvoiceStatus(invoiceNumber: string, status: "Paid" | "Pending" | "Draft") {
-    store.updateInvoiceStatus(invoiceNumber, status);
-    setAllInvoices(store.getAllInvoicesFlat());
+  async function updateInvoiceStatus(invoiceNumber: string, status: "Paid" | "Pending" | "Draft") {
+    await actions.updateInvoiceStatus(invoiceNumber, status);
+    setAllInvoices(await actions.getAllInvoicesFlat());
   }
 
-  function handleDelete(invoiceNumber: string) {
-    store.deleteInvoice(invoiceNumber);
-    setAllInvoices(store.getAllInvoicesFlat());
+  async function handleDelete(invoiceNumber: string) {
+    await actions.deleteInvoice(invoiceNumber);
+    setAllInvoices(await actions.getAllInvoicesFlat());
     setDeleteTarget(null);
   }
 
@@ -109,17 +111,17 @@ export default function AdminInvoicesPage() {
     });
   }
 
-  function handleEditSave(e: React.FormEvent) {
+  async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
-    store.updateInvoice(editTarget.invoice.invoiceNumber, {
+    await actions.updateInvoice(editTarget.invoice.invoiceNumber, {
       dateCovered: editForm.dateCovered,
       amount: editForm.amount,
       transactionFee: editForm.transactionFee,
       amountDisbursed: editForm.amountDisbursed,
       status: editForm.status,
     });
-    setAllInvoices(store.getAllInvoicesFlat());
+    setAllInvoices(await actions.getAllInvoicesFlat());
     setEditTarget(null);
   }
 

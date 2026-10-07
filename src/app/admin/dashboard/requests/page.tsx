@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { CalendarDays, Check, X, MessageSquare, Trash2, AlertTriangle } from "lucide-react";
@@ -14,24 +14,26 @@ export default function AdminRequestsPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
-    setAllRequests(store.getAllRequestsFlat());
+    (async () => {
+      setAllRequests(await actions.getAllRequestsFlat());
+    })();
   }, []);
 
-  function handleUpdateStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
-    store.updateRequestStatus(id, status, remarks);
-    setAllRequests(store.getAllRequestsFlat());
+  async function handleUpdateStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
+    await actions.updateRequestStatus(id, status, remarks);
+    setAllRequests(await actions.getAllRequestsFlat());
   }
 
-  function handleAddRemark(id: string) {
-    store.updateRequestRemarks(id, remarkText);
-    setAllRequests(store.getAllRequestsFlat());
+  async function handleAddRemark(id: string) {
+    await actions.updateRequestRemarks(id, remarkText);
+    setAllRequests(await actions.getAllRequestsFlat());
     setRemarkModal(null);
     setRemarkText("");
   }
 
-  function handleDelete(id: string) {
-    store.deleteRequest(id);
-    setAllRequests(store.getAllRequestsFlat());
+  async function handleDelete(id: string) {
+    await actions.deleteRequest(id);
+    setAllRequests(await actions.getAllRequestsFlat());
     setDeleteTarget(null);
   }
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Shield, UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 
 export default function RegisterPage() {
@@ -46,14 +46,14 @@ export default function RegisterPage() {
     setError("");
   }
 
-  function handleNext(e: React.FormEvent) {
+  async function handleNext(e: React.FormEvent) {
     e.preventDefault();
     if (step === 1) {
       if (!form.vaId || !form.firstName || !form.lastName || !form.email || !form.phone) {
         setError("Please fill in all required fields.");
         return;
       }
-      const existing = store.getProfile(form.vaId);
+      const existing = await actions.getProfile(form.vaId);
       if (existing) {
         setError("This VA ID is already taken. Please choose a different one.");
         return;
@@ -117,7 +117,7 @@ export default function RegisterPage() {
         bankAccountNumber: form.bankAccountNumber,
         bankAccountName: form.bankAccountName,
       };
-      store.addProfile(newVA);
+      await actions.addProfile(newVA);
       setSuccess(true);
     }
   }

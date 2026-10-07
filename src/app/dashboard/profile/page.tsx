@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { User, Phone, MapPin, Briefcase, Heart, KeyRound, CreditCard, Pencil, Save, X, Wallet } from "lucide-react";
 
@@ -24,26 +24,28 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId") || "";
-    const p = store.getProfile(id) || null;
-    setProfile(p);
-    if (p) {
-      setEditForm({
-        phone: p.phone, altPhone: p.altPhone, email: p.email,
-        street: p.permanentAddress.street, subdivision: p.permanentAddress.subdivision,
-        barangay: p.permanentAddress.barangay, city: p.permanentAddress.city,
-        province: p.permanentAddress.province, postalCode: p.permanentAddress.postalCode,
-        temporaryAddress: p.temporaryAddress,
-        emergencyContact: p.emergencyContact, emergencyPhone: p.emergencyPhone,
-        payoutMode: p.payoutMode || "", paypalLink: p.paypalLink || "",
-        ewalletName: p.ewalletName || "", ewalletNumber: p.ewalletNumber || "",
-        bankName: p.bankName || "", bankAccountNumber: p.bankAccountNumber || "",
-        bankAccountName: p.bankAccountName || "",
-      });
-    }
+    (async () => {
+      const id = localStorage.getItem("vaId") || "";
+      const p = (await actions.getProfile(id)) || null;
+      setProfile(p);
+      if (p) {
+        setEditForm({
+          phone: p.phone, altPhone: p.altPhone, email: p.email,
+          street: p.permanentAddress.street, subdivision: p.permanentAddress.subdivision,
+          barangay: p.permanentAddress.barangay, city: p.permanentAddress.city,
+          province: p.permanentAddress.province, postalCode: p.permanentAddress.postalCode,
+          temporaryAddress: p.temporaryAddress,
+          emergencyContact: p.emergencyContact, emergencyPhone: p.emergencyPhone,
+          payoutMode: p.payoutMode || "", paypalLink: p.paypalLink || "",
+          ewalletName: p.ewalletName || "", ewalletNumber: p.ewalletNumber || "",
+          bankName: p.bankName || "", bankAccountNumber: p.bankAccountNumber || "",
+          bankAccountName: p.bankAccountName || "",
+        });
+      }
+    })();
   }, []);
 
-  function handleChangePassword(e: React.FormEvent) {
+  async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
     const stored = profile.password || "gyva2026";
@@ -59,17 +61,18 @@ export default function ProfilePage() {
       setPwMsg({ text: "New passwords do not match.", ok: false });
       return;
     }
-    store.updateProfile(profile.id, { password: pwForm.newPw });
-    setProfile(store.getProfile(profile.id) || null);
+    await actions.updateProfile(profile.id, { password: pwForm.newPw });
+    const updated = await actions.getProfile(profile.id);
+    setProfile(updated || null);
     setPwMsg({ text: "Password changed successfully!", ok: true });
     setPwForm({ current: "", newPw: "", confirm: "" });
     setTimeout(() => { setShowPasswordForm(false); setPwMsg({ text: "", ok: false }); }, 2000);
   }
 
-  function handleSaveProfile(e: React.FormEvent) {
+  async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
-    store.updateProfile(profile.id, {
+    await actions.updateProfile(profile.id, {
       phone: editForm.phone, altPhone: editForm.altPhone, email: editForm.email,
       permanentAddress: {
         street: editForm.street, subdivision: editForm.subdivision,
@@ -83,7 +86,8 @@ export default function ProfilePage() {
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
     });
-    setProfile(store.getProfile(profile.id) || null);
+    const updated = await actions.getProfile(profile.id);
+    setProfile(updated || null);
     setEditing(false);
   }
 

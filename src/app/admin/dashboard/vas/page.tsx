@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet } from "lucide-react";
 
@@ -110,7 +110,24 @@ export default function VAManagementPage() {
     bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
 
-  useEffect(() => { setVAs(store.getProfiles()); }, []);
+  const [counts, setCounts] = useState<Record<string, { adj: number; inv: number; req: number }>>({});
+
+  async function loadData() {
+    const profiles = await actions.getProfiles();
+    setVAs(profiles);
+    const countMap: Record<string, { adj: number; inv: number; req: number }> = {};
+    for (const va of profiles) {
+      const [adj, inv, req] = await Promise.all([
+        actions.getAdjustmentsFor(va.id),
+        actions.getInvoicesFor(va.id),
+        actions.getRequestsFor(va.id),
+      ]);
+      countMap[va.id] = { adj: adj.length, inv: inv.filter(i => i.invoiceNumber && i.amount).length, req: req.length };
+    }
+    setCounts(countMap);
+  }
+
+  useEffect(() => { (async () => { await loadData(); })(); }, []);
 
   const profile = selectedVA ? vas.find((v) => v.id === selectedVA) : null;
 
@@ -119,7 +136,7 @@ export default function VAManagementPage() {
     return String(Math.max(...ids, 500100) + 1);
   }
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const newVA: VAProfile = {
       id: form.id || generateNextId(),
@@ -150,8 +167,7 @@ export default function VAManagementPage() {
       bankAccountNumber: form.bankAccountNumber,
       bankAccountName: form.bankAccountName,
     };
-    store.addProfile(newVA);
-    setVAs(store.getProfiles());
+    await actions.addProfile(newVA);
     setShowCreate(false);
     setForm({
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
@@ -163,6 +179,7 @@ export default function VAManagementPage() {
       payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
       bankName: "", bankAccountNumber: "", bankAccountName: "",
     });
+    await loadData();
   }
 
   function openEdit(va: VAProfile) {
@@ -187,10 +204,10 @@ export default function VAManagementPage() {
     setEditTarget(va.id);
   }
 
-  function handleEditSave(e: React.FormEvent) {
+  async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
-    store.updateProfile(editTarget, {
+    await actions.updateProfile(editTarget, {
       firstName: editForm.firstName, middleName: editForm.middleName,
       lastName: editForm.lastName, suffix: editForm.suffix,
       dateOfBirth: editForm.dateOfBirth,
@@ -211,18 +228,18 @@ export default function VAManagementPage() {
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
     });
-    setVAs(store.getProfiles());
     setEditTarget(null);
+    await loadData();
   }
 
-  function handleDelete(id: string) {
-    store.deleteProfile(id);
-    setVAs(store.getProfiles());
+  async function handleDelete(id: string) {
+    await actions.deleteProfile(id);
     setDeleteTarget(null);
+    await loadData();
   }
 
-  function handleResetPassword(id: string) {
-    store.resetPassword(id);
+  async function handleResetPassword(id: string) {
+    await actions.resetPassword(id);
     setResetTarget(null);
   }
 
@@ -266,9 +283,7 @@ export default function VAManagementPage() {
             </thead>
             <tbody>
               {vas.map((va) => {
-                const adjCount = store.getAdjustmentsFor(va.id).length;
-                const invCount = store.getInvoicesFor(va.id).filter((i) => i.invoiceNumber && i.amount).length;
-                const reqCount = store.getRequestsFor(va.id).length;
+                const c = counts[va.id] || { adj: 0, inv: 0, req: 0 };
                 return (
                   <tr key={va.id} className="border-b border-border hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-mono font-medium text-foreground">{va.id}</td>
@@ -281,7 +296,7 @@ export default function VAManagementPage() {
                           <p className="font-medium text-foreground">
                             {va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}
                           </p>
-                          <p className="text-xs text-muted">{adjCount} adj / {invCount} inv / {reqCount} req</p>
+                          <p className="text-xs text-muted">{c.adj} adj / {c.inv} inv / {c.req} req</p>
                         </div>
                       </div>
                     </td>

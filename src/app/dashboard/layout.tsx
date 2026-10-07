@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
-import * as store from "@/lib/store";
+import { getProfile } from "@/lib/actions";
 
 export default function DashboardLayout({
   children,
@@ -22,14 +22,16 @@ export default function DashboardLayout({
       router.push("/");
       return;
     }
-    const profile = store.getProfile(id);
-    if (!profile) {
-      router.push("/");
-      return;
-    }
-    setVaId(id);
-    setVaName(`${profile.firstName} ${profile.lastName}`);
-    setReady(true);
+    (async () => {
+      const profile = await getProfile(id);
+      if (!profile) {
+        router.push("/");
+        return;
+      }
+      setVaId(id);
+      setVaName(`${profile.firstName} ${profile.lastName}`);
+      setReady(true);
+    })();
   }, [router]);
 
   if (!ready) {

@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile, SalaryAdjustment } from "@/lib/data";
 import { DollarSign, Plus, X, Trash2, AlertTriangle } from "lucide-react";
 
 export default function AdminAdjustmentsPage() {
   const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
   const [selectedVA, setSelectedVA] = useState("");
-  const [adjustments, setAdjustments] = useState<Record<string, SalaryAdjustment[]>>({});
+  const [adjustments, setAdjustments] = useState<Record<string, (SalaryAdjustment & { id: number })[]>>({});
   const [showAdd, setShowAdd] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ vaId: string; idx: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ vaId: string; adjId: number } | null>(null);
   const [form, setForm] = useState({
     effectivityDate: "",
     type: "",
@@ -21,13 +21,15 @@ export default function AdminAdjustmentsPage() {
   });
 
   useEffect(() => {
-    const profiles = store.getProfiles();
-    setVaProfiles(profiles);
-    setSelectedVA(profiles[0]?.id || "");
-    setAdjustments(store.getAllAdjustments());
+    (async () => {
+      const profiles = await actions.getProfiles();
+      setVaProfiles(profiles);
+      setSelectedVA(profiles[0]?.id || "");
+      setAdjustments(await actions.getAllAdjustments());
+    })();
   }, []);
 
-  function handleAdd(e: React.FormEvent) {
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     const newAdj: SalaryAdjustment = {
       effectivityDate: form.effectivityDate,
@@ -37,19 +39,15 @@ export default function AdminAdjustmentsPage() {
       referralBonus: form.referralBonus || "No Adjustment",
       notes: form.notes,
     };
-    store.addAdjustment(selectedVA, newAdj);
-    setAdjustments(store.getAllAdjustments());
+    await actions.addAdjustment(selectedVA, newAdj);
+    setAdjustments(await actions.getAllAdjustments());
     setShowAdd(false);
     setForm({ effectivityDate: "", type: "", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   }
 
-  function handleDelete(vaId: string, idx: number) {
-    const all = { ...adjustments };
-    const list = [...(all[vaId] || [])];
-    list.splice(idx, 1);
-    all[vaId] = list;
-    store.saveAllAdjustments(all);
-    setAdjustments(store.getAllAdjustments());
+  async function handleDelete(adjId: number) {
+    await actions.deleteAdjustment(adjId);
+    setAdjustments(await actions.getAllAdjustments());
     setDeleteTarget(null);
   }
 
@@ -127,7 +125,7 @@ export default function AdminAdjustmentsPage() {
                     <td className="px-6 py-4 text-muted">{adj.notes}</td>
                     <td className="px-6 py-4 text-center">
                       <button
-                        onClick={() => setDeleteTarget({ vaId: selectedVA, idx })}
+                        onClick={() => setDeleteTarget({ vaId: selectedVA, adjId: adj.id })}
                         className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
                         title="Delete"
                       >
@@ -211,7 +209,7 @@ export default function AdminAdjustmentsPage() {
               </p>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setDeleteTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancel</button>
-                <button onClick={() => handleDelete(deleteTarget.vaId, deleteTarget.idx)} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                <button onClick={() => handleDelete(deleteTarget.adjId)} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
                   <Trash2 size={16} /> Delete
                 </button>
               </div>

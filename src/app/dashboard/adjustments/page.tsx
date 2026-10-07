@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { SalaryAdjustment } from "@/lib/data";
 import { TrendingUp, ArrowUpRight } from "lucide-react";
 
@@ -10,10 +10,12 @@ export default function AdjustmentsPage() {
   const [currentRate, setCurrentRate] = useState("");
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId") || "";
-    setAdjustments(store.getAdjustmentsFor(id));
-    const p = store.getProfile(id);
-    if (p) setCurrentRate(p.currentRate);
+    (async () => {
+      const id = localStorage.getItem("vaId") || "";
+      setAdjustments(await actions.getAdjustmentsFor(id));
+      const p = await actions.getProfile(id);
+      if (p) setCurrentRate(p.currentRate);
+    })();
   }, []);
 
   return (

@@ -12,7 +12,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import * as store from "@/lib/store";
+import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 
 export default function DashboardHome() {
@@ -28,32 +28,34 @@ export default function DashboardHome() {
   });
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId") || "";
-    const p = store.getProfile(id);
-    if (!p) return;
-    setProfile(p);
+    (async () => {
+      const id = localStorage.getItem("vaId") || "";
+      const p = await actions.getProfile(id);
+      if (!p) return;
+      setProfile(p);
 
-    const inv = store.getInvoicesFor(id);
-    const requests = store.getRequestsFor(id);
-    const adjustments = store.getAdjustmentsFor(id);
-    const paid = inv.filter((i) => i.status === "Paid");
-    const pending = inv.filter((i) => i.status === "Pending");
-    const totalEarned = paid.reduce((sum, i) => {
-      const amt = parseFloat(i.amountDisbursed.replace("$", "").replace(",", "")) || 0;
-      return sum + amt;
-    }, 0);
-    const pendingReqs = requests.filter((r) => r.status === "Pending").length;
-    const lastAdj = adjustments.length > 0 ? adjustments[adjustments.length - 1] : null;
+      const inv = await actions.getInvoicesFor(id);
+      const requests = await actions.getRequestsFor(id);
+      const adjustments = await actions.getAdjustmentsFor(id);
+      const paid = inv.filter((i) => i.status === "Paid");
+      const pending = inv.filter((i) => i.status === "Pending");
+      const totalEarned = paid.reduce((sum, i) => {
+        const amt = parseFloat(i.amountDisbursed.replace("$", "").replace(",", "")) || 0;
+        return sum + amt;
+      }, 0);
+      const pendingReqs = requests.filter((r) => r.status === "Pending").length;
+      const lastAdj = adjustments.length > 0 ? adjustments[adjustments.length - 1] : null;
 
-    setStats({
-      totalInvoices: inv.filter((i) => i.status).length,
-      paidInvoices: paid.length,
-      pendingInvoices: pending.length,
-      pendingRequests: pendingReqs,
-      totalEarned: `$${totalEarned.toFixed(2)}`,
-      currentRate: p.currentRate,
-      lastAdjustment: lastAdj?.effectivityDate || "N/A",
-    });
+      setStats({
+        totalInvoices: inv.filter((i) => i.status).length,
+        paidInvoices: paid.length,
+        pendingInvoices: pending.length,
+        pendingRequests: pendingReqs,
+        totalEarned: `$${totalEarned.toFixed(2)}`,
+        currentRate: p.currentRate,
+        lastAdjustment: lastAdj?.effectivityDate || "N/A",
+      });
+    })();
   }, []);
 
   if (!profile) return null;
