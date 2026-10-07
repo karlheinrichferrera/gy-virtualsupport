@@ -18,6 +18,7 @@ export interface VAProfile {
   };
   temporaryAddress: string;
   position: string;
+  employmentStatus: string;
   dateHired: string;
   currentRate: string;
   emergencyContact: string;
@@ -80,6 +81,7 @@ export const vaProfiles: VAProfile[] = [
     },
     temporaryAddress: "Same as permanent address",
     position: "Telemarketer",
+    employmentStatus: "Regular Hire",
     dateHired: "April 20, 2020",
     currentRate: "$5.00 / Hour",
     emergencyContact: "Maria Soltes",
@@ -110,6 +112,7 @@ export const vaProfiles: VAProfile[] = [
     },
     temporaryAddress: "Same as permanent address",
     position: "Sales Support",
+    employmentStatus: "Regular Hire",
     dateHired: "June 15, 2021",
     currentRate: "$4.50 / Hour",
     emergencyContact: "Juan Santos",

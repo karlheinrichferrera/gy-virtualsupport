@@ -6,6 +6,7 @@ import type { VAProfile } from "@/lib/data";
 import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
+const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
 
 function PositionMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   function toggle(pos: string) {
@@ -52,14 +53,14 @@ function escapeCsv(val: string): string {
 function downloadVAInfo(vaList: VAProfile[]) {
   const headers = [
     "VA ID", "First Name", "Middle Name", "Last Name", "Suffix", "Date of Birth",
-    "Phone", "Alt Phone", "Email", "Position", "Date Hired", "Current Rate",
+    "Phone", "Alt Phone", "Email", "Position", "Employment Status", "Date Hired", "Current Rate",
     "Contractor ID", "Street", "Subdivision", "Barangay", "City", "Province",
     "Postal Code", "Temporary Address", "Emergency Contact", "Emergency Phone",
     "Bank Name", "Bank Account Number", "Bank Account Name",
   ];
   const rows = vaList.map((va) => [
     va.id, va.firstName, va.middleName, va.lastName, va.suffix, va.dateOfBirth || "",
-    va.phone, va.altPhone, va.email, va.position, va.dateHired, va.currentRate,
+    va.phone, va.altPhone, va.email, va.position, va.employmentStatus || "", va.dateHired, va.currentRate,
     va.contractorId, va.permanentAddress.street, va.permanentAddress.subdivision,
     va.permanentAddress.barangay, va.permanentAddress.city, va.permanentAddress.province,
     va.permanentAddress.postalCode, va.temporaryAddress,
@@ -88,16 +89,16 @@ export default function VAManagementPage() {
     id: "", firstName: "", middleName: "", lastName: "", suffix: "",
     dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
-    temporaryAddress: "", positions: ["Telemarketer"] as string[], dateHired: "",
-    currentRate: "", emergencyContact: "", emergencyPhone: "",
+    temporaryAddress: "", positions: ["Telemarketer"] as string[], employmentStatus: "Probationary Hire",
+    dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
     contractorId: "",
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
     dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
-    temporaryAddress: "", positions: [] as string[], dateHired: "",
-    currentRate: "", emergencyContact: "", emergencyPhone: "",
+    temporaryAddress: "", positions: [] as string[], employmentStatus: "",
+    dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
     contractorId: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
   });
@@ -127,6 +128,7 @@ export default function VAManagementPage() {
       },
       temporaryAddress: form.temporaryAddress || "Same as permanent address",
       position: form.positions.join(", "),
+      employmentStatus: form.employmentStatus,
       dateHired: form.dateHired || new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
       currentRate: form.currentRate,
       emergencyContact: form.emergencyContact,
@@ -144,8 +146,8 @@ export default function VAManagementPage() {
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
       dateOfBirth: "", phone: "", altPhone: "", email: "", street: "", subdivision: "",
       barangay: "", city: "", province: "", postalCode: "",
-      temporaryAddress: "", positions: ["Telemarketer"], dateHired: "",
-      currentRate: "", emergencyContact: "", emergencyPhone: "",
+      temporaryAddress: "", positions: ["Telemarketer"], employmentStatus: "Probationary Hire",
+      dateHired: "", currentRate: "", emergencyContact: "", emergencyPhone: "",
       contractorId: "",
     });
   }
@@ -161,7 +163,7 @@ export default function VAManagementPage() {
       barangay: va.permanentAddress.barangay, city: va.permanentAddress.city,
       province: va.permanentAddress.province, postalCode: va.permanentAddress.postalCode,
       temporaryAddress: va.temporaryAddress,
-      positions, dateHired: va.dateHired, currentRate: va.currentRate,
+      positions, employmentStatus: va.employmentStatus || "", dateHired: va.dateHired, currentRate: va.currentRate,
       emergencyContact: va.emergencyContact, emergencyPhone: va.emergencyPhone,
       contractorId: va.contractorId,
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
@@ -185,6 +187,7 @@ export default function VAManagementPage() {
       },
       temporaryAddress: editForm.temporaryAddress,
       position: editForm.positions.join(", "),
+      employmentStatus: editForm.employmentStatus,
       dateHired: editForm.dateHired, currentRate: editForm.currentRate,
       emergencyContact: editForm.emergencyContact, emergencyPhone: editForm.emergencyPhone,
       contractorId: editForm.contractorId,
@@ -237,6 +240,7 @@ export default function VAManagementPage() {
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">VA ID</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Name</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Position</th>
+                <th className="text-left px-6 py-3 font-semibold text-slate-600">Status</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Email</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Date Hired</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Rate</th>
@@ -266,6 +270,18 @@ export default function VAManagementPage() {
                     </td>
                     <td className="px-6 py-4">
                       <PositionBadges position={va.position} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        va.employmentStatus === "Regular Hire" ? "bg-emerald-100 text-emerald-700" :
+                        va.employmentStatus === "Probationary Hire" ? "bg-amber-100 text-amber-700" :
+                        va.employmentStatus === "Seasonal / Contractual Hire" ? "bg-blue-100 text-blue-700" :
+                        va.employmentStatus === "Terminated" ? "bg-red-100 text-red-700" :
+                        va.employmentStatus === "Resigned" ? "bg-slate-100 text-slate-600" :
+                        "bg-slate-100 text-slate-600"
+                      }`}>
+                        {va.employmentStatus || "N/A"}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-foreground">{va.email}</td>
                     <td className="px-6 py-4 text-foreground">{va.dateHired}</td>
@@ -432,6 +448,7 @@ export default function VAManagementPage() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Employment & Emergency</h3>
                 <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Employment Status</label><select value={form.employmentStatus} onChange={(e) => setForm((f) => ({ ...f, employmentStatus: e.target.value }))} className={inputClass}>{EMPLOYMENT_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}</select></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={form.dateHired} onChange={(e) => setForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} placeholder="e.g. October 07, 2026" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate *</label><input type="text" required value={form.currentRate} onChange={(e) => setForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} placeholder="$X.XX / Hour" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Contact</label><input type="text" value={form.emergencyContact} onChange={(e) => setForm((f) => ({ ...f, emergencyContact: e.target.value }))} className={inputClass} /></div>
@@ -493,6 +510,7 @@ export default function VAManagementPage() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Employment & Emergency</h3>
                 <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Employment Status</label><select value={editForm.employmentStatus} onChange={(e) => setEditForm((f) => ({ ...f, employmentStatus: e.target.value }))} className={inputClass}><option value="">Select status</option>{EMPLOYMENT_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}</select></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={editForm.dateHired} onChange={(e) => setEditForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={editForm.currentRate} onChange={(e) => setEditForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Emergency Contact</label><input type="text" value={editForm.emergencyContact} onChange={(e) => setEditForm((f) => ({ ...f, emergencyContact: e.target.value }))} className={inputClass} /></div>

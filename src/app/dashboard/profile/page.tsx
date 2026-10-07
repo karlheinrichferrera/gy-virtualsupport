@@ -210,6 +210,21 @@ export default function ProfilePage() {
                   ))}
                 </div>
               </div>
+              <div>
+                <span className="text-xs text-muted uppercase tracking-wide">Employment Status</span>
+                <div className="mt-1">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                    profile.employmentStatus === "Regular Hire" ? "bg-emerald-100 text-emerald-700" :
+                    profile.employmentStatus === "Probationary Hire" ? "bg-amber-100 text-amber-700" :
+                    profile.employmentStatus === "Seasonal / Contractual Hire" ? "bg-blue-100 text-blue-700" :
+                    profile.employmentStatus === "Terminated" ? "bg-red-100 text-red-700" :
+                    profile.employmentStatus === "Resigned" ? "bg-slate-100 text-slate-600" :
+                    "bg-slate-100 text-slate-600"
+                  }`}>
+                    {profile.employmentStatus || "N/A"}
+                  </span>
+                </div>
+              </div>
               <Field label="Date Hired" value={profile.dateHired} />
               <Field label="Current Rate" value={profile.currentRate} />
             </Section>

@@ -94,6 +94,7 @@ export default function RegisterPage() {
         },
         temporaryAddress: "Same as permanent address",
         position: form.position,
+        employmentStatus: "Probationary Hire",
         dateHired: new Date().toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
