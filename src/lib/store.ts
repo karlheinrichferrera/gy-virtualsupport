@@ -55,6 +55,17 @@ export function deleteProfile(id: string) {
   saveProfiles(getProfiles().filter((v) => v.id !== id));
 }
 
+export function updateProfile(id: string, updates: Partial<VAProfile>) {
+  const profiles = getProfiles().map((v) =>
+    v.id === id ? { ...v, ...updates } : v
+  );
+  saveProfiles(profiles);
+}
+
+export function resetPassword(id: string) {
+  updateProfile(id, { password: "gyva2026" });
+}
+
 export function getAllAdjustments(): Record<string, SalaryAdjustment[]> {
   return load(KEYS.adjustments, seedAdjustments);
 }

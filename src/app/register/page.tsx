@@ -30,6 +30,10 @@ export default function RegisterPage() {
     confirmPassword: "",
     emergencyContact: "",
     emergencyPhone: "",
+    contractorId: "",
+    bankName: "",
+    bankAccountNumber: "",
+    bankAccountName: "",
   });
   const [error, setError] = useState("");
 
@@ -357,28 +361,77 @@ export default function RegisterPage() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>
-                  Password <span className="text-red-500">*</span>
-                </label>
+                <label className={labelClass}>Contractor ID</label>
                 <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
+                  type="text"
+                  value={form.contractorId}
+                  onChange={(e) => update("contractorId", e.target.value)}
                   className={inputClass}
-                  placeholder="Min 6 characters"
+                  placeholder="e.g. CTR-2026-0001"
                 />
               </div>
-              <div>
-                <label className={labelClass}>
-                  Confirm Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={form.confirmPassword}
-                  onChange={(e) => update("confirmPassword", e.target.value)}
-                  className={inputClass}
-                  placeholder="Re-enter password"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => update("password", e.target.value)}
+                    className={inputClass}
+                    placeholder="Min 6 characters"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    Confirm Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={(e) => update("confirmPassword", e.target.value)}
+                    className={inputClass}
+                    placeholder="Re-enter password"
+                  />
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4 mt-2">
+                <p className="text-sm font-medium text-slate-700 mb-3">Bank Information</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Bank Name</label>
+                    <input
+                      type="text"
+                      value={form.bankName}
+                      onChange={(e) => update("bankName", e.target.value)}
+                      className={inputClass}
+                      placeholder="e.g. BDO, BPI, Metrobank"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Account Number</label>
+                      <input
+                        type="text"
+                        value={form.bankAccountNumber}
+                        onChange={(e) => update("bankAccountNumber", e.target.value)}
+                        className={inputClass}
+                        placeholder="Account number"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Account Name</label>
+                      <input
+                        type="text"
+                        value={form.bankAccountName}
+                        onChange={(e) => update("bankAccountName", e.target.value)}
+                        className={inputClass}
+                        placeholder="Name on account"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </>
           )}

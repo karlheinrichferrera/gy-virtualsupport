@@ -69,10 +69,7 @@ export default function AdminLoginPage() {
             <LogIn size={18} />
             Sign In as Admin
           </button>
-          <p className="text-center text-xs text-slate-500 mt-4">
-            Demo: Username <strong>admin</strong> / Password <strong>gyadmin2026</strong>
-          </p>
-          <p className="text-center text-sm text-slate-600 mt-2">
+          <p className="text-center text-sm text-slate-600 mt-4">
             <a href="/" className="text-indigo-600 hover:underline font-medium">
               Back to VA Login
             </a>

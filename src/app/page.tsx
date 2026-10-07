@@ -18,7 +18,8 @@ export default function LoginPage() {
       setError("VA ID not found. Please check and try again.");
       return;
     }
-    if (password !== "gyva2026") {
+    const storedPassword = profile.password || "gyva2026";
+    if (password !== storedPassword) {
       setError("Invalid password.");
       return;
     }
@@ -83,11 +84,7 @@ export default function LoginPage() {
             <LogIn size={18} />
             Sign In
           </button>
-          <p className="text-center text-xs text-slate-500 mt-4">
-            Demo credentials: ID <strong>500102</strong> / Password{" "}
-            <strong>gyva2026</strong>
-          </p>
-          <p className="text-center text-sm text-slate-600 mt-2">
+          <p className="text-center text-sm text-slate-600 mt-4">
             New VA?{" "}
             <a href="/register" className="text-blue-600 hover:underline font-medium">
               Create an account

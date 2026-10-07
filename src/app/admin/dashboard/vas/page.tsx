@@ -3,19 +3,21 @@
 import { useState, useEffect } from "react";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound } from "lucide-react";
 
 export default function VAManagementPage() {
   const [vas, setVAs] = useState<VAProfile[]>([]);
   const [selectedVA, setSelectedVA] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "", firstName: "", middleName: "", lastName: "", suffix: "",
     phone: "", altPhone: "", email: "", street: "", subdivision: "",
     barangay: "", city: "", province: "", postalCode: "",
     temporaryAddress: "", position: "Telemarketer", dateHired: "",
     currentRate: "", emergencyContact: "", emergencyPhone: "",
+    contractorId: "",
   });
 
   useEffect(() => { setVAs(store.getProfiles()); }, []);
@@ -46,6 +48,11 @@ export default function VAManagementPage() {
       currentRate: form.currentRate,
       emergencyContact: form.emergencyContact,
       emergencyPhone: form.emergencyPhone,
+      password: "gyva2026",
+      contractorId: form.contractorId,
+      bankName: "",
+      bankAccountNumber: "",
+      bankAccountName: "",
     };
     store.addProfile(newVA);
     setVAs(store.getProfiles());
@@ -56,6 +63,7 @@ export default function VAManagementPage() {
       barangay: "", city: "", province: "", postalCode: "",
       temporaryAddress: "", position: "Telemarketer", dateHired: "",
       currentRate: "", emergencyContact: "", emergencyPhone: "",
+      contractorId: "",
     });
   }
 
@@ -63,6 +71,11 @@ export default function VAManagementPage() {
     store.deleteProfile(id);
     setVAs(store.getProfiles());
     setDeleteTarget(null);
+  }
+
+  function handleResetPassword(id: string) {
+    store.resetPassword(id);
+    setResetTarget(null);
   }
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm";
@@ -127,6 +140,9 @@ export default function VAManagementPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => setSelectedVA(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                           <Eye size={14} /> View
+                        </button>
+                        <button onClick={() => setResetTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                          <KeyRound size={14} /> Reset PW
                         </button>
                         <button onClick={() => setDeleteTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
                           <Trash2 size={14} /> Delete
@@ -201,6 +217,26 @@ export default function VAManagementPage() {
         </div>
       )}
 
+      {resetTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto"><KeyRound className="text-amber-600" size={28} /></div>
+              <h3 className="text-lg font-bold text-slate-900">Reset Password</h3>
+              <p className="text-sm text-slate-600">
+                Reset the password for VA <strong>{resetTarget}</strong> ({vas.find((v) => v.id === resetTarget)?.firstName} {vas.find((v) => v.id === resetTarget)?.lastName}) to the default password <strong>gyva2026</strong>?
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setResetTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancel</button>
+                <button onClick={() => handleResetPassword(resetTarget)} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                  <KeyRound size={16} /> Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -213,6 +249,7 @@ export default function VAManagementPage() {
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">VA ID</label><input type="text" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} className={inputClass} placeholder="Auto-generated" /></div>
+                  <div><label className="block text-xs font-medium text-slate-600 mb-1">Contractor ID</label><input type="text" value={form.contractorId} onChange={(e) => setForm((f) => ({ ...f, contractorId: e.target.value }))} className={inputClass} placeholder="e.g. CTR-2026-0001" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Position</label><select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className={inputClass}><option>Telemarketer</option><option>Sales Support</option><option>Operations Support</option><option>Admin Support</option><option>Customer Service</option></select></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">First Name *</label><input type="text" required value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={form.middleName} onChange={(e) => setForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>

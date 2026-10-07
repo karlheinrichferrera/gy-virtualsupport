@@ -21,6 +21,11 @@ export interface VAProfile {
   currentRate: string;
   emergencyContact: string;
   emergencyPhone: string;
+  password: string;
+  contractorId: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
 }
 
 export interface SalaryAdjustment {
@@ -77,6 +82,11 @@ export const vaProfiles: VAProfile[] = [
     currentRate: "$5.00 / Hour",
     emergencyContact: "Maria Soltes",
     emergencyPhone: "(+63) 917 123 4567",
+    password: "gyva2026",
+    contractorId: "CTR-2020-0102",
+    bankName: "BDO Unibank",
+    bankAccountNumber: "001234567890",
+    bankAccountName: "Domingo M. Soltes Jr.",
   },
   {
     id: "500103",
@@ -101,6 +111,11 @@ export const vaProfiles: VAProfile[] = [
     currentRate: "$4.50 / Hour",
     emergencyContact: "Juan Santos",
     emergencyPhone: "(+63) 918 765 4321",
+    password: "gyva2026",
+    contractorId: "CTR-2021-0103",
+    bankName: "BPI",
+    bankAccountNumber: "9876543210",
+    bankAccountName: "Maria C. Santos",
   },
 ];
 
