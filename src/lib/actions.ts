@@ -298,6 +298,12 @@ export async function deleteRequest(id: string): Promise<void> {
   await sql`DELETE FROM leave_requests WHERE request_id = ${id}`;
 }
 
+export async function generateNextRequestId(): Promise<string> {
+  const { rows } = await sql`SELECT COUNT(*) as cnt FROM leave_requests`;
+  const count = parseInt(rows[0].cnt as string) || 0;
+  return `LR-${String(count + 1).padStart(3, "0")}`;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {

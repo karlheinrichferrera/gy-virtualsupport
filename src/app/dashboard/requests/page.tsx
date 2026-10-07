@@ -27,8 +27,9 @@ export default function RequestsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const id = localStorage.getItem("vaId") || "";
+    const reqId = await actions.generateNextRequestId();
     const newReq: LeaveRequest = {
-      id: `LR-${String(requests.length + 1).padStart(3, "0")}`,
+      id: reqId,
       type: form.type,
       dateSubmitted: new Date().toLocaleDateString("en-US", {
         year: "numeric",
