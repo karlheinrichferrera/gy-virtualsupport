@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Shield, UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import * as store from "@/lib/store";
 import type { VAProfile } from "@/lib/data";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({
+    vaId: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -36,7 +35,6 @@ export default function RegisterPage() {
     bankAccountName: "",
   });
   const [error, setError] = useState("");
-  const [generatedId, setGeneratedId] = useState("");
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -46,8 +44,13 @@ export default function RegisterPage() {
   function handleNext(e: React.FormEvent) {
     e.preventDefault();
     if (step === 1) {
-      if (!form.firstName || !form.lastName || !form.email || !form.phone) {
+      if (!form.vaId || !form.firstName || !form.lastName || !form.email || !form.phone) {
         setError("Please fill in all required fields.");
+        return;
+      }
+      const existing = store.getProfile(form.vaId);
+      if (existing) {
+        setError("This VA ID is already taken. Please choose a different one.");
         return;
       }
       setStep(2);
@@ -70,11 +73,8 @@ export default function RegisterPage() {
         setError("Password must be at least 6 characters.");
         return;
       }
-      const profiles = store.getProfiles();
-      const ids = profiles.map((v) => parseInt(v.id));
-      const nextId = String(Math.max(...ids, 500100) + 1);
       const newVA: VAProfile = {
-        id: nextId,
+        id: form.vaId,
         firstName: form.firstName,
         middleName: form.middleName,
         lastName: form.lastName,
@@ -107,7 +107,6 @@ export default function RegisterPage() {
         bankAccountName: form.bankAccountName,
       };
       store.addProfile(newVA);
-      setGeneratedId(nextId);
       setSuccess(true);
     }
   }
@@ -131,7 +130,7 @@ export default function RegisterPage() {
           </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
             <p className="text-sm text-blue-700 font-medium">Your VA ID</p>
-            <p className="text-2xl font-bold text-blue-900">{generatedId}</p>
+            <p className="text-2xl font-bold text-blue-900">{form.vaId}</p>
           </div>
           <p className="text-sm text-slate-500 mb-6">
             Name: <strong>{form.firstName} {form.lastName}</strong>
@@ -182,6 +181,19 @@ export default function RegisterPage() {
         >
           {step === 1 && (
             <>
+              <div>
+                <label className={labelClass}>
+                  VA ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.vaId}
+                  onChange={(e) => update("vaId", e.target.value)}
+                  className={inputClass}
+                  placeholder="Enter your VA ID"
+                />
+                <p className="text-xs text-slate-500 mt-1">This will be your login ID</p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
@@ -252,7 +264,7 @@ export default function RegisterPage() {
                     value={form.phone}
                     onChange={(e) => update("phone", e.target.value)}
                     className={inputClass}
-                    placeholder="(+63) 912 345 6789"
+                    placeholder="(+63) 9XX XXX XXXX"
                   />
                 </div>
                 <div>
@@ -370,7 +382,7 @@ export default function RegisterPage() {
             <>
               <div>
                 <label className={labelClass}>
-                  Position Applying For <span className="text-red-500">*</span>
+                  Position <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"].map((pos) => {
