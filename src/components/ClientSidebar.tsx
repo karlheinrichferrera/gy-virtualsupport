@@ -11,10 +11,12 @@ import {
   DollarSign,
   Settings,
   LogOut,
+  Users,
 } from "lucide-react";
 
 const navItems = [
   { href: "/client/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/client/dashboard/vas", label: "My VAs", icon: Users },
   { href: "/client/dashboard/timesheet", label: "Timesheet", icon: Clock },
   { href: "/client/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/client/dashboard/invoices", label: "Invoices", icon: FileText },

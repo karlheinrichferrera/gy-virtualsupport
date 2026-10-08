@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Clock, ClipboardList, FileText, CalendarDays, DollarSign } from "lucide-react";
+import { LayoutDashboard, Clock, ClipboardList, FileText, CalendarDays, DollarSign, Users } from "lucide-react";
 import Link from "next/link";
 import * as actions from "@/lib/actions";
 
@@ -12,20 +12,22 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     (async () => {
-      const [invoices, requests, vas] = await Promise.all([
+      const email = localStorage.getItem("clientEmail") || "";
+      const [invoices, requests, myVAs] = await Promise.all([
         actions.getClientInvoices(),
         actions.getAllRequestsFlat(),
-        actions.getProfiles(),
+        actions.getVAsByClientEmail(email),
       ]);
       setInvoiceCount(invoices.length);
       setRequestCount(requests.filter((r) => r.request.status === "Pending").length);
-      setVaCount(vas.length);
+      setVaCount(myVAs.length);
     })();
   }, []);
 
   const cards = [
+    { label: "My VAs", icon: Users, href: "/client/dashboard/vas", color: "bg-indigo-500", count: vaCount, desc: "Your assigned virtual assistants" },
     { label: "Timesheet", icon: Clock, href: "/client/dashboard/timesheet", color: "bg-blue-500", count: null, desc: "View VA timesheets" },
-    { label: "Weekly Reports", icon: ClipboardList, href: "/client/dashboard/reports", color: "bg-purple-500", count: vaCount, desc: "VA weekly reports" },
+    { label: "Weekly Reports", icon: ClipboardList, href: "/client/dashboard/reports", color: "bg-purple-500", count: null, desc: "VA weekly reports" },
     { label: "Invoices", icon: FileText, href: "/client/dashboard/invoices", color: "bg-emerald-500", count: invoiceCount, desc: "View & download invoices" },
     { label: "Leave & Requests", icon: CalendarDays, href: "/client/dashboard/requests", color: "bg-amber-500", count: requestCount, desc: "Pending requests" },
     { label: "Salary Adjustments", icon: DollarSign, href: "/client/dashboard/adjustments", color: "bg-rose-500", count: null, desc: "VA salary adjustments" },

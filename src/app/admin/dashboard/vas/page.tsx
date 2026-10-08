@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
+import type { ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList } from "lucide-react";
 
@@ -96,6 +97,22 @@ function PositionBadges({ position }: { position: string }) {
   );
 }
 
+function ClientMultiSelect({ selected, onChange, clients }: { selected: number[]; onChange: (v: number[]) => void; clients: ClientAccount[] }) {
+  function toggle(id: number) {
+    onChange(selected.includes(id) ? selected.filter((c) => c !== id) : [...selected, id]);
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {clients.map((c) => (
+        <button key={c.id} type="button" onClick={() => toggle(c.id)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            selected.includes(c.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+          }`}>{c.displayName}</button>
+      ))}
+    </div>
+  );
+}
+
 function escapeCsv(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
     return `"${val.replace(/"/g, '""')}"`;
@@ -151,6 +168,7 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
+    clientIds: [] as number[],
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
@@ -162,8 +180,11 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
+    clientIds: [] as number[],
   });
 
+  const [clients, setClients] = useState<ClientAccount[]>([]);
+  const [vaAssignments, setVaAssignments] = useState<Record<string, number[]>>({});
   const [counts, setCounts] = useState<Record<string, { adj: number; inv: number; req: number }>>({});
   const [columnVis, setColumnVis] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
@@ -187,8 +208,19 @@ export default function VAManagementPage() {
   const visibleColumns = ALL_COLUMNS.filter((c) => columnVis[c.key]);
 
   async function loadData() {
-    const profiles = await actions.getProfiles();
+    const [profiles, clientAccounts, assignments] = await Promise.all([
+      actions.getProfiles(),
+      actions.getClientAccounts(),
+      actions.getVAClientAssignments(),
+    ]);
     setVAs(profiles);
+    setClients(clientAccounts);
+    const assignMap: Record<string, number[]> = {};
+    for (const a of assignments) {
+      if (!assignMap[a.vaId]) assignMap[a.vaId] = [];
+      assignMap[a.vaId].push(a.clientId);
+    }
+    setVaAssignments(assignMap);
     const countMap: Record<string, { adj: number; inv: number; req: number }> = {};
     for (const va of profiles) {
       const [adj, inv, req] = await Promise.all([
@@ -243,6 +275,7 @@ export default function VAManagementPage() {
       weeklyReportLink: form.weeklyReportLink,
     };
     await actions.addProfile(newVA);
+    await actions.setVAClientAssignments(newVA.id, form.clientIds);
     setShowCreate(false);
     setForm({
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
@@ -254,6 +287,7 @@ export default function VAManagementPage() {
       payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
       bankName: "", bankAccountNumber: "", bankAccountName: "",
       weeklyReportLink: "",
+      clientIds: [],
     });
     await loadData();
   }
@@ -277,6 +311,7 @@ export default function VAManagementPage() {
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
       bankAccountName: va.bankAccountName || "",
       weeklyReportLink: va.weeklyReportLink || "",
+      clientIds: vaAssignments[va.id] || [],
     });
     setEditTarget(va.id);
   }
@@ -306,6 +341,7 @@ export default function VAManagementPage() {
       bankAccountName: editForm.bankAccountName,
       weeklyReportLink: editForm.weeklyReportLink,
     });
+    await actions.setVAClientAssignments(editTarget, editForm.clientIds);
     setEditTarget(null);
     await loadData();
   }
@@ -482,6 +518,16 @@ export default function VAManagementPage() {
               <div className="text-sm pt-2 border-t border-slate-100">
                 <div className="flex items-start gap-2"><ClipboardList size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Weekly Report Link</p>{profile.weeklyReportLink ? <a href={profile.weeklyReportLink} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-600 hover:underline break-all">{profile.weeklyReportLink}</a> : <p className="font-medium text-slate-900">N/A</p>}</div></div>
               </div>
+              <div className="text-sm pt-2 border-t border-slate-100">
+                <p className="text-slate-500 mb-1">Assigned Clients</p>
+                <div className="flex flex-wrap gap-1">
+                  {(vaAssignments[profile.id] || []).map((cid) => {
+                    const c = clients.find((cl) => cl.id === cid);
+                    return c ? <span key={cid} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">{c.displayName}</span> : null;
+                  })}
+                  {(!vaAssignments[profile.id] || vaAssignments[profile.id].length === 0) && <span className="text-slate-400">No clients assigned</span>}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -607,6 +653,13 @@ export default function VAManagementPage() {
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Weekly Report</h3>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={form.weeklyReportLink} onChange={(e) => setForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
               </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-2">Assigned Clients</label>
+                  <ClientMultiSelect selected={form.clientIds} onChange={(v) => setForm((f) => ({ ...f, clientIds: v }))} clients={clients} />
+                </div>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Plus size={16} /> Create VA Account</button>
@@ -694,6 +747,13 @@ export default function VAManagementPage() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Weekly Report</h3>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={editForm.weeklyReportLink} onChange={(e) => setEditForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-2">Assigned Clients</label>
+                  <ClientMultiSelect selected={editForm.clientIds} onChange={(v) => setEditForm((f) => ({ ...f, clientIds: v }))} clients={clients} />
+                </div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>

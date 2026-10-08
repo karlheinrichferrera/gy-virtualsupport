@@ -577,6 +577,40 @@ export async function deleteClientInvoice(id: number): Promise<void> {
   await sql`DELETE FROM client_invoices WHERE id = ${id}`;
 }
 
+// ── VA-Client Assignments ──
+
+export async function getVAClientAssignments(): Promise<{ vaId: string; clientId: number }[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT va_id, client_id FROM va_client_assignments`;
+  return rows.map((r) => ({ vaId: r.va_id as string, clientId: r.client_id as number }));
+}
+
+export async function getClientIdsForVA(vaId: string): Promise<number[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT client_id FROM va_client_assignments WHERE va_id = ${vaId}`;
+  return rows.map((r) => r.client_id as number);
+}
+
+export async function setVAClientAssignments(vaId: string, clientIds: number[]): Promise<void> {
+  await ensureTablesOnce();
+  await sql`DELETE FROM va_client_assignments WHERE va_id = ${vaId}`;
+  for (const clientId of clientIds) {
+    await sql`INSERT INTO va_client_assignments (va_id, client_id) VALUES (${vaId}, ${clientId}) ON CONFLICT DO NOTHING`;
+  }
+}
+
+export async function getVAsByClientEmail(email: string): Promise<VAProfile[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT vp.* FROM va_profiles vp
+    JOIN va_client_assignments vca ON vca.va_id = vp.id
+    JOIN client_accounts ca ON ca.id = vca.client_id
+    WHERE ca.email = ${email}
+    ORDER BY vp.first_name
+  `;
+  return rows.map(rowToProfile);
+}
+
 // ── Client Salary Adjustments ──
 
 export type ClientSalaryAdjustment = {
