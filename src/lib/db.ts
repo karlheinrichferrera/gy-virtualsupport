@@ -113,9 +113,12 @@ export async function ensureTables() {
     await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES ('devin@goldenyearsdesign.com', 'gyclient2026', 'Devin Rubin', 'System Default')`;
   }
 
+  await sql`ALTER TABLE client_invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS client_invoices (
       id SERIAL PRIMARY KEY,
+      client_id INTEGER NOT NULL REFERENCES client_accounts(id) ON DELETE CASCADE,
       invoice_number TEXT NOT NULL DEFAULT '',
       bill_coverage TEXT NOT NULL DEFAULT '',
       amount TEXT NOT NULL DEFAULT '',

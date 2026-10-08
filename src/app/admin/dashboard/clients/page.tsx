@@ -19,8 +19,8 @@ export default function AdminClientsPage() {
   const [tab, setTab] = useState<"accounts" | "invoices">("accounts");
 
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "" });
-  const [invForm, setInvForm] = useState({ invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
-  const [editInvForm, setEditInvForm] = useState({ invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
+  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
+  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
   const [error, setError] = useState("");
 
   async function loadData() {
@@ -59,7 +59,7 @@ export default function AdminClientsPage() {
     e.preventDefault();
     await actions.addClientInvoice(invForm);
     setShowAddInvoice(false);
-    setInvForm({ invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
+    setInvForm({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
     await loadData();
   }
 
@@ -155,6 +155,7 @@ export default function AdminClientsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-border">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Client</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Invoice #</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Bill Coverage</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Amount</th>
@@ -167,6 +168,7 @@ export default function AdminClientsPage() {
                 <tbody>
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="border-b border-border hover:bg-slate-50/50">
+                      <td className="px-4 py-3 text-foreground">{clients.find((c) => c.id === inv.clientId)?.displayName || "—"}</td>
                       <td className="px-4 py-3 font-mono font-medium text-foreground">{inv.invoiceNumber}</td>
                       <td className="px-4 py-3 text-foreground">{inv.billCoverage}</td>
                       <td className="px-4 py-3 font-medium text-foreground">{inv.amount}</td>
@@ -186,7 +188,7 @@ export default function AdminClientsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditInv(inv); setEditInvForm({ invoiceNumber: inv.invoiceNumber, billCoverage: inv.billCoverage, amount: inv.amount, invoiceDueDate: inv.invoiceDueDate, status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditInv(inv); setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billCoverage: inv.billCoverage, amount: inv.amount, invoiceDueDate: inv.invoiceDueDate, status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setDeleteInvTarget(inv.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
@@ -197,7 +199,7 @@ export default function AdminClientsPage() {
                     </tr>
                   ))}
                   {invoices.length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">No client invoices yet.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">No client invoices yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -237,6 +239,12 @@ export default function AdminClientsPage() {
               <button onClick={() => setShowAddInvoice(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleAddInvoice} className="p-6 space-y-4">
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
+                <select required value={invForm.clientId || ""} onChange={(e) => setInvForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                  <option value="">Select a client</option>
+                  {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={invForm.invoiceNumber} onChange={(e) => setInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} placeholder="e.g. INV-001" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={invForm.amount} onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="e.g. $2,500.00" /></div>
@@ -270,6 +278,12 @@ export default function AdminClientsPage() {
               <button onClick={() => setEditInv(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleEditInvoice} className="p-6 space-y-4">
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
+                <select required value={editInvForm.clientId || ""} onChange={(e) => setEditInvForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                  <option value="">Select a client</option>
+                  {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={editInvForm.invoiceNumber} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={editInvForm.amount} onChange={(e) => setEditInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} /></div>

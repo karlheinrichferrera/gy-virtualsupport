@@ -11,7 +11,10 @@ export default function ClientInvoicesPage() {
 
   useEffect(() => {
     (async () => {
-      setInvoices(await actions.getClientInvoices());
+      const email = localStorage.getItem("clientEmail") || "";
+      if (email) {
+        setInvoices(await actions.getClientInvoicesByEmail(email));
+      }
       setLoading(false);
     })();
   }, []);

@@ -452,6 +452,7 @@ export async function changeClientPassword(email: string, currentPassword: strin
 
 export type ClientInvoice = {
   id: number;
+  clientId: number;
   invoiceNumber: string;
   billCoverage: string;
   amount: string;
@@ -460,25 +461,44 @@ export type ClientInvoice = {
   invoiceLink: string;
 };
 
-export async function getClientInvoices(): Promise<ClientInvoice[]> {
-  await ensureTablesOnce();
-  const { rows } = await sql`SELECT * FROM client_invoices ORDER BY id DESC`;
-  return rows.map((r) => ({
+function rowToClientInvoice(r: Record<string, unknown>): ClientInvoice {
+  return {
     id: r.id as number,
+    clientId: r.client_id as number,
     invoiceNumber: r.invoice_number as string,
     billCoverage: r.bill_coverage as string,
     amount: r.amount as string,
     invoiceDueDate: r.invoice_due_date as string,
     status: r.status as string,
     invoiceLink: r.invoice_link as string,
-  }));
+  };
+}
+
+export async function getClientInvoices(): Promise<ClientInvoice[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_invoices ORDER BY id DESC`;
+  return rows.map(rowToClientInvoice);
+}
+
+export async function getClientInvoicesByClientId(clientId: number): Promise<ClientInvoice[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_invoices WHERE client_id = ${clientId} ORDER BY id DESC`;
+  return rows.map(rowToClientInvoice);
+}
+
+export async function getClientInvoicesByEmail(email: string): Promise<ClientInvoice[]> {
+  await ensureTablesOnce();
+  const { rows: acctRows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
+  if (acctRows.length === 0) return [];
+  const clientId = acctRows[0].id as number;
+  return getClientInvoicesByClientId(clientId);
 }
 
 export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<void> {
   await ensureTablesOnce();
   await sql`
-    INSERT INTO client_invoices (invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link)
-    VALUES (${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink})
+    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link)
+    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink})
   `;
 }
 
@@ -486,6 +506,7 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
   await ensureTablesOnce();
   await sql`
     UPDATE client_invoices SET
+      client_id = ${inv.clientId},
       invoice_number = ${inv.invoiceNumber},
       bill_coverage = ${inv.billCoverage},
       amount = ${inv.amount},
