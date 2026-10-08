@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
-import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save, Search, Filter } from "lucide-react";
+import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save, Filter, Calendar } from "lucide-react";
 
 function downloadInvoice(inv: Invoice, vaName: string, vaId: string) {
   const html = `<!DOCTYPE html>
@@ -73,11 +73,30 @@ function downloadAllInvoices(items: { vaId: string; vaName: string; invoice: Inv
   URL.revokeObjectURL(url);
 }
 
+function parseCoveredDates(dateCovered: string): { start: string | null; end: string | null } {
+  const parts = dateCovered.split(/\s*[-–—]\s*/);
+  if (parts.length >= 2) {
+    const start = parts[0].trim();
+    const end = parts[parts.length - 1].trim();
+    return { start: toISODate(start), end: toISODate(end) };
+  }
+  const single = toISODate(dateCovered.trim());
+  return { start: single, end: single };
+}
+
+function toISODate(val: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
 export default function AdminInvoicesPage() {
   const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: Invoice }[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [filterVA, setFilterVA] = useState<string>("All");
-  const [searchDate, setSearchDate] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
   const [editTarget, setEditTarget] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
@@ -133,7 +152,12 @@ export default function AdminInvoicesPage() {
   const filtered = allInvoices.filter((i) => {
     if (filterStatus !== "All" && i.invoice.status !== filterStatus) return false;
     if (filterVA !== "All" && i.vaId !== filterVA) return false;
-    if (searchDate && !i.invoice.dateCovered.toLowerCase().includes(searchDate.toLowerCase())) return false;
+    if (dateFrom || dateTo) {
+      const { start, end } = parseCoveredDates(i.invoice.dateCovered);
+      if (dateFrom && end && end < dateFrom) return false;
+      if (dateTo && start && start > dateTo) return false;
+      if (!start && !end) return false;
+    }
     return true;
   });
 
@@ -151,7 +175,7 @@ export default function AdminInvoicesPage() {
           onClick={() => downloadAllInvoices(filtered)}
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
-          <Download size={16} /> Download {filterStatus !== "All" || filterVA !== "All" || searchDate ? "Filtered" : "All"} ({filtered.length})
+          <Download size={16} /> Download {filterStatus !== "All" || filterVA !== "All" || dateFrom || dateTo ? "Filtered" : "All"} ({filtered.length})
         </button>
       </div>
 
@@ -208,17 +232,23 @@ export default function AdminInvoicesPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <Search size={16} className="text-muted" />
+          <Calendar size={16} className="text-muted" />
           <input
-            type="text"
-            value={searchDate}
-            onChange={(e) => setSearchDate(e.target.value)}
-            placeholder="Search by date (e.g. July, August 2026)"
-            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-72"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          {(filterVA !== "All" || searchDate || filterStatus !== "All") && (
+          <span className="text-sm text-muted">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          {(filterVA !== "All" || dateFrom || dateTo || filterStatus !== "All") && (
             <button
-              onClick={() => { setFilterVA("All"); setSearchDate(""); setFilterStatus("All"); }}
+              onClick={() => { setFilterVA("All"); setDateFrom(""); setDateTo(""); setFilterStatus("All"); }}
               className="px-3 py-1.5 text-sm rounded-lg text-red-600 bg-red-50 hover:bg-red-100 font-medium transition-colors"
             >
               Clear Filters
