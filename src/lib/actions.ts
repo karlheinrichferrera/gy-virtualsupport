@@ -308,6 +308,23 @@ export async function updateRequestStatus(id: string, status: LeaveRequest["stat
   }
 }
 
+export async function updateRequestDetails(
+  id: string,
+  updates: { type?: LeaveRequest["type"]; dateFrom?: string; dateTo?: string; reason?: string }
+): Promise<void> {
+  const sets: string[] = [];
+  const vals: string[] = [];
+  if (updates.type !== undefined) { sets.push("type"); vals.push(updates.type); }
+  if (updates.dateFrom !== undefined) { sets.push("date_from"); vals.push(updates.dateFrom); }
+  if (updates.dateTo !== undefined) { sets.push("date_to"); vals.push(updates.dateTo); }
+  if (updates.reason !== undefined) { sets.push("reason"); vals.push(updates.reason); }
+  if (sets.length === 0) return;
+  await sql.query(
+    `UPDATE leave_requests SET ${sets.map((s, i) => `${s} = $${i + 1}`).join(", ")} WHERE request_id = $${sets.length + 1}`,
+    [...vals, id]
+  );
+}
+
 export async function updateRequestRemarks(id: string, remarks: string): Promise<void> {
   await sql`UPDATE leave_requests SET remarks = ${remarks} WHERE request_id = ${id}`;
 }
