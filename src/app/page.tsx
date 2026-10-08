@@ -26,8 +26,9 @@ export default function LoginPage() {
       }
       localStorage.setItem("vaId", vaId);
       router.push("/dashboard");
-    } catch {
-      setError("Unable to connect. Please try again.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError("Connection error: " + msg);
     }
   }
 

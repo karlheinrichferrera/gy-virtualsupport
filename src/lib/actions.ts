@@ -101,6 +101,7 @@ export async function getProfile(id: string): Promise<VAProfile | undefined> {
 }
 
 export async function addProfile(p: VAProfile): Promise<void> {
+  await ensureTablesOnce();
   await sql`
     INSERT INTO va_profiles (
       id, first_name, middle_name, last_name, suffix,
