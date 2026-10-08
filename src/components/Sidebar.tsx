@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Clock,
+  ClipboardList,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/dashboard/requests", label: "Leave & Shift Requests", icon: CalendarDays },
   { href: "/dashboard/timesheet", label: "Timesheet", icon: Clock },
+  { href: "/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
 ];
 
 export default function Sidebar() {

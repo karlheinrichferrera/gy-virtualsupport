@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
@@ -110,7 +110,7 @@ function downloadVAInfo(vaList: VAProfile[]) {
     "Contractor ID", "Street", "Subdivision", "Barangay", "City", "Province",
     "Postal Code", "Temporary Address", "Emergency Contact", "Emergency Phone",
     "Payout Mode", "PayPal Link", "EWallet Name", "EWallet Number",
-    "Bank Name", "Bank Account Number", "Bank Account Name",
+    "Bank Name", "Bank Account Number", "Bank Account Name", "Weekly Report Link",
   ];
   const rows = vaList.map((va) => [
     va.id, va.firstName, va.middleName, va.lastName, va.suffix, va.dateOfBirth || "",
@@ -121,6 +121,7 @@ function downloadVAInfo(vaList: VAProfile[]) {
     va.emergencyContact, va.emergencyPhone,
     va.payoutMode || "", va.paypalLink || "", va.ewalletName || "", va.ewalletNumber || "",
     va.bankName || "", va.bankAccountNumber || "", va.bankAccountName || "",
+    va.weeklyReportLink || "",
   ].map(escapeCsv).join(","));
 
   const csv = [headers.join(","), ...rows].join("\n");
@@ -149,6 +150,7 @@ export default function VAManagementPage() {
     contractorId: "",
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
+    weeklyReportLink: "",
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
@@ -159,6 +161,7 @@ export default function VAManagementPage() {
     contractorId: "",
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
+    weeklyReportLink: "",
   });
 
   const [counts, setCounts] = useState<Record<string, { adj: number; inv: number; req: number }>>({});
@@ -237,6 +240,7 @@ export default function VAManagementPage() {
       bankName: form.bankName,
       bankAccountNumber: form.bankAccountNumber,
       bankAccountName: form.bankAccountName,
+      weeklyReportLink: form.weeklyReportLink,
     };
     await actions.addProfile(newVA);
     setShowCreate(false);
@@ -249,6 +253,7 @@ export default function VAManagementPage() {
       contractorId: "",
       payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
       bankName: "", bankAccountNumber: "", bankAccountName: "",
+      weeklyReportLink: "",
     });
     await loadData();
   }
@@ -271,6 +276,7 @@ export default function VAManagementPage() {
       ewalletName: va.ewalletName || "", ewalletNumber: va.ewalletNumber || "",
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
       bankAccountName: va.bankAccountName || "",
+      weeklyReportLink: va.weeklyReportLink || "",
     });
     setEditTarget(va.id);
   }
@@ -298,6 +304,7 @@ export default function VAManagementPage() {
       ewalletName: editForm.ewalletName, ewalletNumber: editForm.ewalletNumber,
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
+      weeklyReportLink: editForm.weeklyReportLink,
     });
     setEditTarget(null);
     await loadData();
@@ -472,6 +479,9 @@ export default function VAManagementPage() {
               <div className="text-sm pt-2 border-t border-slate-100">
                 <div className="flex items-start gap-2"><Heart size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Emergency Contact</p><p className="font-medium text-slate-900">{profile.emergencyContact} - {profile.emergencyPhone}</p></div></div>
               </div>
+              <div className="text-sm pt-2 border-t border-slate-100">
+                <div className="flex items-start gap-2"><ClipboardList size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Weekly Report Link</p>{profile.weeklyReportLink ? <a href={profile.weeklyReportLink} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-600 hover:underline break-all">{profile.weeklyReportLink}</a> : <p className="font-medium text-slate-900">N/A</p>}</div></div>
+              </div>
             </div>
           </div>
         </div>
@@ -593,6 +603,10 @@ export default function VAManagementPage() {
                   )}
                 </div>
               </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Weekly Report</h3>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={form.weeklyReportLink} onChange={(e) => setForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Plus size={16} /> Create VA Account</button>
@@ -676,6 +690,10 @@ export default function VAManagementPage() {
                     </>
                   )}
                 </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Weekly Report</h3>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={editForm.weeklyReportLink} onChange={(e) => setEditForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>

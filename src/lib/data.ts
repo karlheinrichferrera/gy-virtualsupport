@@ -32,6 +32,7 @@ export interface VAProfile {
   bankName: string;
   bankAccountNumber: string;
   bankAccountName: string;
+  weeklyReportLink: string;
 }
 
 export interface SalaryAdjustment {
@@ -99,6 +100,7 @@ export const vaProfiles: VAProfile[] = [
     bankName: "BDO Unibank",
     bankAccountNumber: "001234567890",
     bankAccountName: "Domingo M. Soltes Jr.",
+    weeklyReportLink: "",
   },
   {
     id: "500103",
@@ -134,6 +136,7 @@ export const vaProfiles: VAProfile[] = [
     bankName: "BPI",
     bankAccountNumber: "9876543210",
     bankAccountName: "Maria C. Santos",
+    weeklyReportLink: "",
   },
 ];
 

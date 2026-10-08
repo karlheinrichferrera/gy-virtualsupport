@@ -33,9 +33,12 @@ export async function ensureTables() {
       ewallet_number TEXT NOT NULL DEFAULT '',
       bank_name TEXT NOT NULL DEFAULT '',
       bank_account_number TEXT NOT NULL DEFAULT '',
-      bank_account_name TEXT NOT NULL DEFAULT ''
+      bank_account_name TEXT NOT NULL DEFAULT '',
+      weekly_report_link TEXT NOT NULL DEFAULT ''
     )
   `;
+
+  await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS weekly_report_link TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS salary_adjustments (
