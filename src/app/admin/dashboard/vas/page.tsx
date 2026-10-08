@@ -1,14 +1,65 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
 const PAYOUT_MODE_OPTIONS = ["Paypal", "Wise", "Bank Transfer", "Ewallet"];
 const EWALLET_NAME_OPTIONS = ["Gcash", "Maya", "Maribank", "GoTyme"];
+
+type ColumnDef = {
+  key: string;
+  label: string;
+  defaultVisible: boolean;
+  render: (va: VAProfile) => React.ReactNode;
+};
+
+const ALL_COLUMNS: ColumnDef[] = [
+  { key: "id", label: "VA ID", defaultVisible: true, render: (va) => <span className="font-mono font-medium text-foreground">{va.id}</span> },
+  { key: "name", label: "Name", defaultVisible: true, render: (va) => (
+    <div className="flex items-center gap-3">
+      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">{va.firstName.charAt(0)}{va.lastName.charAt(0)}</div>
+      <p className="font-medium text-foreground">{va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}</p>
+    </div>
+  )},
+  { key: "position", label: "Position", defaultVisible: true, render: (va) => <PositionBadges position={va.position} /> },
+  { key: "status", label: "Status", defaultVisible: true, render: (va) => (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+      va.employmentStatus === "Regular Hire" ? "bg-emerald-100 text-emerald-700" :
+      va.employmentStatus === "Probationary Hire" ? "bg-amber-100 text-amber-700" :
+      va.employmentStatus === "Seasonal / Contractual Hire" ? "bg-blue-100 text-blue-700" :
+      va.employmentStatus === "Terminated" ? "bg-red-100 text-red-700" :
+      va.employmentStatus === "Resigned" ? "bg-slate-100 text-slate-600" :
+      "bg-slate-100 text-slate-600"
+    }`}>{va.employmentStatus || "N/A"}</span>
+  )},
+  { key: "email", label: "Email", defaultVisible: true, render: (va) => <span className="text-foreground">{va.email}</span> },
+  { key: "dateHired", label: "Date Hired", defaultVisible: true, render: (va) => <span className="text-foreground">{va.dateHired}</span> },
+  { key: "rate", label: "Rate", defaultVisible: true, render: (va) => <span className="font-medium text-foreground">{va.currentRate}</span> },
+  { key: "dob", label: "Date of Birth", defaultVisible: false, render: (va) => <span className="text-foreground">{va.dateOfBirth || "N/A"}</span> },
+  { key: "phone", label: "Phone", defaultVisible: false, render: (va) => <span className="text-foreground">{va.phone}</span> },
+  { key: "altPhone", label: "Alt Phone", defaultVisible: false, render: (va) => <span className="text-foreground">{va.altPhone || "N/A"}</span> },
+  { key: "contractorId", label: "Contractor ID", defaultVisible: false, render: (va) => <span className="text-foreground">{va.contractorId || "N/A"}</span> },
+  { key: "payoutMode", label: "Payout Mode", defaultVisible: false, render: (va) => <span className="text-foreground">{va.payoutMode || "N/A"}</span> },
+  { key: "emergencyContact", label: "Emergency Contact", defaultVisible: false, render: (va) => <span className="text-foreground">{va.emergencyContact || "N/A"}</span> },
+  { key: "emergencyPhone", label: "Emergency Phone", defaultVisible: false, render: (va) => <span className="text-foreground">{va.emergencyPhone || "N/A"}</span> },
+  { key: "address", label: "Address", defaultVisible: false, render: (va) => <span className="text-foreground text-xs">{va.permanentAddress.city}, {va.permanentAddress.province}</span> },
+];
+
+const STORAGE_KEY = "admin-va-columns";
+
+function loadColumnVisibility(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  const defaults: Record<string, boolean> = {};
+  ALL_COLUMNS.forEach((c) => { defaults[c.key] = c.defaultVisible; });
+  return defaults;
+}
 
 function PositionMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   function toggle(pos: string) {
@@ -111,6 +162,26 @@ export default function VAManagementPage() {
   });
 
   const [counts, setCounts] = useState<Record<string, { adj: number; inv: number; req: number }>>({});
+  const [columnVis, setColumnVis] = useState<Record<string, boolean>>(() => {
+    const defaults: Record<string, boolean> = {};
+    ALL_COLUMNS.forEach((c) => { defaults[c.key] = c.defaultVisible; });
+    return defaults;
+  });
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
+
+  useEffect(() => {
+    setColumnVis(loadColumnVisibility());
+  }, []);
+
+  function toggleColumn(key: string) {
+    setColumnVis((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  const visibleColumns = ALL_COLUMNS.filter((c) => columnVis[c.key]);
 
   async function loadData() {
     const profiles = await actions.getProfiles();
@@ -251,6 +322,34 @@ export default function VAManagementPage() {
         <h1 className="text-2xl font-bold text-foreground">VA Management</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted">{vas.length} active VAs</span>
+          <div className="relative">
+            <button
+              onClick={() => setShowColumnMenu((v) => !v)}
+              className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-colors"
+            >
+              <SlidersHorizontal size={16} /> Columns
+            </button>
+            {showColumnMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowColumnMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-2 max-h-80 overflow-y-auto">
+                  <p className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase">Toggle Columns</p>
+                  {ALL_COLUMNS.map((col) => (
+                    <button
+                      key={col.key}
+                      onClick={() => toggleColumn(col.key)}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${columnVis[col.key] ? "bg-indigo-600 border-indigo-600" : "border-slate-300"}`}>
+                        {columnVis[col.key] && <Check size={12} className="text-white" />}
+                      </div>
+                      {col.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => downloadVAInfo(vas)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
@@ -271,72 +370,36 @@ export default function VAManagementPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-border">
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">VA ID</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Name</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Position</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Status</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Email</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Date Hired</th>
-                <th className="text-left px-6 py-3 font-semibold text-slate-600">Rate</th>
+                {visibleColumns.map((col) => (
+                  <th key={col.key} className="text-left px-6 py-3 font-semibold text-slate-600">{col.label}</th>
+                ))}
                 <th className="text-center px-6 py-3 font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {vas.map((va) => {
-                const c = counts[va.id] || { adj: 0, inv: 0, req: 0 };
-                return (
-                  <tr key={va.id} className="border-b border-border hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-mono font-medium text-foreground">{va.id}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
-                          {va.firstName.charAt(0)}{va.lastName.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}
-                          </p>
-                          <p className="text-xs text-muted">{c.adj} adj / {c.inv} inv / {c.req} req</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <PositionBadges position={va.position} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        va.employmentStatus === "Regular Hire" ? "bg-emerald-100 text-emerald-700" :
-                        va.employmentStatus === "Probationary Hire" ? "bg-amber-100 text-amber-700" :
-                        va.employmentStatus === "Seasonal / Contractual Hire" ? "bg-blue-100 text-blue-700" :
-                        va.employmentStatus === "Terminated" ? "bg-red-100 text-red-700" :
-                        va.employmentStatus === "Resigned" ? "bg-slate-100 text-slate-600" :
-                        "bg-slate-100 text-slate-600"
-                      }`}>
-                        {va.employmentStatus || "N/A"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-foreground">{va.email}</td>
-                    <td className="px-6 py-4 text-foreground">{va.dateHired}</td>
-                    <td className="px-6 py-4 font-medium text-foreground">{va.currentRate}</td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => setSelectedVA(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-                          <Eye size={14} /> View
-                        </button>
-                        <button onClick={() => openEdit(va)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
-                          <Pencil size={14} /> Edit
-                        </button>
-                        <button onClick={() => setResetTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
-                          <KeyRound size={14} /> Reset PW
-                        </button>
-                        <button onClick={() => setDeleteTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {vas.map((va) => (
+                <tr key={va.id} className="border-b border-border hover:bg-slate-50/50 transition-colors">
+                  {visibleColumns.map((col) => (
+                    <td key={col.key} className="px-6 py-4">{col.render(va)}</td>
+                  ))}
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => setSelectedVA(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                        <Eye size={14} /> View
+                      </button>
+                      <button onClick={() => openEdit(va)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button onClick={() => setResetTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                        <KeyRound size={14} /> Reset PW
+                      </button>
+                      <button onClick={() => setDeleteTarget(va.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
