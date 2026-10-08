@@ -9,6 +9,7 @@ import {
   CalendarDays,
   LayoutDashboard,
   LogOut,
+  Clock,
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/admin/dashboard/adjustments", label: "Salary Adjustments", icon: DollarSign },
   { href: "/admin/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
+  { href: "/admin/dashboard/timesheet", label: "Timesheet", icon: Clock },
 ];
 
 export default function AdminSidebar() {
