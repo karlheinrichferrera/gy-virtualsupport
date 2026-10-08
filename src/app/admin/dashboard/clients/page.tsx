@@ -18,7 +18,9 @@ export default function AdminClientsPage() {
   const [editInv, setEditInv] = useState<ClientInvoice | null>(null);
   const [tab, setTab] = useState<"accounts" | "invoices">("accounts");
 
-  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "" });
+  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
+  const [editClient, setEditClient] = useState<ClientAccount | null>(null);
+  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "" });
   const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
   const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
   const [error, setError] = useState("");
@@ -34,10 +36,10 @@ export default function AdminClientsPage() {
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName);
+    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone);
     if (!result.success) { setError(result.error || "Failed"); return; }
     setShowAddClient(false);
-    setClientForm({ email: "", password: "gyclient2026", displayName: "" });
+    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
     await loadData();
   }
 
@@ -52,6 +54,14 @@ export default function AdminClientsPage() {
     if (resetTarget === null) return;
     await actions.resetClientPassword(resetTarget);
     setResetTarget(null);
+    await loadData();
+  }
+
+  async function handleEditClient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editClient) return;
+    await actions.updateClientAccount(editClient.id, editClientForm);
+    setEditClient(null);
     await loadData();
   }
 
@@ -112,6 +122,8 @@ export default function AdminClientsPage() {
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">ID</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Name</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Company</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Phone</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Created</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Actions</th>
                   </tr>
@@ -122,9 +134,14 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 font-mono text-foreground">{c.id}</td>
                       <td className="px-4 py-3 font-medium text-foreground">{c.displayName}</td>
                       <td className="px-4 py-3 text-foreground">{c.email}</td>
+                      <td className="px-4 py-3 text-foreground">{c.companyName || "—"}</td>
+                      <td className="px-4 py-3 text-foreground">{c.phone || "—"}</td>
                       <td className="px-4 py-3 text-foreground text-xs">{c.createdAt}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                            <Pencil size={14} className="text-blue-600" />
+                          </button>
                           <button onClick={() => setResetTarget(c.id)} className="p-1.5 hover:bg-amber-50 rounded-lg" title="Reset Password">
                             <KeyRound size={14} className="text-amber-600" />
                           </button>
@@ -220,10 +237,36 @@ export default function AdminClientsPage() {
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={clientForm.displayName} onChange={(e) => setClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} placeholder="e.g. Devin Rubin" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={clientForm.email} onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="e.g. client@company.com" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Password</label><input type="text" value={clientForm.password} onChange={(e) => setClientForm((f) => ({ ...f, password: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={clientForm.companyName} onChange={(e) => setClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} placeholder="e.g. Acme Corp" /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={clientForm.address} onChange={(e) => setClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} placeholder="e.g. 123 Main St, City" /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={clientForm.phone} onChange={(e) => setClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} placeholder="e.g. +1 555-0100" /></div>
               {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddClient(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Plus size={16} /> Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Client Modal */}
+      {editClient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Pencil size={20} className="text-emerald-600" /> Edit Client</h2>
+              <button onClick={() => setEditClient(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+            </div>
+            <form onSubmit={handleEditClient} className="p-6 space-y-4">
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={editClientForm.displayName} onChange={(e) => setEditClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editClientForm.email} onChange={(e) => setEditClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={editClientForm.companyName} onChange={(e) => setEditClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditClient(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
               </div>
             </form>
           </div>

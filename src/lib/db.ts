@@ -103,6 +103,9 @@ export async function ensureTables() {
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL DEFAULT 'gyclient2026',
       display_name TEXT NOT NULL DEFAULT '',
+      company_name TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     )
   `;
@@ -114,6 +117,12 @@ export async function ensureTables() {
   }
 
   await sql`ALTER TABLE client_invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
+
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''`;
+
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS client_invoices (

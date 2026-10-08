@@ -46,6 +46,7 @@ export interface SalaryAdjustment {
 
 export interface Invoice {
   invoiceNumber: string;
+  clientId: number;
   dateCovered: string;
   amount: string;
   transactionFee: string;

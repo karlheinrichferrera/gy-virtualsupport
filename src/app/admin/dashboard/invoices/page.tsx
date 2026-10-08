@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
+import type { ClientAccount } from "@/lib/actions";
 import type { Invoice } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import { FileText, Check, X, Trash2, AlertTriangle, Eye, Download, Pencil, Save, Filter, Calendar } from "lucide-react";
 
-function downloadInvoice(inv: Invoice, vaName: string, vaId: string) {
+function downloadInvoice(inv: Invoice, vaName: string, vaId: string, clientName: string) {
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Invoice ${inv.invoiceNumber}</title>
 <style>
@@ -24,8 +25,8 @@ td{padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:14px}
 .status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:${inv.status==="Paid"?"#dcfce7;color:#166534":"#fef3c7;color:#92400e"}}
 @media print{body{margin:0;padding:20px}}
 </style></head><body>
-<div class="header"><div><h1>INVOICE</h1><p style="color:#64748b;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><p style="font-weight:700;margin:0">Golden Years Design Benefits</p><p style="color:#64748b;margin:4px 0 0">Virtual Support Services</p></div></div>
-<div class="info-grid"><div class="info-box"><div class="label">Bill To</div><div class="value">Devin Rubin</div><div style="font-size:13px;color:#64748b">Golden Years Design Benefits</div></div><div class="info-box"><div class="label">From</div><div class="value">${vaName}</div><div style="font-size:13px;color:#64748b">VA ID: ${vaId}</div></div><div class="info-box"><div class="label">Date Covered</div><div class="value">${inv.dateCovered}</div></div><div class="info-box"><div class="label">Status</div><div><span class="status">${inv.status}</span></div></div></div>
+<div class="header"><div><h1>INVOICE</h1><p style="color:#64748b;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><p style="font-weight:700;margin:0">${clientName || "Golden Years Design Benefits"}</p><p style="color:#64748b;margin:4px 0 0">Virtual Support Services</p></div></div>
+<div class="info-grid"><div class="info-box"><div class="label">Bill To</div><div class="value">${clientName || "—"}</div><div style="font-size:13px;color:#64748b">${clientName || "Golden Years Design Benefits"}</div></div><div class="info-box"><div class="label">From</div><div class="value">${vaName}</div><div style="font-size:13px;color:#64748b">VA ID: ${vaId}</div></div><div class="info-box"><div class="label">Date Covered</div><div class="value">${inv.dateCovered}</div></div><div class="info-box"><div class="label">Status</div><div><span class="status">${inv.status}</span></div></div></div>
 <table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody><tr><td>Service Fee</td><td style="text-align:right">${inv.amount}</td></tr>${inv.transactionFee?`<tr><td>Transaction Fee</td><td style="text-align:right;color:#dc2626">-${inv.transactionFee}</td></tr>`:""}<tr class="total-row"><td>Amount Disbursed</td><td style="text-align:right">${inv.amountDisbursed}</td></tr></tbody></table>
 <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:40px">Generated from GY Virtual Support Portal</p>
 </body></html>`;
@@ -45,10 +46,11 @@ function escapeCsv(val: string): string {
   return val;
 }
 
-function downloadAllInvoices(items: { vaId: string; vaName: string; invoice: Invoice }[]) {
-  const headers = ["Invoice #", "VA Name", "VA ID", "Date Covered", "Amount", "Transaction Fee", "Amount Disbursed", "Status"];
+function downloadAllInvoices(items: { vaId: string; vaName: string; clientName: string; invoice: Invoice }[]) {
+  const headers = ["Invoice #", "Client", "VA Name", "VA ID", "Date Covered", "Amount", "Transaction Fee", "Amount Disbursed", "Status"];
   const rows = items.map((item) => [
     item.invoice.invoiceNumber,
+    item.clientName || "",
     item.vaName,
     item.vaId,
     item.invoice.dateCovered,
@@ -61,7 +63,7 @@ function downloadAllInvoices(items: { vaId: string; vaName: string; invoice: Inv
   const totalAmount = items.reduce((s, i) => s + parseFloat(i.invoice.amount.replace("$", "") || "0"), 0);
   const totalFee = items.reduce((s, i) => s + parseFloat(i.invoice.transactionFee.replace("$", "") || "0"), 0);
   const totalDisbursed = items.reduce((s, i) => s + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
-  const totalRow = ["TOTAL", "", "", "", `$${totalAmount.toFixed(2)}`, `$${totalFee.toFixed(2)}`, `$${totalDisbursed.toFixed(2)}`, ""].map(escapeCsv).join(",");
+  const totalRow = ["TOTAL", "", "", "", "", `$${totalAmount.toFixed(2)}`, `$${totalFee.toFixed(2)}`, `$${totalDisbursed.toFixed(2)}`, ""].map(escapeCsv).join(",");
 
   const csv = [headers.join(","), ...rows, "", totalRow].join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
@@ -92,19 +94,22 @@ function toISODate(val: string): string | null {
 }
 
 export default function AdminInvoicesPage() {
-  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: Invoice }[]>([]);
+  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; clientName: string; invoice: Invoice }[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [filterVA, setFilterVA] = useState<string>("All");
+  const [filterClient, setFilterClient] = useState<string>("All");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
-  const [editTarget, setEditTarget] = useState<{ vaId: string; vaName: string; invoice: Invoice } | null>(null);
-  const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "", status: "" as Invoice["status"] });
+  const [showPreview, setShowPreview] = useState<{ vaId: string; vaName: string; clientName: string; invoice: Invoice } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ vaId: string; vaName: string; clientName: string; invoice: Invoice } | null>(null);
+  const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "", status: "" as Invoice["status"], clientId: 0 });
 
   useEffect(() => {
     (async () => {
       setAllInvoices(await actions.getAllInvoicesFlat());
+      setClients(await actions.getClientAccounts());
     })();
   }, []);
 
@@ -119,7 +124,7 @@ export default function AdminInvoicesPage() {
     setDeleteTarget(null);
   }
 
-  function openEdit(item: { vaId: string; vaName: string; invoice: Invoice }) {
+  function openEdit(item: { vaId: string; vaName: string; clientName: string; invoice: Invoice }) {
     setEditTarget(item);
     setEditForm({
       dateCovered: item.invoice.dateCovered,
@@ -127,6 +132,7 @@ export default function AdminInvoicesPage() {
       transactionFee: item.invoice.transactionFee,
       amountDisbursed: item.invoice.amountDisbursed,
       status: item.invoice.status,
+      clientId: item.invoice.clientId || 0,
     });
   }
 
@@ -139,6 +145,7 @@ export default function AdminInvoicesPage() {
       transactionFee: editForm.transactionFee,
       amountDisbursed: editForm.amountDisbursed,
       status: editForm.status,
+      clientId: editForm.clientId,
     });
     setAllInvoices(await actions.getAllInvoicesFlat());
     setEditTarget(null);
@@ -149,9 +156,12 @@ export default function AdminInvoicesPage() {
     return { vaId, vaName: match?.vaName || vaId };
   });
 
+  const clientOptions = Array.from(new Set(allInvoices.map((i) => i.clientName).filter(Boolean)));
+
   const filtered = allInvoices.filter((i) => {
     if (filterStatus !== "All" && i.invoice.status !== filterStatus) return false;
     if (filterVA !== "All" && i.vaId !== filterVA) return false;
+    if (filterClient !== "All" && i.clientName !== filterClient) return false;
     if (dateFrom || dateTo) {
       const { start, end } = parseCoveredDates(i.invoice.dateCovered);
       if (dateFrom && end && end < dateFrom) return false;
@@ -175,7 +185,7 @@ export default function AdminInvoicesPage() {
           onClick={() => downloadAllInvoices(filtered)}
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
-          <Download size={16} /> Download {filterStatus !== "All" || filterVA !== "All" || dateFrom || dateTo ? "Filtered" : "All"} ({filtered.length})
+          <Download size={16} /> Download {filterStatus !== "All" || filterVA !== "All" || filterClient !== "All" || dateFrom || dateTo ? "Filtered" : "All"} ({filtered.length})
         </button>
       </div>
 
@@ -232,6 +242,19 @@ export default function AdminInvoicesPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
+          <Filter size={16} className="text-muted" />
+          <select
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="All">All Clients</option>
+            {clientOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
           <Calendar size={16} className="text-muted" />
           <input
             type="date"
@@ -246,9 +269,9 @@ export default function AdminInvoicesPage() {
             onChange={(e) => setDateTo(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          {(filterVA !== "All" || dateFrom || dateTo || filterStatus !== "All") && (
+          {(filterVA !== "All" || filterClient !== "All" || dateFrom || dateTo || filterStatus !== "All") && (
             <button
-              onClick={() => { setFilterVA("All"); setDateFrom(""); setDateTo(""); setFilterStatus("All"); }}
+              onClick={() => { setFilterVA("All"); setFilterClient("All"); setDateFrom(""); setDateTo(""); setFilterStatus("All"); }}
               className="px-3 py-1.5 text-sm rounded-lg text-red-600 bg-red-50 hover:bg-red-100 font-medium transition-colors"
             >
               Clear Filters
@@ -263,6 +286,7 @@ export default function AdminInvoicesPage() {
             <thead>
               <tr className="bg-slate-50 border-b border-border">
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Invoice #</th>
+                <th className="text-left px-6 py-3 font-semibold text-slate-600">Client</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">VA</th>
                 <th className="text-left px-6 py-3 font-semibold text-slate-600">Date Covered</th>
                 <th className="text-right px-6 py-3 font-semibold text-slate-600">Amount</th>
@@ -274,11 +298,12 @@ export default function AdminInvoicesPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-muted">No invoices match the current filters.</td></tr>
+                <tr><td colSpan={9} className="px-6 py-8 text-center text-muted">No invoices match the current filters.</td></tr>
               ) : (
                 filtered.map((item) => (
                   <tr key={item.invoice.invoiceNumber} className="border-b border-border hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-mono font-medium text-foreground">{item.invoice.invoiceNumber}</td>
+                    <td className="px-6 py-4 text-foreground">{item.clientName || "—"}</td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-foreground">{item.vaName}</p>
                       <p className="text-xs text-muted">ID: {item.vaId}</p>
@@ -305,7 +330,7 @@ export default function AdminInvoicesPage() {
                           <Pencil size={16} />
                         </button>
                         <button
-                          onClick={() => downloadInvoice(item.invoice, item.vaName, item.vaId)}
+                          onClick={() => downloadInvoice(item.invoice, item.vaName, item.vaId, item.clientName)}
                           className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
                           title="Download"
                         >
@@ -365,12 +390,8 @@ export default function AdminInvoicesPage() {
               </div>
               <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Bill To</span>
-                  <span className="font-medium text-slate-900">Devin Rubin</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Company</span>
-                  <span className="font-medium text-slate-900">Golden Years Design Benefits</span>
+                  <span className="text-slate-500">Client</span>
+                  <span className="font-medium text-slate-900">{showPreview.clientName || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">From</span>
@@ -398,7 +419,7 @@ export default function AdminInvoicesPage() {
                 </div>
               </div>
               <button
-                onClick={() => downloadInvoice(showPreview.invoice, showPreview.vaName, showPreview.vaId)}
+                onClick={() => downloadInvoice(showPreview.invoice, showPreview.vaName, showPreview.vaId, showPreview.clientName)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <Download size={16} /> Download Invoice
@@ -422,6 +443,13 @@ export default function AdminInvoicesPage() {
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
               <div className="bg-slate-50 rounded-lg p-3 text-sm">
                 <p className="text-slate-600"><strong>VA:</strong> {editTarget.vaName} ({editTarget.vaId})</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Client</label>
+                <select value={editForm.clientId || ""} onChange={(e) => setEditForm((f) => ({ ...f, clientId: parseInt(e.target.value) || 0 }))} className={inputClass}>
+                  <option value="">No client</option>
+                  {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}{c.companyName ? ` - ${c.companyName}` : ""}</option>))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Date Covered</label>

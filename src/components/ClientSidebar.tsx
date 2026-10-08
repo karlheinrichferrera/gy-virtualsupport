@@ -9,6 +9,7 @@ import {
   FileText,
   CalendarDays,
   DollarSign,
+  Settings,
   LogOut,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/client/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/client/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
   { href: "/client/dashboard/adjustments", label: "Salary Adjustments", icon: DollarSign },
+  { href: "/client/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function ClientSidebar() {

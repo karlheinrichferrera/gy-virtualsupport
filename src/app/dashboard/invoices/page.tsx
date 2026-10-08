@@ -3,10 +3,14 @@
 import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { Invoice, VAProfile } from "@/lib/data";
+import type { ClientAccount } from "@/lib/actions";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, FileText, Download, X, Eye, Pencil, Save } from "lucide-react";
 
-function downloadInvoice(inv: Invoice, profile: VAProfile | null) {
+function downloadInvoice(inv: Invoice, profile: VAProfile | null, clients: ClientAccount[]) {
+  const client = clients.find((c) => c.id === inv.clientId);
+  const clientName = client?.displayName || "N/A";
+  const clientCompany = client?.companyName || "";
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Invoice ${inv.invoiceNumber}</title>
 <style>
@@ -24,8 +28,8 @@ td{padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:14px}
 .status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:${inv.status==="Paid"?"#dcfce7;color:#166534":"#fef3c7;color:#92400e"}}
 @media print{body{margin:0;padding:20px}}
 </style></head><body>
-<div class="header"><div><h1>INVOICE</h1><p style="color:#64748b;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><p style="font-weight:700;margin:0">Golden Years Design Benefits</p><p style="color:#64748b;margin:4px 0 0">Virtual Support Services</p></div></div>
-<div class="info-grid"><div class="info-box"><div class="label">Bill To</div><div class="value">Devin Rubin</div><div style="font-size:13px;color:#64748b">Golden Years Design Benefits</div></div><div class="info-box"><div class="label">From</div><div class="value">${profile?.firstName || ""} ${profile?.lastName || ""}</div><div style="font-size:13px;color:#64748b">VA ID: ${profile?.id || ""}</div></div><div class="info-box"><div class="label">Date Covered</div><div class="value">${inv.dateCovered}</div></div><div class="info-box"><div class="label">Status</div><div><span class="status">${inv.status}</span></div></div></div>
+<div class="header"><div><h1>INVOICE</h1><p style="color:#64748b;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><p style="font-weight:700;margin:0">${clientCompany || "Golden Years Design Benefits"}</p><p style="color:#64748b;margin:4px 0 0">Virtual Support Services</p></div></div>
+<div class="info-grid"><div class="info-box"><div class="label">Bill To</div><div class="value">${clientName}</div><div style="font-size:13px;color:#64748b">${clientCompany}</div></div><div class="info-box"><div class="label">From</div><div class="value">${profile?.firstName || ""} ${profile?.lastName || ""}</div><div style="font-size:13px;color:#64748b">VA ID: ${profile?.id || ""}</div></div><div class="info-box"><div class="label">Date Covered</div><div class="value">${inv.dateCovered}</div></div><div class="info-box"><div class="label">Status</div><div><span class="status">${inv.status}</span></div></div></div>
 <table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody><tr><td>Service Fee</td><td style="text-align:right">${inv.amount}</td></tr>${inv.transactionFee?`<tr><td>Transaction Fee</td><td style="text-align:right;color:#dc2626">-${inv.transactionFee}</td></tr>`:""}<tr class="total-row"><td>Amount Disbursed</td><td style="text-align:right">${inv.amountDisbursed}</td></tr></tbody></table>
 <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:40px">Generated from GY Virtual Support Portal</p>
 </body></html>`;
@@ -40,11 +44,12 @@ td{padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:14px}
 
 export default function InvoicesPage() {
   const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
   const [profile, setProfile] = useState<VAProfile | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showPreview, setShowPreview] = useState<Invoice | null>(null);
   const [editTarget, setEditTarget] = useState<Invoice | null>(null);
-  const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "" });
+  const [editForm, setEditForm] = useState({ dateCovered: "", amount: "", transactionFee: "", amountDisbursed: "", clientId: 0 });
   const [form, setForm] = useState({
     dateFrom: "",
     dateTo: "",
@@ -52,6 +57,7 @@ export default function InvoicesPage() {
     rate: "5.00",
     bonusDescription: "",
     bonusAmount: "",
+    clientId: 0,
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -60,6 +66,7 @@ export default function InvoicesPage() {
       const id = localStorage.getItem("vaId") || "";
       setInvoiceList(await actions.getInvoicesFor(id));
       setProfile((await actions.getProfile(id)) || null);
+      setClients(await actions.getClientAccounts());
     })();
   }, []);
 
@@ -81,6 +88,7 @@ export default function InvoicesPage() {
       amountDisbursed: `$${(amount - fee).toFixed(2)}`,
       invoiceCopy: "",
       status: "Pending",
+      clientId: parseInt(String(form.clientId)) || 0,
     };
     await actions.addInvoice(id, newInvoice);
     const updated = await actions.getInvoicesFor(id);
@@ -95,6 +103,7 @@ export default function InvoicesPage() {
       amount: inv.amount,
       transactionFee: inv.transactionFee,
       amountDisbursed: inv.amountDisbursed,
+      clientId: inv.clientId || 0,
     });
   }
 
@@ -106,6 +115,7 @@ export default function InvoicesPage() {
       amount: editForm.amount,
       transactionFee: editForm.transactionFee,
       amountDisbursed: editForm.amountDisbursed,
+      clientId: editForm.clientId,
     });
     const id = localStorage.getItem("vaId") || "";
     const updated = await actions.getInvoicesFor(id);
@@ -131,6 +141,7 @@ export default function InvoicesPage() {
               rate: "5.00",
               bonusDescription: "",
               bonusAmount: "",
+              clientId: 0,
             });
           }}
           className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
@@ -188,7 +199,7 @@ export default function InvoicesPage() {
                       )}
                       {inv.status && inv.invoiceNumber && (
                         <button
-                          onClick={() => downloadInvoice(inv, profile)}
+                          onClick={() => downloadInvoice(inv, profile, clients)}
                           className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
                           title="Download"
                         >
@@ -224,11 +235,11 @@ export default function InvoicesPage() {
               <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Bill To</span>
-                  <span className="font-medium text-slate-900">Devin Rubin</span>
+                  <span className="font-medium text-slate-900">{clients.find((c) => c.id === showPreview.clientId)?.displayName || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Company</span>
-                  <span className="font-medium text-slate-900">Golden Years Design Benefits</span>
+                  <span className="font-medium text-slate-900">{clients.find((c) => c.id === showPreview.clientId)?.companyName || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">From</span>
@@ -256,7 +267,7 @@ export default function InvoicesPage() {
                 </div>
               </div>
               <button
-                onClick={() => { downloadInvoice(showPreview, profile); }}
+                onClick={() => { downloadInvoice(showPreview, profile, clients); }}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <Download size={16} /> Download Invoice
@@ -278,6 +289,13 @@ export default function InvoicesPage() {
               </button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Bill To (Client)</label>
+                <select value={editForm.clientId || ""} onChange={(e) => setEditForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                  <option value="">Select a client</option>
+                  {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}{c.companyName ? ` - ${c.companyName}` : ""}</option>))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Date Covered</label>
                 <input type="text" value={editForm.dateCovered} onChange={(e) => setEditForm((f) => ({ ...f, dateCovered: e.target.value }))} className={inputClass} />
@@ -333,9 +351,14 @@ export default function InvoicesPage() {
               </div>
             ) : (
               <form onSubmit={handleCreate} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bill To (Client) *</label>
+                  <select required value={form.clientId || ""} onChange={(e) => setForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                    <option value="">Select a client</option>
+                    {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}{c.companyName ? ` - ${c.companyName}` : ""}</option>))}
+                  </select>
+                </div>
                 <div className="bg-slate-50 rounded-lg p-3 text-sm">
-                  <p className="text-slate-600"><strong>Bill To:</strong> Devin Rubin</p>
-                  <p className="text-slate-600"><strong>Company:</strong> Golden Years Design Benefits</p>
                   <p className="text-slate-600"><strong>From:</strong> {profile?.firstName} {profile?.lastName} ({profile?.id})</p>
                 </div>
 

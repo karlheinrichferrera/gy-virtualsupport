@@ -65,6 +65,7 @@ function rowToAdjustment(r: Record<string, unknown>): SalaryAdjustment & { id: n
 function rowToInvoice(r: Record<string, unknown>): Invoice {
   return {
     invoiceNumber: r.invoice_number as string,
+    clientId: (r.client_id as number) || 0,
     dateCovered: r.date_covered as string,
     amount: r.amount as string,
     transactionFee: r.transaction_fee as string,
@@ -214,25 +215,27 @@ export async function getInvoicesFor(vaId: string): Promise<Invoice[]> {
   return rows.map(rowToInvoice);
 }
 
-export async function getAllInvoicesFlat(): Promise<{ vaId: string; vaName: string; invoice: Invoice }[]> {
+export async function getAllInvoicesFlat(): Promise<{ vaId: string; vaName: string; clientName: string; invoice: Invoice }[]> {
   const { rows } = await sql`
-    SELECT i.*, p.first_name, p.last_name
+    SELECT i.*, p.first_name, p.last_name, c.display_name as client_name
     FROM invoices i
     JOIN va_profiles p ON i.va_id = p.id
+    LEFT JOIN client_accounts c ON i.client_id = c.id
     WHERE i.invoice_number != '' AND i.amount != ''
     ORDER BY i.id
   `;
   return rows.map((r) => ({
     vaId: r.va_id as string,
     vaName: `${r.first_name} ${r.last_name}`,
+    clientName: (r.client_name as string) || "",
     invoice: rowToInvoice(r),
   }));
 }
 
 export async function addInvoice(vaId: string, inv: Invoice): Promise<void> {
   await sql`
-    INSERT INTO invoices (va_id, invoice_number, date_covered, amount, transaction_fee, amount_disbursed, invoice_copy, status)
-    VALUES (${vaId}, ${inv.invoiceNumber}, ${inv.dateCovered}, ${inv.amount}, ${inv.transactionFee}, ${inv.amountDisbursed}, ${inv.invoiceCopy}, ${inv.status})
+    INSERT INTO invoices (va_id, client_id, invoice_number, date_covered, amount, transaction_fee, amount_disbursed, invoice_copy, status)
+    VALUES (${vaId}, ${inv.clientId || 0}, ${inv.invoiceNumber}, ${inv.dateCovered}, ${inv.amount}, ${inv.transactionFee}, ${inv.amountDisbursed}, ${inv.invoiceCopy}, ${inv.status})
   `;
 }
 
@@ -243,6 +246,7 @@ export async function updateInvoice(invoiceNumber: string, updates: Partial<Invo
   const merged = { ...current, ...updates };
   await sql`
     UPDATE invoices SET
+      client_id = ${merged.clientId || 0},
       date_covered = ${merged.dateCovered},
       amount = ${merged.amount},
       transaction_fee = ${merged.transactionFee},
@@ -406,30 +410,82 @@ export type ClientAccount = {
   id: number;
   email: string;
   displayName: string;
+  companyName: string;
+  address: string;
+  phone: string;
   createdAt: string;
 };
+
+function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
+  return {
+    id: r.id as number,
+    email: r.email as string,
+    displayName: r.display_name as string,
+    companyName: (r.company_name as string) || "",
+    address: (r.address as string) || "",
+    phone: (r.phone as string) || "",
+    createdAt: r.created_at as string,
+  };
+}
 
 export async function authenticateClient(email: string, password: string): Promise<ClientAccount | null> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE email = ${email} AND password = ${password}`;
   if (rows.length === 0) return null;
-  const r = rows[0];
-  return { id: r.id as number, email: r.email as string, displayName: r.display_name as string, createdAt: r.created_at as string };
+  return rowToClientAccount(rows[0]);
 }
 
 export async function getClientAccounts(): Promise<ClientAccount[]> {
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT id, email, display_name, created_at FROM client_accounts ORDER BY id`;
-  return rows.map((r) => ({ id: r.id as number, email: r.email as string, displayName: r.display_name as string, createdAt: r.created_at as string }));
+  const { rows } = await sql`SELECT * FROM client_accounts ORDER BY id`;
+  return rows.map(rowToClientAccount);
 }
 
-export async function addClientAccount(email: string, password: string, displayName: string): Promise<{ success: boolean; error?: string }> {
+export async function getClientAccountByEmail(email: string): Promise<ClientAccount | null> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_accounts WHERE email = ${email}`;
+  if (rows.length === 0) return null;
+  return rowToClientAccount(rows[0]);
+}
+
+export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string): Promise<{ success: boolean; error?: string }> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
   const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES (${email}, ${password}, ${displayName}, ${now})`;
+  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now})`;
   return { success: true };
+}
+
+export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string }): Promise<void> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
+  if (rows.length === 0) return;
+  const current = rowToClientAccount(rows[0]);
+  await sql`
+    UPDATE client_accounts SET
+      display_name = ${updates.displayName ?? current.displayName},
+      company_name = ${updates.companyName ?? current.companyName},
+      address = ${updates.address ?? current.address},
+      phone = ${updates.phone ?? current.phone},
+      email = ${updates.email ?? current.email}
+    WHERE id = ${id}
+  `;
+}
+
+export async function updateClientAccountByEmail(email: string, updates: { displayName?: string; companyName?: string; address?: string; phone?: string }): Promise<void> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_accounts WHERE email = ${email}`;
+  if (rows.length === 0) return;
+  const current = rowToClientAccount(rows[0]);
+  await sql`
+    UPDATE client_accounts SET
+      display_name = ${updates.displayName ?? current.displayName},
+      company_name = ${updates.companyName ?? current.companyName},
+      address = ${updates.address ?? current.address},
+      phone = ${updates.phone ?? current.phone}
+    WHERE email = ${email}
+  `;
 }
 
 export async function deleteClientAccount(id: number): Promise<void> {
