@@ -11,6 +11,7 @@ import {
   LogOut,
   Clock,
   Settings,
+  ClipboardList,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/admin/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
   { href: "/admin/dashboard/timesheet", label: "Timesheet", icon: Clock },
+  { href: "/admin/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/admin/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
