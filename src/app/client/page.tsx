@@ -41,8 +41,8 @@ export default function ClientLoginPage() {
           <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Building2 className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white">Client Portal</h1>
-          <p className="text-emerald-300 mt-2">Golden Years Design Benefits</p>
+          <h1 className="text-3xl font-bold text-white">GY Virtual Support</h1>
+          <p className="text-emerald-300 mt-2">Client Portal</p>
         </div>
 
         <form
@@ -84,14 +84,8 @@ export default function ClientLoginPage() {
             <LogIn size={18} />
             {loading ? "Signing in..." : "Sign In"}
           </button>
-          <p className="text-center text-sm text-slate-600 mt-4">
-            <a href="/" className="text-emerald-600 hover:underline font-medium">
-              VA Login
-            </a>
-            {" · "}
-            <a href="/admin" className="text-slate-500 hover:underline">
-              Admin Login
-            </a>
+          <p className="text-center text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+            Client Portal
           </p>
         </form>
       </div>

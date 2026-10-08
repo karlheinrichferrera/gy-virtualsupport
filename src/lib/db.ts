@@ -125,6 +125,20 @@ export async function ensureTables() {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS client_salary_adjustments (
+      id SERIAL PRIMARY KEY,
+      client_id INTEGER NOT NULL REFERENCES client_accounts(id) ON DELETE CASCADE,
+      va_id TEXT NOT NULL REFERENCES va_profiles(id) ON DELETE CASCADE,
+      effectivity_date TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT '',
+      hourly_rate TEXT NOT NULL DEFAULT '',
+      sales_commission TEXT NOT NULL DEFAULT '',
+      referral_bonus TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT ''
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS client_invoices (
       id SERIAL PRIMARY KEY,
       client_id INTEGER NOT NULL REFERENCES client_accounts(id) ON DELETE CASCADE,

@@ -42,7 +42,7 @@ export default function AdminDashboardLayout({
         <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-20">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Admin Dashboard</h2>
-            <p className="text-xs text-muted">Golden Years Design Benefits</p>
+            <p className="text-xs text-muted">Admin Portal</p>
           </div>
           <div className="relative">
             <button

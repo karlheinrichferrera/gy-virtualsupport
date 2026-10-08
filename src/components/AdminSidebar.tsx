@@ -34,9 +34,9 @@ export default function AdminSidebar() {
     <aside className="fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-indigo-950 to-slate-900 text-slate-300 flex flex-col z-30">
       <div className="p-6 border-b border-white/10">
         <h1 className="text-xl font-bold text-white tracking-tight">
-          GY Admin Panel
+          GY Virtual Support
         </h1>
-        <p className="text-xs text-indigo-300 mt-1">Management Console</p>
+        <p className="text-xs text-indigo-300 mt-1">Admin Portal</p>
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-1">

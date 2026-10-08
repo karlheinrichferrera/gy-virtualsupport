@@ -2,33 +2,48 @@
 
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
-import type { ClientAccount, ClientInvoice } from "@/lib/actions";
-import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save } from "lucide-react";
+import type { ClientAccount, ClientInvoice, ClientSalaryAdjustment } from "@/lib/actions";
+import type { VAProfile } from "@/lib/data";
+import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign } from "lucide-react";
 
 const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
 
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<ClientAccount[]>([]);
   const [invoices, setInvoices] = useState<ClientInvoice[]>([]);
+  const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
+  const [clientAdjs, setClientAdjs] = useState<ClientSalaryAdjustment[]>([]);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddInvoice, setShowAddInvoice] = useState(false);
+  const [showAddAdj, setShowAddAdj] = useState(false);
   const [deleteClientTarget, setDeleteClientTarget] = useState<number | null>(null);
   const [resetTarget, setResetTarget] = useState<number | null>(null);
   const [deleteInvTarget, setDeleteInvTarget] = useState<number | null>(null);
+  const [deleteAdjTarget, setDeleteAdjTarget] = useState<number | null>(null);
   const [editInv, setEditInv] = useState<ClientInvoice | null>(null);
-  const [tab, setTab] = useState<"accounts" | "invoices">("accounts");
+  const [tab, setTab] = useState<"accounts" | "invoices" | "adjustments">("accounts");
+  const [adjClientFilter, setAdjClientFilter] = useState<number>(0);
+  const [adjVAFilter, setAdjVAFilter] = useState("");
 
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
   const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "" });
   const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
   const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
+  const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [error, setError] = useState("");
 
   async function loadData() {
-    const [c, i] = await Promise.all([actions.getClientAccounts(), actions.getClientInvoices()]);
+    const [c, i, vas, adjs] = await Promise.all([
+      actions.getClientAccounts(),
+      actions.getClientInvoices(),
+      actions.getProfiles(),
+      actions.getClientSalaryAdjustments(),
+    ]);
     setClients(c);
     setInvoices(i);
+    setVaProfiles(vas);
+    setClientAdjs(adjs);
   }
 
   useEffect(() => { loadData(); }, []);
@@ -88,6 +103,36 @@ export default function AdminClientsPage() {
     await loadData();
   }
 
+  async function handleAddAdj(e: React.FormEvent) {
+    e.preventDefault();
+    await actions.addClientSalaryAdjustment({
+      clientId: adjForm.clientId,
+      vaId: adjForm.vaId,
+      effectivityDate: adjForm.effectivityDate,
+      type: adjForm.type,
+      hourlyRate: adjForm.hourlyRate,
+      salesCommission: adjForm.salesCommission,
+      referralBonus: adjForm.referralBonus,
+      notes: adjForm.notes,
+    });
+    setShowAddAdj(false);
+    setAdjForm({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
+    await loadData();
+  }
+
+  async function handleDeleteAdj() {
+    if (deleteAdjTarget === null) return;
+    await actions.deleteClientSalaryAdjustment(deleteAdjTarget);
+    setDeleteAdjTarget(null);
+    await loadData();
+  }
+
+  const filteredAdjs = clientAdjs.filter((a) => {
+    if (adjClientFilter && a.clientId !== adjClientFilter) return false;
+    if (adjVAFilter && a.vaId !== adjVAFilter) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -103,6 +148,9 @@ export default function AdminClientsPage() {
         </button>
         <button onClick={() => setTab("invoices")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "invoices" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
           Client Invoices
+        </button>
+        <button onClick={() => setTab("adjustments")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "adjustments" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+          Salary Adjustments
         </button>
       </div>
 
@@ -223,6 +271,139 @@ export default function AdminClientsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {tab === "adjustments" && (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <select value={adjClientFilter} onChange={(e) => setAdjClientFilter(parseInt(e.target.value))} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px]">
+              <option value={0}>All Clients</option>
+              {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}</option>))}
+            </select>
+            <select value={adjVAFilter} onChange={(e) => setAdjVAFilter(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px]">
+              <option value="">All VAs</option>
+              {vaProfiles.map((va) => (<option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>))}
+            </select>
+            <div className="flex-1" />
+            <button onClick={() => setShowAddAdj(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+              <Plus size={16} /> Add Adjustment
+            </button>
+          </div>
+
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-border">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Client</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">VA</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Effectivity Date</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Type</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Hourly Rate</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Commission</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Referral</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Notes</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdjs.map((adj) => {
+                    const client = clients.find((c) => c.id === adj.clientId);
+                    const va = vaProfiles.find((v) => v.id === adj.vaId);
+                    return (
+                      <tr key={adj.id} className="border-b border-border hover:bg-slate-50/50">
+                        <td className="px-4 py-3 text-foreground">{client?.displayName || "—"}</td>
+                        <td className="px-4 py-3 text-foreground">{va ? `${va.id} - ${va.firstName} ${va.lastName}` : adj.vaId}</td>
+                        <td className="px-4 py-3 text-foreground">{adj.effectivityDate}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            adj.type === "INCREASE" ? "bg-emerald-100 text-emerald-700" :
+                            adj.type === "DECREASE" ? "bg-red-100 text-red-700" :
+                            "bg-slate-100 text-slate-600"
+                          }`}>{adj.type}</span>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-foreground">{adj.hourlyRate}</td>
+                        <td className="px-4 py-3 text-foreground">{adj.salesCommission}</td>
+                        <td className="px-4 py-3 text-foreground">{adj.referralBonus}</td>
+                        <td className="px-4 py-3 text-foreground text-xs">{adj.notes || "—"}</td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => setDeleteAdjTarget(adj.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
+                            <Trash2 size={14} className="text-red-600" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredAdjs.length === 0 && (
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No client salary adjustments yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Add Adjustment Modal */}
+      {showAddAdj && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><DollarSign size={20} className="text-indigo-600" /> Add Client Salary Adjustment</h2>
+              <button onClick={() => setShowAddAdj(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+            </div>
+            <form onSubmit={handleAddAdj} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
+                  <select required value={adjForm.clientId || ""} onChange={(e) => setAdjForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                    <option value="">Select a client</option>
+                    {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}</option>))}
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">VA *</label>
+                  <select required value={adjForm.vaId} onChange={(e) => setAdjForm((f) => ({ ...f, vaId: e.target.value }))} className={inputClass}>
+                    <option value="">Select a VA</option>
+                    {vaProfiles.map((va) => (<option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>))}
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Effectivity Date *</label><input type="text" required value={adjForm.effectivityDate} onChange={(e) => setAdjForm((f) => ({ ...f, effectivityDate: e.target.value }))} className={inputClass} placeholder="e.g. October 1, 2026" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Type *</label>
+                  <select value={adjForm.type} onChange={(e) => setAdjForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
+                    <option value="INCREASE">INCREASE</option>
+                    <option value="DECREASE">DECREASE</option>
+                    <option value="BONUS">BONUS</option>
+                    <option value="INITIAL">INITIAL</option>
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={adjForm.hourlyRate} onChange={(e) => setAdjForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.00" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Sales Commission</label><input type="text" value={adjForm.salesCommission} onChange={(e) => setAdjForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="e.g. 5%" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Referral Bonus</label><input type="text" value={adjForm.referralBonus} onChange={(e) => setAdjForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="e.g. $50" /></div>
+                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={adjForm.notes} onChange={(e) => setAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddAdj(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Plus size={16} /> Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Adjustment Confirm */}
+      {deleteAdjTarget !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto"><AlertTriangle className="text-red-600" size={28} /></div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Adjustment?</h3>
+              <p className="text-sm text-slate-500">This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteAdjTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button onClick={handleDeleteAdj} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Client Modal */}

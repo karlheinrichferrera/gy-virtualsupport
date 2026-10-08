@@ -41,8 +41,8 @@ export default function AdminLoginPage() {
           <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <ShieldCheck className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
-          <p className="text-indigo-300 mt-2">GY Virtual Support Management</p>
+          <h1 className="text-3xl font-bold text-white">GY Virtual Support</h1>
+          <p className="text-indigo-300 mt-2">Admin Portal</p>
         </div>
 
         <form
@@ -84,10 +84,8 @@ export default function AdminLoginPage() {
             <LogIn size={18} />
             {loading ? "Signing in..." : "Sign In as Admin"}
           </button>
-          <p className="text-center text-sm text-slate-600 mt-4">
-            <a href="/" className="text-indigo-600 hover:underline font-medium">
-              Back to VA Login
-            </a>
+          <p className="text-center text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+            Admin Portal
           </p>
         </form>
       </div>

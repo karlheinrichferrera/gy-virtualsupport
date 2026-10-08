@@ -577,6 +577,69 @@ export async function deleteClientInvoice(id: number): Promise<void> {
   await sql`DELETE FROM client_invoices WHERE id = ${id}`;
 }
 
+// ── Client Salary Adjustments ──
+
+export type ClientSalaryAdjustment = {
+  id: number;
+  clientId: number;
+  vaId: string;
+  effectivityDate: string;
+  type: string;
+  hourlyRate: string;
+  salesCommission: string;
+  referralBonus: string;
+  notes: string;
+};
+
+function rowToClientSalaryAdjustment(r: Record<string, unknown>): ClientSalaryAdjustment {
+  return {
+    id: r.id as number,
+    clientId: r.client_id as number,
+    vaId: r.va_id as string,
+    effectivityDate: r.effectivity_date as string,
+    type: r.type as string,
+    hourlyRate: r.hourly_rate as string,
+    salesCommission: r.sales_commission as string,
+    referralBonus: r.referral_bonus as string,
+    notes: r.notes as string,
+  };
+}
+
+export async function getClientSalaryAdjustments(): Promise<ClientSalaryAdjustment[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_salary_adjustments ORDER BY id DESC`;
+  return rows.map(rowToClientSalaryAdjustment);
+}
+
+export async function getClientSalaryAdjustmentsByClientId(clientId: number): Promise<ClientSalaryAdjustment[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_salary_adjustments WHERE client_id = ${clientId} ORDER BY id DESC`;
+  return rows.map(rowToClientSalaryAdjustment);
+}
+
+export async function getClientSalaryAdjustmentsByEmail(email: string): Promise<ClientSalaryAdjustment[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT csa.* FROM client_salary_adjustments csa
+    JOIN client_accounts ca ON ca.id = csa.client_id
+    WHERE ca.email = ${email}
+    ORDER BY csa.id DESC
+  `;
+  return rows.map(rowToClientSalaryAdjustment);
+}
+
+export async function addClientSalaryAdjustment(adj: Omit<ClientSalaryAdjustment, "id">): Promise<void> {
+  await ensureTablesOnce();
+  await sql`
+    INSERT INTO client_salary_adjustments (client_id, va_id, effectivity_date, type, hourly_rate, sales_commission, referral_bonus, notes)
+    VALUES (${adj.clientId}, ${adj.vaId}, ${adj.effectivityDate}, ${adj.type}, ${adj.hourlyRate}, ${adj.salesCommission}, ${adj.referralBonus}, ${adj.notes})
+  `;
+}
+
+export async function deleteClientSalaryAdjustment(id: number): Promise<void> {
+  await sql`DELETE FROM client_salary_adjustments WHERE id = ${id}`;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {

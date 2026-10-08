@@ -96,13 +96,7 @@ export default function LoginPage() {
             </a>
           </p>
           <p className="text-center text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
-            <a href="/client" className="text-slate-500 hover:text-emerald-600 hover:underline transition-colors">
-              Client Login
-            </a>
-            {" · "}
-            <a href="/admin" className="text-slate-500 hover:text-blue-600 hover:underline transition-colors">
-              Admin Login
-            </a>
+            VA Portal
           </p>
         </form>
       </div>
