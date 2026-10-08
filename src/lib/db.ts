@@ -96,6 +96,34 @@ export async function ensureTables() {
   if (count === 0) {
     await sql`INSERT INTO admin_accounts (username, password, display_name, created_at) VALUES ('admin', 'gyadmin2026', 'Administrator', 'System Default')`;
   }
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_accounts (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL DEFAULT 'gyclient2026',
+      display_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    )
+  `;
+
+  const cr = await sql`SELECT COUNT(*) as cnt FROM client_accounts`;
+  const clientCount = parseInt(cr.rows[0].cnt as string) || 0;
+  if (clientCount === 0) {
+    await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES ('devin@goldenyearsdesign.com', 'gyclient2026', 'Devin Rubin', 'System Default')`;
+  }
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_invoices (
+      id SERIAL PRIMARY KEY,
+      invoice_number TEXT NOT NULL DEFAULT '',
+      bill_coverage TEXT NOT NULL DEFAULT '',
+      amount TEXT NOT NULL DEFAULT '',
+      invoice_due_date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Pending',
+      invoice_link TEXT NOT NULL DEFAULT ''
+    )
+  `;
 }
 
 export { sql };

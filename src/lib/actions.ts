@@ -400,6 +400,106 @@ export async function resetAdminPassword(id: number): Promise<void> {
   await sql`UPDATE admin_accounts SET password = 'gyadmin2026' WHERE id = ${id}`;
 }
 
+// ── Client Accounts ──
+
+export type ClientAccount = {
+  id: number;
+  email: string;
+  displayName: string;
+  createdAt: string;
+};
+
+export async function authenticateClient(email: string, password: string): Promise<ClientAccount | null> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_accounts WHERE email = ${email} AND password = ${password}`;
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return { id: r.id as number, email: r.email as string, displayName: r.display_name as string, createdAt: r.created_at as string };
+}
+
+export async function getClientAccounts(): Promise<ClientAccount[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id, email, display_name, created_at FROM client_accounts ORDER BY id`;
+  return rows.map((r) => ({ id: r.id as number, email: r.email as string, displayName: r.display_name as string, createdAt: r.created_at as string }));
+}
+
+export async function addClientAccount(email: string, password: string, displayName: string): Promise<{ success: boolean; error?: string }> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
+  if (rows.length > 0) return { success: false, error: "Email already exists" };
+  const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES (${email}, ${password}, ${displayName}, ${now})`;
+  return { success: true };
+}
+
+export async function deleteClientAccount(id: number): Promise<void> {
+  await sql`DELETE FROM client_accounts WHERE id = ${id}`;
+}
+
+export async function resetClientPassword(id: number): Promise<void> {
+  await sql`UPDATE client_accounts SET password = 'gyclient2026' WHERE id = ${id}`;
+}
+
+export async function changeClientPassword(email: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email} AND password = ${currentPassword}`;
+  if (rows.length === 0) return { success: false, error: "Current password is incorrect" };
+  await sql`UPDATE client_accounts SET password = ${newPassword} WHERE email = ${email}`;
+  return { success: true };
+}
+
+// ── Client Invoices ──
+
+export type ClientInvoice = {
+  id: number;
+  invoiceNumber: string;
+  billCoverage: string;
+  amount: string;
+  invoiceDueDate: string;
+  status: string;
+  invoiceLink: string;
+};
+
+export async function getClientInvoices(): Promise<ClientInvoice[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM client_invoices ORDER BY id DESC`;
+  return rows.map((r) => ({
+    id: r.id as number,
+    invoiceNumber: r.invoice_number as string,
+    billCoverage: r.bill_coverage as string,
+    amount: r.amount as string,
+    invoiceDueDate: r.invoice_due_date as string,
+    status: r.status as string,
+    invoiceLink: r.invoice_link as string,
+  }));
+}
+
+export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<void> {
+  await ensureTablesOnce();
+  await sql`
+    INSERT INTO client_invoices (invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link)
+    VALUES (${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink})
+  `;
+}
+
+export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "id">): Promise<void> {
+  await ensureTablesOnce();
+  await sql`
+    UPDATE client_invoices SET
+      invoice_number = ${inv.invoiceNumber},
+      bill_coverage = ${inv.billCoverage},
+      amount = ${inv.amount},
+      invoice_due_date = ${inv.invoiceDueDate},
+      status = ${inv.status},
+      invoice_link = ${inv.invoiceLink}
+    WHERE id = ${id}
+  `;
+}
+
+export async function deleteClientInvoice(id: number): Promise<void> {
+  await sql`DELETE FROM client_invoices WHERE id = ${id}`;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {
