@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
+type VAWithClientRate = VAProfile & { clientRate: string };
 import { Users, Eye, X, Mail, Phone, Briefcase, MapPin } from "lucide-react";
 
 export default function ClientVAsPage() {
-  const [vas, setVAs] = useState<VAProfile[]>([]);
+  const [vas, setVAs] = useState<VAWithClientRate[]>([]);
   const [selectedVA, setSelectedVA] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -131,7 +132,7 @@ export default function ClientVAsPage() {
                 </div>
                 <div className="flex items-start gap-2">
                   <Briefcase size={16} className="text-slate-400 mt-0.5" />
-                  <div><p className="text-slate-500">Current Rate</p><p className="font-medium text-slate-900">{profile.currentRate}</p></div>
+                  <div><p className="text-slate-500">Rate</p><p className="font-medium text-slate-900">{profile.clientRate || "N/A"}</p></div>
                 </div>
               </div>
 

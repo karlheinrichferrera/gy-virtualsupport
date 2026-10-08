@@ -97,18 +97,46 @@ function PositionBadges({ position }: { position: string }) {
   );
 }
 
-function ClientMultiSelect({ selected, onChange, clients }: { selected: number[]; onChange: (v: number[]) => void; clients: ClientAccount[] }) {
+type ClientAssignment = { clientId: number; clientRate: string };
+
+function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAssignment[]; onChange: (v: ClientAssignment[]) => void; clients: ClientAccount[] }) {
+  const selectedIds = selected.map((s) => s.clientId);
   function toggle(id: number) {
-    onChange(selected.includes(id) ? selected.filter((c) => c !== id) : [...selected, id]);
+    if (selectedIds.includes(id)) {
+      onChange(selected.filter((s) => s.clientId !== id));
+    } else {
+      onChange([...selected, { clientId: id, clientRate: "" }]);
+    }
+  }
+  function setRate(id: number, rate: string) {
+    onChange(selected.map((s) => s.clientId === id ? { ...s, clientRate: rate } : s));
   }
   return (
-    <div className="flex flex-wrap gap-2">
-      {clients.map((c) => (
-        <button key={c.id} type="button" onClick={() => toggle(c.id)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-            selected.includes(c.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
-          }`}>{c.displayName}</button>
-      ))}
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {clients.map((c) => (
+          <button key={c.id} type="button" onClick={() => toggle(c.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              selectedIds.includes(c.id) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50"
+            }`}>{c.displayName}</button>
+        ))}
+      </div>
+      {selected.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <p className="text-xs font-medium text-slate-500">Client Rate per Assignment</p>
+          {selected.map((s) => {
+            const c = clients.find((cl) => cl.id === s.clientId);
+            return c ? (
+              <div key={s.clientId} className="flex items-center gap-3">
+                <span className="text-xs font-medium text-slate-700 w-32 truncate">{c.displayName}</span>
+                <input type="text" value={s.clientRate} onChange={(e) => setRate(s.clientId, e.target.value)}
+                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  placeholder="e.g. $5/hr" />
+              </div>
+            ) : null;
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -168,7 +196,7 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
-    clientIds: [] as number[],
+    clientAssignments: [] as ClientAssignment[],
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
@@ -180,11 +208,11 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
-    clientIds: [] as number[],
+    clientAssignments: [] as ClientAssignment[],
   });
 
   const [clients, setClients] = useState<ClientAccount[]>([]);
-  const [vaAssignments, setVaAssignments] = useState<Record<string, number[]>>({});
+  const [vaAssignments, setVaAssignments] = useState<Record<string, ClientAssignment[]>>({});
   const [counts, setCounts] = useState<Record<string, { adj: number; inv: number; req: number }>>({});
   const [columnVis, setColumnVis] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
@@ -215,10 +243,10 @@ export default function VAManagementPage() {
     ]);
     setVAs(profiles);
     setClients(clientAccounts);
-    const assignMap: Record<string, number[]> = {};
+    const assignMap: Record<string, ClientAssignment[]> = {};
     for (const a of assignments) {
       if (!assignMap[a.vaId]) assignMap[a.vaId] = [];
-      assignMap[a.vaId].push(a.clientId);
+      assignMap[a.vaId].push({ clientId: a.clientId, clientRate: a.clientRate });
     }
     setVaAssignments(assignMap);
     const countMap: Record<string, { adj: number; inv: number; req: number }> = {};
@@ -275,7 +303,7 @@ export default function VAManagementPage() {
       weeklyReportLink: form.weeklyReportLink,
     };
     await actions.addProfile(newVA);
-    await actions.setVAClientAssignments(newVA.id, form.clientIds);
+    await actions.setVAClientAssignments(newVA.id, form.clientAssignments);
     setShowCreate(false);
     setForm({
       id: "", firstName: "", middleName: "", lastName: "", suffix: "",
@@ -287,7 +315,7 @@ export default function VAManagementPage() {
       payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
       bankName: "", bankAccountNumber: "", bankAccountName: "",
       weeklyReportLink: "",
-      clientIds: [],
+      clientAssignments: [],
     });
     await loadData();
   }
@@ -311,7 +339,7 @@ export default function VAManagementPage() {
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
       bankAccountName: va.bankAccountName || "",
       weeklyReportLink: va.weeklyReportLink || "",
-      clientIds: vaAssignments[va.id] || [],
+      clientAssignments: vaAssignments[va.id] || [],
     });
     setEditTarget(va.id);
   }
@@ -341,7 +369,7 @@ export default function VAManagementPage() {
       bankAccountName: editForm.bankAccountName,
       weeklyReportLink: editForm.weeklyReportLink,
     });
-    await actions.setVAClientAssignments(editTarget, editForm.clientIds);
+    await actions.setVAClientAssignments(editTarget, editForm.clientAssignments);
     setEditTarget(null);
     await loadData();
   }
@@ -521,9 +549,9 @@ export default function VAManagementPage() {
               <div className="text-sm pt-2 border-t border-slate-100">
                 <p className="text-slate-500 mb-1">Assigned Clients</p>
                 <div className="flex flex-wrap gap-1">
-                  {(vaAssignments[profile.id] || []).map((cid) => {
-                    const c = clients.find((cl) => cl.id === cid);
-                    return c ? <span key={cid} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">{c.displayName}</span> : null;
+                  {(vaAssignments[profile.id] || []).map((a) => {
+                    const c = clients.find((cl) => cl.id === a.clientId);
+                    return c ? <span key={a.clientId} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">{c.displayName}{a.clientRate ? ` (${a.clientRate})` : ""}</span> : null;
                   })}
                   {(!vaAssignments[profile.id] || vaAssignments[profile.id].length === 0) && <span className="text-slate-400">No clients assigned</span>}
                 </div>
@@ -657,7 +685,7 @@ export default function VAManagementPage() {
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-2">Assigned Clients</label>
-                  <ClientMultiSelect selected={form.clientIds} onChange={(v) => setForm((f) => ({ ...f, clientIds: v }))} clients={clients} />
+                  <ClientMultiSelect selected={form.clientAssignments} onChange={(v) => setForm((f) => ({ ...f, clientAssignments: v }))} clients={clients} />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
@@ -752,7 +780,7 @@ export default function VAManagementPage() {
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-2">Assigned Clients</label>
-                  <ClientMultiSelect selected={editForm.clientIds} onChange={(v) => setEditForm((f) => ({ ...f, clientIds: v }))} clients={clients} />
+                  <ClientMultiSelect selected={editForm.clientAssignments} onChange={(v) => setEditForm((f) => ({ ...f, clientAssignments: v }))} clients={clients} />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
