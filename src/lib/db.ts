@@ -77,6 +77,22 @@ export async function ensureTables() {
       remarks TEXT NOT NULL DEFAULT ''
     )
   `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_accounts (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    )
+  `;
+
+  const { rows } = await sql`SELECT COUNT(*) as cnt FROM admin_accounts`;
+  const count = parseInt(rows[0].cnt as string) || 0;
+  if (count === 0) {
+    await sql`INSERT INTO admin_accounts (username, password, display_name, created_at) VALUES ('admin', 'gyadmin2026', 'Administrator', 'System Default')`;
+  }
 }
 
 export { sql };

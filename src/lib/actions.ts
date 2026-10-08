@@ -346,6 +346,58 @@ export async function generateNextRequestId(): Promise<string> {
   return `LR-${String(next).padStart(3, "0")}`;
 }
 
+// ── Admin Accounts ──
+
+export type AdminAccount = {
+  id: number;
+  username: string;
+  displayName: string;
+  createdAt: string;
+};
+
+export async function authenticateAdmin(username: string, password: string): Promise<AdminAccount | null> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM admin_accounts WHERE username = ${username} AND password = ${password}`;
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return { id: r.id as number, username: r.username as string, displayName: r.display_name as string, createdAt: r.created_at as string };
+}
+
+export async function getAdminAccounts(): Promise<AdminAccount[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id, username, display_name, created_at FROM admin_accounts ORDER BY id`;
+  return rows.map((r) => ({ id: r.id as number, username: r.username as string, displayName: r.display_name as string, createdAt: r.created_at as string }));
+}
+
+export async function addAdminAccount(username: string, password: string, displayName: string): Promise<{ success: boolean; error?: string }> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id FROM admin_accounts WHERE username = ${username}`;
+  if (rows.length > 0) return { success: false, error: "Username already exists" };
+  const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  await sql`INSERT INTO admin_accounts (username, password, display_name, created_at) VALUES (${username}, ${password}, ${displayName}, ${now})`;
+  return { success: true };
+}
+
+export async function changeAdminPassword(username: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id FROM admin_accounts WHERE username = ${username} AND password = ${currentPassword}`;
+  if (rows.length === 0) return { success: false, error: "Current password is incorrect" };
+  await sql`UPDATE admin_accounts SET password = ${newPassword} WHERE username = ${username}`;
+  return { success: true };
+}
+
+export async function deleteAdminAccount(id: number): Promise<{ success: boolean; error?: string }> {
+  const { rows } = await sql`SELECT COUNT(*) as cnt FROM admin_accounts`;
+  const count = parseInt(rows[0].cnt as string) || 0;
+  if (count <= 1) return { success: false, error: "Cannot delete the last admin account" };
+  await sql`DELETE FROM admin_accounts WHERE id = ${id}`;
+  return { success: true };
+}
+
+export async function resetAdminPassword(id: number): Promise<void> {
+  await sql`UPDATE admin_accounts SET password = 'gyadmin2026' WHERE id = ${id}`;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {

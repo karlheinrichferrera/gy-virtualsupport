@@ -3,20 +3,34 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn, ShieldCheck } from "lucide-react";
+import * as actions from "@/lib/actions";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (username === "admin" && password === "gyadmin2026") {
-      localStorage.setItem("adminAuth", "true");
-      router.push("/admin/dashboard");
-    } else {
-      setError("Invalid admin credentials.");
+    setLoading(true);
+    setError("");
+    try {
+      const admin = await actions.authenticateAdmin(username, password);
+      if (admin) {
+        localStorage.setItem("adminAuth", "true");
+        localStorage.setItem("adminUsername", admin.username);
+        localStorage.setItem("adminDisplayName", admin.displayName);
+        router.push("/admin/dashboard");
+      } else {
+        setError("Invalid admin credentials.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError("Connection error: " + msg);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -64,10 +78,11 @@ export default function AdminLoginPage() {
           )}
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <LogIn size={18} />
-            Sign In as Admin
+            {loading ? "Signing in..." : "Sign In as Admin"}
           </button>
           <p className="text-center text-sm text-slate-600 mt-4">
             <a href="/" className="text-indigo-600 hover:underline font-medium">

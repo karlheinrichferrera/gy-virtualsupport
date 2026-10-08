@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Clock,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/admin/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
   { href: "/admin/dashboard/timesheet", label: "Timesheet", icon: Clock },
+  { href: "/admin/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function AdminSidebar() {
@@ -59,7 +61,7 @@ export default function AdminSidebar() {
       <div className="p-3 border-t border-white/10">
         <Link
           href="/admin"
-          onClick={() => localStorage.removeItem("adminAuth")}
+          onClick={() => { localStorage.removeItem("adminAuth"); localStorage.removeItem("adminUsername"); localStorage.removeItem("adminDisplayName"); }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
         >
           <LogOut size={18} />
