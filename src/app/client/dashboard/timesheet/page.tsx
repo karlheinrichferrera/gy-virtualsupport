@@ -12,7 +12,7 @@ export default function ClientTimesheetPage() {
     (async () => {
       const email = localStorage.getItem("clientEmail") || "";
       const account = await actions.getClientAccountByEmail(email);
-      if (account?.timesheetUrl) setSheetUrl(account.timesheetUrl);
+      if (account?.timesheetViewUrl) setSheetUrl(account.timesheetViewUrl);
       setLoading(false);
     })();
   }, []);

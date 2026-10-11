@@ -414,6 +414,7 @@ export type ClientAccount = {
   address: string;
   phone: string;
   timesheetUrl: string;
+  timesheetViewUrl: string;
   createdAt: string;
 };
 
@@ -426,6 +427,7 @@ function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
     address: (r.address as string) || "",
     phone: (r.phone as string) || "",
     timesheetUrl: (r.timesheet_url as string) || "",
+    timesheetViewUrl: (r.timesheet_view_url as string) || "",
     createdAt: r.created_at as string,
   };
 }
@@ -459,7 +461,7 @@ export async function addClientAccount(email: string, password: string, displayN
   return { success: true };
 }
 
-export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string }): Promise<void> {
+export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
   if (rows.length === 0) return;
@@ -471,7 +473,8 @@ export async function updateClientAccount(id: number, updates: { displayName?: s
       address = ${updates.address ?? current.address},
       phone = ${updates.phone ?? current.phone},
       email = ${updates.email ?? current.email},
-      timesheet_url = ${updates.timesheetUrl ?? current.timesheetUrl}
+      timesheet_url = ${updates.timesheetUrl ?? current.timesheetUrl},
+      timesheet_view_url = ${updates.timesheetViewUrl ?? current.timesheetViewUrl}
     WHERE id = ${id}
   `;
 }
