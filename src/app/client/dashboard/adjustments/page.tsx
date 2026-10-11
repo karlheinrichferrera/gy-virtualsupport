@@ -6,10 +6,12 @@ import type { ClientSalaryAdjustment } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { DollarSign, Plus, X, Trash2, AlertTriangle } from "lucide-react";
 
+type VAWithClientRate = VAProfile & { clientRate: string };
+
 const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900";
 
 export default function ClientAdjustmentsPage() {
-  const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
+  const [vaProfiles, setVaProfiles] = useState<VAWithClientRate[]>([]);
   const [selectedVA, setSelectedVA] = useState("");
   const [adjustments, setAdjustments] = useState<ClientSalaryAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function ClientAdjustmentsPage() {
   async function loadData() {
     const email = localStorage.getItem("clientEmail") || "";
     const [profiles, adjs] = await Promise.all([
-      actions.getProfiles(),
+      actions.getVAsByClientEmail(email),
       actions.getClientSalaryAdjustmentsByEmail(email),
     ]);
     setVaProfiles(profiles);
@@ -92,7 +94,7 @@ export default function ClientAdjustmentsPage() {
           ))}
         </select>
         {selectedProfile && (
-          <span className="text-sm text-slate-500">Current Rate: <span className="font-medium text-foreground">{selectedProfile.currentRate}</span></span>
+          <span className="text-sm text-slate-500">Current Rate: <span className="font-medium text-foreground">{selectedProfile.clientRate || "N/A"}</span></span>
         )}
       </div>
 
