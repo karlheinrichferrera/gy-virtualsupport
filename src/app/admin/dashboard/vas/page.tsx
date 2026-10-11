@@ -130,7 +130,7 @@ function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAs
               <div key={s.clientId} className="flex items-center gap-3">
                 <span className="text-xs font-medium text-slate-700 w-32 truncate">{c.displayName}</span>
                 <input type="text" value={s.clientRate} onChange={(e) => setRate(s.clientId, e.target.value)}
-                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   placeholder="e.g. $5/hr" />
               </div>
             ) : null;
