@@ -413,6 +413,7 @@ export type ClientAccount = {
   companyName: string;
   address: string;
   phone: string;
+  timesheetUrl: string;
   createdAt: string;
 };
 
@@ -424,6 +425,7 @@ function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
     companyName: (r.company_name as string) || "",
     address: (r.address as string) || "",
     phone: (r.phone as string) || "",
+    timesheetUrl: (r.timesheet_url as string) || "",
     createdAt: r.created_at as string,
   };
 }
@@ -457,7 +459,7 @@ export async function addClientAccount(email: string, password: string, displayN
   return { success: true };
 }
 
-export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string }): Promise<void> {
+export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string }): Promise<void> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
   if (rows.length === 0) return;
@@ -468,7 +470,8 @@ export async function updateClientAccount(id: number, updates: { displayName?: s
       company_name = ${updates.companyName ?? current.companyName},
       address = ${updates.address ?? current.address},
       phone = ${updates.phone ?? current.phone},
-      email = ${updates.email ?? current.email}
+      email = ${updates.email ?? current.email},
+      timesheet_url = ${updates.timesheetUrl ?? current.timesheetUrl}
     WHERE id = ${id}
   `;
 }
@@ -589,6 +592,17 @@ export async function getClientIdsForVA(vaId: string): Promise<number[]> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT client_id FROM va_client_assignments WHERE va_id = ${vaId}`;
   return rows.map((r) => r.client_id as number);
+}
+
+export async function getClientsForVA(vaId: string): Promise<ClientAccount[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT ca.* FROM client_accounts ca
+    JOIN va_client_assignments vca ON vca.client_id = ca.id
+    WHERE vca.va_id = ${vaId}
+    ORDER BY ca.display_name
+  `;
+  return rows.map(rowToClientAccount);
 }
 
 export async function setVAClientAssignments(vaId: string, assignments: { clientId: number; clientRate: string }[]): Promise<void> {

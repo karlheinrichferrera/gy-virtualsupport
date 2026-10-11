@@ -27,7 +27,7 @@ export default function AdminClientsPage() {
 
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
-  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "" });
+  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "" });
   const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
   const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
   const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
@@ -187,7 +187,7 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 text-foreground text-xs">{c.createdAt}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setResetTarget(c.id)} className="p-1.5 hover:bg-amber-50 rounded-lg" title="Reset Password">
@@ -445,6 +445,7 @@ export default function AdminClientsPage() {
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={editClientForm.companyName} onChange={(e) => setEditClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Timesheet URL</label><input type="text" value={editClientForm.timesheetUrl} onChange={(e) => setEditClientForm((f) => ({ ...f, timesheetUrl: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditClient(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
