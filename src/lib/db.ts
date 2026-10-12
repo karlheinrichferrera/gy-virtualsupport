@@ -39,6 +39,7 @@ export async function ensureTables() {
   `;
 
   await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS weekly_report_link TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS profile_picture TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS salary_adjustments (

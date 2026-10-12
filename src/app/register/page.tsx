@@ -122,6 +122,7 @@ export default function RegisterPage() {
         bankAccountNumber: form.bankAccountNumber,
         bankAccountName: form.bankAccountName,
         weeklyReportLink: "",
+        profilePicture: "",
       };
       try {
         await actions.addProfile(newVA);

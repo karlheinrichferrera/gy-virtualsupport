@@ -33,6 +33,7 @@ export interface VAProfile {
   bankAccountNumber: string;
   bankAccountName: string;
   weeklyReportLink: string;
+  profilePicture: string;
 }
 
 export interface SalaryAdjustment {
@@ -102,6 +103,7 @@ export const vaProfiles: VAProfile[] = [
     bankAccountNumber: "001234567890",
     bankAccountName: "Domingo M. Soltes Jr.",
     weeklyReportLink: "",
+    profilePicture: "",
   },
   {
     id: "500103",
@@ -138,6 +140,7 @@ export const vaProfiles: VAProfile[] = [
     bankAccountNumber: "9876543210",
     bankAccountName: "Maria C. Santos",
     weeklyReportLink: "",
+    profilePicture: "",
   },
 ];
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList, Camera } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
@@ -22,7 +22,11 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: "id", label: "VA ID", defaultVisible: true, render: (va) => <span className="font-mono font-medium text-foreground">{va.id}</span> },
   { key: "name", label: "Name", defaultVisible: true, render: (va) => (
     <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">{va.firstName.charAt(0)}{va.lastName.charAt(0)}</div>
+      {va.profilePicture ? (
+        <img src={va.profilePicture} alt="" className="w-8 h-8 rounded-full object-cover" />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">{va.firstName.charAt(0)}{va.lastName.charAt(0)}</div>
+      )}
       <p className="font-medium text-foreground">{va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}</p>
     </div>
   )},
@@ -155,6 +159,54 @@ function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAs
   );
 }
 
+function processImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      const size = 256;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      const min = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+      URL.revokeObjectURL(img.src);
+      resolve(dataUrl);
+    };
+  });
+}
+
+function ProfilePictureUpload({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative group">
+        {value ? (
+          <img src={value} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-slate-200" />
+        ) : (
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+            <Camera size={24} />
+          </div>
+        )}
+        <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+          <Camera size={16} className="text-white" />
+          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const dataUrl = await processImage(file);
+            onChange(dataUrl);
+          }} />
+        </label>
+      </div>
+      <div className="text-xs text-slate-500">
+        {value ? "Hover to change photo" : "Click to upload photo"}
+        {value && <button type="button" onClick={() => onChange("")} className="block text-red-500 hover:text-red-700 mt-1">Remove photo</button>}
+      </div>
+    </div>
+  );
+}
+
 function escapeCsv(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
     return `"${val.replace(/"/g, '""')}"`;
@@ -210,6 +262,7 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
+    profilePicture: "",
     clientAssignments: [] as ClientAssignment[],
   });
   const [editForm, setEditForm] = useState({
@@ -222,6 +275,7 @@ export default function VAManagementPage() {
     payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
     bankName: "", bankAccountNumber: "", bankAccountName: "",
     weeklyReportLink: "",
+    profilePicture: "",
     clientAssignments: [] as ClientAssignment[],
   });
 
@@ -315,6 +369,7 @@ export default function VAManagementPage() {
       bankAccountNumber: form.bankAccountNumber,
       bankAccountName: form.bankAccountName,
       weeklyReportLink: form.weeklyReportLink,
+      profilePicture: form.profilePicture,
     };
     await actions.addProfile(newVA);
     await actions.setVAClientAssignments(newVA.id, form.clientAssignments);
@@ -329,6 +384,7 @@ export default function VAManagementPage() {
       payoutMode: "", paypalLink: "", ewalletName: "", ewalletNumber: "",
       bankName: "", bankAccountNumber: "", bankAccountName: "",
       weeklyReportLink: "",
+      profilePicture: "",
       clientAssignments: [],
     });
     await loadData();
@@ -353,6 +409,7 @@ export default function VAManagementPage() {
       bankName: va.bankName || "", bankAccountNumber: va.bankAccountNumber || "",
       bankAccountName: va.bankAccountName || "",
       weeklyReportLink: va.weeklyReportLink || "",
+      profilePicture: va.profilePicture || "",
       clientAssignments: vaAssignments[va.id] || [],
     });
     setEditTarget(va.id);
@@ -382,6 +439,7 @@ export default function VAManagementPage() {
       bankName: editForm.bankName, bankAccountNumber: editForm.bankAccountNumber,
       bankAccountName: editForm.bankAccountName,
       weeklyReportLink: editForm.weeklyReportLink,
+      profilePicture: editForm.profilePicture,
     });
     await actions.setVAClientAssignments(editTarget, editForm.clientAssignments);
     setEditTarget(null);
@@ -503,9 +561,13 @@ export default function VAManagementPage() {
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-                <div className="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xl font-bold">
-                  {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
-                </div>
+                {profile.profilePicture ? (
+                  <img src={profile.profilePicture} alt="Profile" className="w-14 h-14 rounded-full object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xl font-bold">
+                    {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{profile.firstName} {profile.middleName} {profile.lastName} {profile.suffix}</h3>
                   <PositionBadges position={profile.position} />
@@ -624,6 +686,10 @@ export default function VAManagementPage() {
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-5">
               <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Profile Picture</h3>
+                <ProfilePictureUpload value={form.profilePicture} onChange={(v) => setForm((f) => ({ ...f, profilePicture: v }))} />
+              </div>
+              <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">VA ID</label><input type="text" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} className={inputClass} placeholder="Auto-generated" /></div>
@@ -719,6 +785,10 @@ export default function VAManagementPage() {
               <button onClick={() => setEditTarget(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Profile Picture</h3>
+                <ProfilePictureUpload value={editForm.profilePicture} onChange={(v) => setEditForm((f) => ({ ...f, profilePicture: v }))} />
+              </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
                 <div className="grid grid-cols-2 gap-4">

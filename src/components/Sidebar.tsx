@@ -11,6 +11,7 @@ import {
   LogOut,
   Clock,
   ClipboardList,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/dashboard/requests", label: "Leave & Shift Requests", icon: CalendarDays },
   { href: "/dashboard/timesheet", label: "Timesheet", icon: Clock },
   { href: "/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Sidebar() {
