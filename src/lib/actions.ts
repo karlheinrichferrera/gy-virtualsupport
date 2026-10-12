@@ -181,9 +181,17 @@ export async function resetPassword(id: string): Promise<void> {
 
 // ── Salary Adjustments ──
 
+function sortByEffectivityDate<T extends { effectivityDate: string }>(items: T[]): T[] {
+  return items.sort((a, b) => {
+    const da = new Date(a.effectivityDate).getTime() || 0;
+    const db = new Date(b.effectivityDate).getTime() || 0;
+    return db - da;
+  });
+}
+
 export async function getAdjustmentsFor(vaId: string): Promise<(SalaryAdjustment & { id: number })[]> {
   const { rows } = await sql`SELECT * FROM salary_adjustments WHERE va_id = ${vaId} ORDER BY id`;
-  return rows.map(rowToAdjustment);
+  return sortByEffectivityDate(rows.map(rowToAdjustment));
 }
 
 export async function getAllAdjustments(): Promise<Record<string, (SalaryAdjustment & { id: number })[]>> {
@@ -193,6 +201,9 @@ export async function getAllAdjustments(): Promise<Record<string, (SalaryAdjustm
     const vaId = r.va_id as string;
     if (!map[vaId]) map[vaId] = [];
     map[vaId].push(rowToAdjustment(r));
+  }
+  for (const vaId of Object.keys(map)) {
+    sortByEffectivityDate(map[vaId]);
   }
   return map;
 }
@@ -659,13 +670,13 @@ function rowToClientSalaryAdjustment(r: Record<string, unknown>): ClientSalaryAd
 export async function getClientSalaryAdjustments(): Promise<ClientSalaryAdjustment[]> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_salary_adjustments ORDER BY id DESC`;
-  return rows.map(rowToClientSalaryAdjustment);
+  return sortByEffectivityDate(rows.map(rowToClientSalaryAdjustment));
 }
 
 export async function getClientSalaryAdjustmentsByClientId(clientId: number): Promise<ClientSalaryAdjustment[]> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_salary_adjustments WHERE client_id = ${clientId} ORDER BY id DESC`;
-  return rows.map(rowToClientSalaryAdjustment);
+  return sortByEffectivityDate(rows.map(rowToClientSalaryAdjustment));
 }
 
 export async function getClientSalaryAdjustmentsByEmail(email: string): Promise<ClientSalaryAdjustment[]> {
@@ -676,7 +687,7 @@ export async function getClientSalaryAdjustmentsByEmail(email: string): Promise<
     WHERE ca.email = ${email}
     ORDER BY csa.id DESC
   `;
-  return rows.map(rowToClientSalaryAdjustment);
+  return sortByEffectivityDate(rows.map(rowToClientSalaryAdjustment));
 }
 
 export async function addClientSalaryAdjustment(adj: Omit<ClientSalaryAdjustment, "id">): Promise<void> {
