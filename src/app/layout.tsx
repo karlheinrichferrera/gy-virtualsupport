@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "GY Virtual Support - VA Portal",
-  description: "Virtual Assistant portal for Golden Years Design Benefits",
+  description: "Virtual Assistant portal for GY Virtual Support",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
