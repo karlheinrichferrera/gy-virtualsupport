@@ -596,10 +596,10 @@ export async function deleteClientInvoice(id: number): Promise<void> {
 
 // ── VA-Client Assignments ──
 
-export async function getVAClientAssignments(): Promise<{ vaId: string; clientId: number; clientRate: string }[]> {
+export async function getVAClientAssignments(): Promise<{ vaId: string; clientId: number; clientRate: string; reportUrl: string; reportViewUrl: string }[]> {
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT va_id, client_id, client_rate FROM va_client_assignments`;
-  return rows.map((r) => ({ vaId: r.va_id as string, clientId: r.client_id as number, clientRate: (r.client_rate as string) || "" }));
+  const { rows } = await sql`SELECT va_id, client_id, client_rate, report_url, report_view_url FROM va_client_assignments`;
+  return rows.map((r) => ({ vaId: r.va_id as string, clientId: r.client_id as number, clientRate: (r.client_rate as string) || "", reportUrl: (r.report_url as string) || "", reportViewUrl: (r.report_view_url as string) || "" }));
 }
 
 export async function getClientIdsForVA(vaId: string): Promise<number[]> {
@@ -619,12 +619,48 @@ export async function getClientsForVA(vaId: string): Promise<ClientAccount[]> {
   return rows.map(rowToClientAccount);
 }
 
-export async function setVAClientAssignments(vaId: string, assignments: { clientId: number; clientRate: string }[]): Promise<void> {
+export async function setVAClientAssignments(vaId: string, assignments: { clientId: number; clientRate: string; reportUrl?: string; reportViewUrl?: string }[]): Promise<void> {
   await ensureTablesOnce();
   await sql`DELETE FROM va_client_assignments WHERE va_id = ${vaId}`;
   for (const a of assignments) {
-    await sql`INSERT INTO va_client_assignments (va_id, client_id, client_rate) VALUES (${vaId}, ${a.clientId}, ${a.clientRate}) ON CONFLICT DO NOTHING`;
+    await sql`INSERT INTO va_client_assignments (va_id, client_id, client_rate, report_url, report_view_url) VALUES (${vaId}, ${a.clientId}, ${a.clientRate}, ${a.reportUrl || ""}, ${a.reportViewUrl || ""}) ON CONFLICT DO NOTHING`;
   }
+}
+
+export async function getAssignmentsForVA(vaId: string): Promise<{ clientId: number; clientName: string; clientRate: string; reportUrl: string; reportViewUrl: string }[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT vca.client_id, ca.display_name, vca.client_rate, vca.report_url, vca.report_view_url
+    FROM va_client_assignments vca
+    JOIN client_accounts ca ON ca.id = vca.client_id
+    WHERE vca.va_id = ${vaId}
+    ORDER BY ca.display_name
+  `;
+  return rows.map((r) => ({
+    clientId: r.client_id as number,
+    clientName: (r.display_name as string) || "",
+    clientRate: (r.client_rate as string) || "",
+    reportUrl: (r.report_url as string) || "",
+    reportViewUrl: (r.report_view_url as string) || "",
+  }));
+}
+
+export async function getAssignmentsByClientEmail(email: string): Promise<{ vaId: string; vaName: string; reportUrl: string; reportViewUrl: string }[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT vca.va_id, vp.first_name, vp.last_name, vca.report_url, vca.report_view_url
+    FROM va_client_assignments vca
+    JOIN va_profiles vp ON vp.id = vca.va_id
+    JOIN client_accounts ca ON ca.id = vca.client_id
+    WHERE ca.email = ${email}
+    ORDER BY vp.first_name
+  `;
+  return rows.map((r) => ({
+    vaId: r.va_id as string,
+    vaName: `${r.first_name} ${r.last_name}`,
+    reportUrl: (r.report_url as string) || "",
+    reportViewUrl: (r.report_view_url as string) || "",
+  }));
 }
 
 export async function getVAsByClientEmail(email: string): Promise<(VAProfile & { clientRate: string })[]> {

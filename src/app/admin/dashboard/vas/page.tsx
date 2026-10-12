@@ -97,7 +97,7 @@ function PositionBadges({ position }: { position: string }) {
   );
 }
 
-type ClientAssignment = { clientId: number; clientRate: string };
+type ClientAssignment = { clientId: number; clientRate: string; reportUrl: string; reportViewUrl: string };
 
 function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAssignment[]; onChange: (v: ClientAssignment[]) => void; clients: ClientAccount[] }) {
   const selectedIds = selected.map((s) => s.clientId);
@@ -105,11 +105,11 @@ function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAs
     if (selectedIds.includes(id)) {
       onChange(selected.filter((s) => s.clientId !== id));
     } else {
-      onChange([...selected, { clientId: id, clientRate: "" }]);
+      onChange([...selected, { clientId: id, clientRate: "", reportUrl: "", reportViewUrl: "" }]);
     }
   }
-  function setRate(id: number, rate: string) {
-    onChange(selected.map((s) => s.clientId === id ? { ...s, clientRate: rate } : s));
+  function updateField(id: number, field: keyof ClientAssignment, value: string) {
+    onChange(selected.map((s) => s.clientId === id ? { ...s, [field]: value } : s));
   }
   return (
     <div className="space-y-3">
@@ -122,16 +122,30 @@ function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAs
         ))}
       </div>
       {selected.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <p className="text-xs font-medium text-slate-500">Client Rate per Assignment</p>
+        <div className="space-y-4 pt-2 border-t border-slate-100">
           {selected.map((s) => {
             const c = clients.find((cl) => cl.id === s.clientId);
             return c ? (
-              <div key={s.clientId} className="flex items-center gap-3">
-                <span className="text-xs font-medium text-slate-700 w-32 truncate">{c.displayName}</span>
-                <input type="text" value={s.clientRate} onChange={(e) => setRate(s.clientId, e.target.value)}
-                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  placeholder="e.g. $5/hr" />
+              <div key={s.clientId} className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs font-semibold text-slate-700">{c.displayName}</p>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-slate-500 w-20 shrink-0">Client Rate</label>
+                  <input type="text" value={s.clientRate} onChange={(e) => updateField(s.clientId, "clientRate", e.target.value)}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="e.g. $5/hr" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-slate-500 w-20 shrink-0">Report (Edit)</label>
+                  <input type="text" value={s.reportUrl} onChange={(e) => updateField(s.clientId, "reportUrl", e.target.value)}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="Editable Google Sheet link" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-slate-500 w-20 shrink-0">Report (View)</label>
+                  <input type="text" value={s.reportViewUrl} onChange={(e) => updateField(s.clientId, "reportViewUrl", e.target.value)}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="View-only link for clients" />
+                </div>
               </div>
             ) : null;
           })}
@@ -246,7 +260,7 @@ export default function VAManagementPage() {
     const assignMap: Record<string, ClientAssignment[]> = {};
     for (const a of assignments) {
       if (!assignMap[a.vaId]) assignMap[a.vaId] = [];
-      assignMap[a.vaId].push({ clientId: a.clientId, clientRate: a.clientRate });
+      assignMap[a.vaId].push({ clientId: a.clientId, clientRate: a.clientRate, reportUrl: a.reportUrl, reportViewUrl: a.reportViewUrl });
     }
     setVaAssignments(assignMap);
     const countMap: Record<string, { adj: number; inv: number; req: number }> = {};

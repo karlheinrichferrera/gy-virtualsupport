@@ -136,6 +136,8 @@ export async function ensureTables() {
   `;
 
   await sql`ALTER TABLE va_client_assignments ADD COLUMN IF NOT EXISTS client_rate TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE va_client_assignments ADD COLUMN IF NOT EXISTS report_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE va_client_assignments ADD COLUMN IF NOT EXISTS report_view_url TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS client_salary_adjustments (
