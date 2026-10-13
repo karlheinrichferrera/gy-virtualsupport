@@ -1,12 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, Plus, Pencil, Trash2, X, Search, AlertCircle } from "lucide-react";
+import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 
 type FullEntry = TimeproofEntry & { vaName: string; clientName: string };
+
+function calcMins(timeIn: string, timeOut: string): number {
+  if (!timeIn || !timeOut) return 0;
+  const [ih, im] = timeIn.split(":").map(Number);
+  const [oh, om] = timeOut.split(":").map(Number);
+  const m = (oh * 60 + om) - (ih * 60 + im);
+  return m > 0 ? m : 0;
+}
+
+function fmtDuration(mins: number): string {
+  if (mins <= 0) return "—";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${m}m`;
+}
 
 export default function AdminTimeproofPage() {
   const [allEntries, setAllEntries] = useState<FullEntry[]>([]);
@@ -14,7 +29,10 @@ export default function AdminTimeproofPage() {
   const [clients, setClients] = useState<ClientAccount[]>([]);
   const [filterVA, setFilterVA] = useState("");
   const [filterClient, setFilterClient] = useState("");
-  const [search, setSearch] = useState("");
+
+
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState<FullEntry | null>(null);
@@ -43,12 +61,12 @@ export default function AdminTimeproofPage() {
   const filtered = allEntries.filter((e) => {
     if (filterVA && e.vaId !== filterVA) return false;
     if (filterClient && String(e.clientId) !== filterClient) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return e.vaName.toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q) || e.punchDate.includes(q);
-    }
+    if (dateFrom && e.punchDate < dateFrom) return false;
+    if (dateTo && e.punchDate > dateTo) return false;
     return true;
   });
+
+  const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
 
   function openCreate() {
     const now = new Date();
@@ -104,17 +122,13 @@ export default function AdminTimeproofPage() {
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[180px]">
+        <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px] bg-white text-slate-900">
           <option value="">All VAs</option>
           {vas.map((va) => (
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
           ))}
         </select>
-        <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[180px]">
+        <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px] bg-white text-slate-900">
           <option value="">All Clients</option>
           {clients.map((c) => (
             <option key={c.id} value={String(c.id)}>{c.displayName}{c.companyName ? ` (${c.companyName})` : ""}</option>
@@ -122,18 +136,36 @@ export default function AdminTimeproofPage() {
         </select>
       </div>
 
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={16} className="text-slate-400" />
+          <span className="text-sm text-slate-500">From</span>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900" />
+          <span className="text-sm text-slate-500">To</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-slate-900" />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-slate-400 hover:text-slate-600 underline">Clear</button>
+          )}
+        </div>
+        {(dateFrom || dateTo) && totalMins > 0 && (
+          <div className="ml-auto bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-sm font-semibold">
+            Total: {fmtDuration(totalMins)}
+          </div>
+        )}
+      </div>
+
       {filtered.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-8 text-center">
+        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
           <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
           <h2 className="text-lg font-semibold text-slate-700 mb-2">No Time Entries</h2>
-          <p className="text-slate-500">No timeproof entries found.</p>
+          <p className="text-slate-500">{allEntries.length > 0 ? "No entries match the current filters." : "No timeproof entries found."}</p>
         </div>
       ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-border">
+                <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">VA</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Client</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Date</th>
@@ -145,41 +177,37 @@ export default function AdminTimeproofPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => {
-                  let duration = "";
-                  if (entry.timeIn && entry.timeOut) {
-                    const [ih, im] = entry.timeIn.split(":").map(Number);
-                    const [oh, om] = entry.timeOut.split(":").map(Number);
-                    const mins = (oh * 60 + om) - (ih * 60 + im);
-                    if (mins > 0) {
-                      const h = Math.floor(mins / 60);
-                      const m = mins % 60;
-                      duration = `${h}h ${m}m`;
-                    }
-                  }
-                  return (
-                    <tr key={entry.id} className="border-b border-border last:border-0 hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
-                      <td className="px-4 py-3 text-slate-700">{entry.clientName}</td>
-                      <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                      <td className="px-4 py-3 text-slate-700">{entry.timeIn}</td>
-                      <td className="px-4 py-3 text-slate-700">{entry.timeOut || "—"}</td>
-                      <td className="px-4 py-3 text-slate-500">{duration || "—"}</td>
-                      <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(entry.id)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.map((entry) => (
+                  <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
+                    <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.clientName}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.timeIn}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.timeOut || "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
+                    <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(entry.id)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
+              {totalMins > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-50 border-t border-slate-200">
+                    <td colSpan={5} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
+                    <td className="px-4 py-3 font-bold text-indigo-700">{fmtDuration(totalMins)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
