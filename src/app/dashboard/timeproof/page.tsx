@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
-import { estDate, estTime, estDateLong } from "@/lib/est";
+import { estDate, estTime, estDateLong, localTZ, estToLocal } from "@/lib/est";
 
 function calcMins(timeIn: string, timeOut: string): number {
   if (!timeIn || !timeOut) return 0;
@@ -107,6 +107,7 @@ export default function TimeproofPage() {
   });
 
   const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
+  const tzLabel = localTZ();
 
   if (loading) {
     return (
@@ -153,6 +154,13 @@ export default function TimeproofPage() {
         </div>
       </div>
 
+      {tzLabel && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-700 flex items-center gap-2">
+          <CalendarDays size={16} />
+          Times are recorded in EST. Your local timezone: <span className="font-semibold">{tzLabel}</span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <CalendarDays size={16} className="text-slate-400" />
@@ -195,10 +203,16 @@ export default function TimeproofPage() {
                 {filtered.map((entry) => (
                   <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                     <td className="px-4 py-3 text-slate-900 font-medium">{entry.punchDate}</td>
-                    <td className="px-4 py-3 text-slate-700">{entry.timeIn}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {entry.timeIn}
+                      {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({l} {tzLabel})</span> : null; })()}
+                    </td>
                     <td className="px-4 py-3">
                       {entry.timeOut ? (
-                        <span className="text-slate-700">{entry.timeOut}</span>
+                        <span className="text-slate-700">
+                          {entry.timeOut}
+                          {(() => { const l = estToLocal(entry.timeOut, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({l} {tzLabel})</span> : null; })()}
+                        </span>
                       ) : (
                         <button onClick={() => punchOut(entry)} className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-medium hover:bg-amber-200 transition-colors">
                           Punch Out
