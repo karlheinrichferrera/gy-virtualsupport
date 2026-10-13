@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
+import { estDateLong } from "@/lib/est";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, CalendarDays, X, Clock, Eye, Pencil } from "lucide-react";
 
@@ -47,11 +48,7 @@ export default function RequestsPage() {
       const newReq: LeaveRequest = {
         id: reqId,
         type: form.type,
-        dateSubmitted: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
+        dateSubmitted: estDateLong(),
         dateFrom: form.dateFrom,
         dateTo: form.dateTo,
         reason: form.reason,

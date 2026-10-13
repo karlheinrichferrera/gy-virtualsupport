@@ -5,6 +5,7 @@ import { Shield, UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
+import { estDateLong } from "@/lib/est";
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
@@ -104,11 +105,7 @@ export default function RegisterPage() {
         temporaryAddress: "Same as permanent address",
         position: form.position,
         employmentStatus: "Probationary Hire",
-        dateHired: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
+        dateHired: estDateLong(),
         currentRate: "TBD",
         emergencyContact: form.emergencyContact,
         emergencyPhone: form.emergencyPhone,

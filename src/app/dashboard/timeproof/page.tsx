@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
+import { estDate, estTime, estDateLong } from "@/lib/est";
 
 function calcMins(timeIn: string, timeOut: string): number {
   if (!timeIn || !timeOut) return 0;
@@ -60,8 +61,7 @@ export default function TimeproofPage() {
   }
 
   function openCreate() {
-    const now = new Date();
-    setForm({ punchDate: now.toISOString().slice(0, 10), timeIn: now.toTimeString().slice(0, 5), timeOut: "", notes: "" });
+    setForm({ punchDate: estDate(), timeIn: estTime(), timeOut: "", notes: "" });
     setEditEntry(null);
     setShowForm(true);
   }
@@ -79,7 +79,7 @@ export default function TimeproofPage() {
     if (editEntry) {
       await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes });
     } else {
-      const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const now = estDateLong();
       await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now });
     }
     setSaving(false);
@@ -93,7 +93,7 @@ export default function TimeproofPage() {
   }
 
   function punchOut(entry: TimeproofEntry) {
-    const now = new Date().toTimeString().slice(0, 5);
+    const now = estTime();
     (async () => {
       await actions.updateTimeproofEntry(entry.id, { timeOut: now });
       await reload();

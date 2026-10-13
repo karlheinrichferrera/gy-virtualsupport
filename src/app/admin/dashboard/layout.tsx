@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminSidebar from "@/components/AdminSidebar";
-import { ChevronDown, KeyRound, Users, LogOut, Settings } from "lucide-react";
+import { ChevronDown, LogOut, Settings, Menu } from "lucide-react";
 
 export default function AdminDashboardLayout({
   children,
@@ -15,6 +15,7 @@ export default function AdminDashboardLayout({
   const [ready, setReady] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [displayName, setDisplayName] = useState("Administrator");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem("adminAuth");
@@ -37,19 +38,24 @@ export default function AdminDashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <AdminSidebar />
-      <div className="ml-64">
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-20">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Admin Dashboard</h2>
-            <p className="text-xs text-muted">Admin Portal</p>
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="lg:ml-64">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-background rounded-lg">
+              <Menu size={20} className="text-muted" />
+            </button>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Admin Dashboard</h2>
+              <p className="text-xs text-muted">Admin Portal</p>
+            </div>
           </div>
           <div className="relative">
             <button
               onClick={() => setShowMenu((v) => !v)}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity"
             >
-              <span className="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
+              <span className="hidden sm:inline text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
                 {displayName}
               </span>
               <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">
@@ -87,7 +93,7 @@ export default function AdminDashboardLayout({
             )}
           </div>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

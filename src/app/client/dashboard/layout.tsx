@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ClientSidebar from "@/components/ClientSidebar";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, Menu } from "lucide-react";
 
 export default function ClientDashboardLayout({
   children,
@@ -14,6 +14,7 @@ export default function ClientDashboardLayout({
   const [ready, setReady] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [displayName, setDisplayName] = useState("Client");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem("clientAuth");
@@ -36,19 +37,24 @@ export default function ClientDashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <ClientSidebar />
-      <div className="ml-64">
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-20">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Client Dashboard</h2>
-            <p className="text-xs text-muted">Client Portal</p>
+      <ClientSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="lg:ml-64">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-background rounded-lg">
+              <Menu size={20} className="text-muted" />
+            </button>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Client Dashboard</h2>
+              <p className="text-xs text-muted">Client Portal</p>
+            </div>
           </div>
           <div className="relative">
             <button
               onClick={() => setShowMenu((v) => !v)}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity"
             >
-              <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-medium">
+              <span className="hidden sm:inline text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-medium">
                 {displayName}
               </span>
               <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold">
@@ -77,7 +83,7 @@ export default function ClientDashboardLayout({
             )}
           </div>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

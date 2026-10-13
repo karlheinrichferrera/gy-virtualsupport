@@ -2,6 +2,7 @@
 
 import { sql } from "@vercel/postgres";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
+import { estDate, estDateLong } from "./est";
 
 let tablesReady = false;
 async function ensureTablesOnce() {
@@ -392,7 +393,7 @@ export async function addAdminAccount(username: string, password: string, displa
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM admin_accounts WHERE username = ${username}`;
   if (rows.length > 0) return { success: false, error: "Username already exists" };
-  const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const now = estDateLong();
   await sql`INSERT INTO admin_accounts (username, password, display_name, created_at) VALUES (${username}, ${password}, ${displayName}, ${now})`;
   return { success: true };
 }
@@ -469,7 +470,7 @@ export async function addClientAccount(email: string, password: string, displayN
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
-  const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const now = estDateLong();
   await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now})`;
   return { success: true };
 }
@@ -832,7 +833,7 @@ export async function deleteTimeproofEntry(id: number): Promise<void> {
 
 export async function getActiveVAIdsByClientEmail(email: string): Promise<string[]> {
   await ensureTablesOnce();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = estDate();
   const { rows } = await sql`
     SELECT DISTINCT te.va_id
     FROM timeproof_entries te
@@ -847,7 +848,7 @@ export async function getActiveVAIdsByClientEmail(email: string): Promise<string
 
 export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
   await ensureTablesOnce();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = estDate();
   const { rows } = await sql`
     SELECT 1 FROM timeproof_entries
     WHERE va_id = ${vaId}

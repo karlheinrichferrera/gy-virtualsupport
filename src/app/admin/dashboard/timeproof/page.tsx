@@ -5,6 +5,7 @@ import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from 
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
+import { estDate, estTime, estDateLong } from "@/lib/est";
 
 type FullEntry = TimeproofEntry & { vaName: string; clientName: string };
 
@@ -69,8 +70,7 @@ export default function AdminTimeproofPage() {
   const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
 
   function openCreate() {
-    const now = new Date();
-    setForm({ vaId: vas[0]?.id || "", clientId: String(clients[0]?.id || ""), punchDate: now.toISOString().slice(0, 10), timeIn: now.toTimeString().slice(0, 5), timeOut: "", notes: "" });
+    setForm({ vaId: vas[0]?.id || "", clientId: String(clients[0]?.id || ""), punchDate: estDate(), timeIn: estTime(), timeOut: "", notes: "" });
     setEditEntry(null);
     setShowForm(true);
   }
@@ -87,7 +87,7 @@ export default function AdminTimeproofPage() {
     if (editEntry) {
       await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes });
     } else {
-      const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const now = estDateLong();
       await actions.addTimeproofEntry({ vaId: form.vaId, clientId: Number(form.clientId), punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now });
     }
     setSaving(false);

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
+import { estDateLong } from "@/lib/est";
 import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList, Camera } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
@@ -355,7 +356,7 @@ export default function VAManagementPage() {
       temporaryAddress: form.temporaryAddress || "Same as permanent address",
       position: form.positions.join(", "),
       employmentStatus: form.employmentStatus,
-      dateHired: form.dateHired || new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+      dateHired: form.dateHired || estDateLong(),
       currentRate: form.currentRate,
       emergencyContact: form.emergencyContact,
       emergencyPhone: form.emergencyPhone,
