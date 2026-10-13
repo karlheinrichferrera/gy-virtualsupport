@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Fingerprint, AlertCircle, CalendarDays } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry } from "@/lib/actions";
+import { fmtTime12 } from "@/lib/est";
 
 type EntryWithVA = TimeproofEntry & { vaName: string };
 
@@ -126,8 +127,8 @@ export default function ClientTimeproofPage() {
                       <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                         <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
                         <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                        <td className="px-4 py-3 text-slate-700">{entry.timeIn}</td>
-                        <td className="px-4 py-3 text-slate-700">{entry.timeOut || "—"}</td>
+                        <td className="px-4 py-3 text-slate-700">{fmtTime12(entry.timeIn)}</td>
+                        <td className="px-4 py-3 text-slate-700">{entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
                         <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
                         <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                       </tr>

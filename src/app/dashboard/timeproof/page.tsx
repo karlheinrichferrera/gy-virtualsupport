@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
-import { estDate, estTime, estDateLong, localTZ, estToLocal } from "@/lib/est";
+import { estDate, estTime, estDateLong, localTZ, estToLocal, fmtTime12 } from "@/lib/est";
 
 function calcMins(timeIn: string, timeOut: string): number {
   if (!timeIn || !timeOut) return 0;
@@ -204,14 +204,14 @@ export default function TimeproofPage() {
                   <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                     <td className="px-4 py-3 text-slate-900 font-medium">{entry.punchDate}</td>
                     <td className="px-4 py-3 text-slate-700">
-                      {entry.timeIn}
-                      {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({l} {tzLabel})</span> : null; })()}
+                      {fmtTime12(entry.timeIn)}
+                      {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
                     </td>
                     <td className="px-4 py-3">
                       {entry.timeOut ? (
                         <span className="text-slate-700">
-                          {entry.timeOut}
-                          {(() => { const l = estToLocal(entry.timeOut, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({l} {tzLabel})</span> : null; })()}
+                          {fmtTime12(entry.timeOut)}
+                          {(() => { const l = estToLocal(entry.timeOut, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
                         </span>
                       ) : (
                         <button onClick={() => punchOut(entry)} className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-medium hover:bg-amber-200 transition-colors">

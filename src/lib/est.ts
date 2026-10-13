@@ -37,6 +37,14 @@ export function estToLocal(estTimeStr: string, dateStr: string): string {
   }
 }
 
+export function fmtTime12(t: string): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
 function getOffsetMinutes(date: Date, tz: string): number {
   const str = date.toLocaleString("en-US", { timeZone: tz });
   const tzDate = new Date(str);

@@ -5,7 +5,7 @@ import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from 
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { estDate, estTime, estDateLong } from "@/lib/est";
+import { estDate, estTime, estDateLong, fmtTime12 } from "@/lib/est";
 
 type FullEntry = TimeproofEntry & { vaName: string; clientName: string };
 
@@ -182,8 +182,8 @@ export default function AdminTimeproofPage() {
                     <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.clientName}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                    <td className="px-4 py-3 text-slate-700">{entry.timeIn}</td>
-                    <td className="px-4 py-3 text-slate-700">{entry.timeOut || "—"}</td>
+                    <td className="px-4 py-3 text-slate-700">{fmtTime12(entry.timeIn)}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
                     <td className="px-4 py-3 text-right">
