@@ -15,6 +15,7 @@ export default function ReportsPage() {
     (async () => {
       const vaId = localStorage.getItem("vaId");
       if (!vaId) { setLoading(false); return; }
+      if (vaId === "500101") { setLoading(false); return; }
       const data = await actions.getAssignmentsForVA(vaId);
       setAssignments(data.map((d) => ({ clientId: d.clientId, clientName: d.clientName, reportUrl: d.reportUrl })));
       if (data.length === 1) setSelectedClient(String(data[0].clientId));

@@ -16,7 +16,8 @@ export default function ClientReportsPage() {
       const email = localStorage.getItem("clientEmail");
       if (!email) { setLoading(false); return; }
       const data = await actions.getAssignmentsByClientEmail(email);
-      setAssignments(data.map((d) => ({ vaId: d.vaId, vaName: d.vaName, reportViewUrl: d.reportViewUrl })));
+      const filtered = data.filter((d) => d.vaId !== "500101");
+      setAssignments(filtered.map((d) => ({ vaId: d.vaId, vaName: d.vaName, reportViewUrl: d.reportViewUrl })));
       if (data.length === 1) setSelectedVA(data[0].vaId);
       setLoading(false);
     })();

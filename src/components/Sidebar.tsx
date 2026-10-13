@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   User,
@@ -27,6 +28,15 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [vaId, setVaId] = useState("");
+
+  useEffect(() => {
+    setVaId(localStorage.getItem("vaId") || "");
+  }, []);
+
+  const visibleItems = vaId === "500101"
+    ? navItems.filter((item) => item.href !== "/dashboard/reports")
+    : navItems;
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-sidebar text-sidebar-text flex flex-col z-30">
@@ -38,7 +48,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-1">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
