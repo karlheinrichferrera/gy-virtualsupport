@@ -8,14 +8,19 @@ import { Users, Eye, X, Mail, Phone, Briefcase, MapPin } from "lucide-react";
 
 export default function ClientVAsPage() {
   const [vas, setVAs] = useState<VAWithClientRate[]>([]);
+  const [activeVAIds, setActiveVAIds] = useState<string[]>([]);
   const [selectedVA, setSelectedVA] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       const email = localStorage.getItem("clientEmail") || "";
-      const profiles = await actions.getVAsByClientEmail(email);
+      const [profiles, activeIds] = await Promise.all([
+        actions.getVAsByClientEmail(email),
+        actions.getActiveVAIdsByClientEmail(email),
+      ]);
       setVAs(profiles);
+      setActiveVAIds(activeIds);
       setLoading(false);
     })();
   }, []);
@@ -51,9 +56,17 @@ export default function ClientVAsPage() {
                   {va.firstName.charAt(0)}{va.lastName.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate">
-                    {va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-foreground truncate">
+                      {va.firstName} {va.middleName ? va.middleName.charAt(0) + ". " : ""}{va.lastName}{va.suffix ? ` ${va.suffix}` : ""}
+                    </h3>
+                    {activeVAIds.includes(va.id) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Working
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted">ID: {va.id}</p>
                 </div>
               </div>

@@ -830,6 +830,21 @@ export async function deleteTimeproofEntry(id: number): Promise<void> {
   await sql`DELETE FROM timeproof_entries WHERE id = ${id}`;
 }
 
+export async function getActiveVAIdsByClientEmail(email: string): Promise<string[]> {
+  await ensureTablesOnce();
+  const today = new Date().toISOString().slice(0, 10);
+  const { rows } = await sql`
+    SELECT DISTINCT te.va_id
+    FROM timeproof_entries te
+    JOIN client_accounts ca ON ca.id = te.client_id
+    WHERE ca.email = ${email}
+      AND te.punch_date = ${today}
+      AND te.time_in != ''
+      AND (te.time_out IS NULL OR te.time_out = '')
+  `;
+  return rows.map((r) => r.va_id as string);
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {
