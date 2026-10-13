@@ -845,6 +845,20 @@ export async function getActiveVAIdsByClientEmail(email: string): Promise<string
   return rows.map((r) => r.va_id as string);
 }
 
+export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
+  await ensureTablesOnce();
+  const today = new Date().toISOString().slice(0, 10);
+  const { rows } = await sql`
+    SELECT 1 FROM timeproof_entries
+    WHERE va_id = ${vaId}
+      AND punch_date = ${today}
+      AND time_in != ''
+      AND (time_out IS NULL OR time_out = '')
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {

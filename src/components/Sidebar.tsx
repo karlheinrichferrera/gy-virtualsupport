@@ -15,6 +15,7 @@ import {
   Settings,
   Fingerprint,
 } from "lucide-react";
+import * as actions from "@/lib/actions";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,9 +32,14 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [vaId, setVaId] = useState("");
+  const [isWorking, setIsWorking] = useState(false);
 
   useEffect(() => {
-    setVaId(localStorage.getItem("vaId") || "");
+    const id = localStorage.getItem("vaId") || "";
+    setVaId(id);
+    if (id) {
+      actions.isVACurrentlyWorking(id).then(setIsWorking);
+    }
   }, []);
 
   const visibleItems = vaId === "500101"
@@ -48,6 +54,13 @@ export default function Sidebar() {
         </h1>
         <p className="text-xs text-sidebar-text mt-1">VA Portal</p>
       </div>
+
+      {isWorking && (
+        <div className="mx-3 mt-4 px-3 py-2 rounded-lg bg-green-500/20 border border-green-400/30 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-sm font-semibold text-green-300">Working</span>
+        </div>
+      )}
 
       <nav className="flex-1 py-4 px-3 space-y-1">
         {visibleItems.map((item) => {
