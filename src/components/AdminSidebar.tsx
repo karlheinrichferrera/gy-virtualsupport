@@ -13,6 +13,7 @@ import {
   Settings,
   ClipboardList,
   Building2,
+  Fingerprint,
 } from "lucide-react";
 
 const navItems = [
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/admin/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
   { href: "/admin/dashboard/timesheet", label: "Timesheet", icon: Clock },
+  { href: "/admin/dashboard/timeproof", label: "Timeproof", icon: Fingerprint },
   { href: "/admin/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/admin/dashboard/clients", label: "Client Management", icon: Building2 },
   { href: "/admin/dashboard/settings", label: "Settings", icon: Settings },

@@ -141,6 +141,19 @@ export async function ensureTables() {
   await sql`ALTER TABLE va_client_assignments ADD COLUMN IF NOT EXISTS report_view_url TEXT NOT NULL DEFAULT ''`;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS timeproof_entries (
+      id SERIAL PRIMARY KEY,
+      va_id TEXT NOT NULL REFERENCES va_profiles(id) ON DELETE CASCADE,
+      client_id INTEGER NOT NULL REFERENCES client_accounts(id) ON DELETE CASCADE,
+      punch_date TEXT NOT NULL DEFAULT '',
+      time_in TEXT NOT NULL DEFAULT '',
+      time_out TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS client_salary_adjustments (
       id SERIAL PRIMARY KEY,
       client_id INTEGER NOT NULL REFERENCES client_accounts(id) ON DELETE CASCADE,

@@ -740,6 +740,96 @@ export async function deleteClientSalaryAdjustment(id: number): Promise<void> {
   await sql`DELETE FROM client_salary_adjustments WHERE id = ${id}`;
 }
 
+// ── Timeproof Entries ──
+
+export type TimeproofEntry = {
+  id: number;
+  vaId: string;
+  clientId: number;
+  punchDate: string;
+  timeIn: string;
+  timeOut: string;
+  notes: string;
+  createdAt: string;
+};
+
+function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
+  return {
+    id: r.id as number,
+    vaId: r.va_id as string,
+    clientId: r.client_id as number,
+    punchDate: r.punch_date as string,
+    timeIn: r.time_in as string,
+    timeOut: r.time_out as string,
+    notes: (r.notes as string) || "",
+    createdAt: (r.created_at as string) || "",
+  };
+}
+
+export async function getTimeproofEntriesForVA(vaId: string): Promise<TimeproofEntry[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM timeproof_entries WHERE va_id = ${vaId} ORDER BY punch_date DESC, time_in DESC`;
+  return rows.map(rowToTimeproofEntry);
+}
+
+export async function getTimeproofEntriesForVAClient(vaId: string, clientId: number): Promise<TimeproofEntry[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM timeproof_entries WHERE va_id = ${vaId} AND client_id = ${clientId} ORDER BY punch_date DESC, time_in DESC`;
+  return rows.map(rowToTimeproofEntry);
+}
+
+export async function getTimeproofEntriesByClientEmail(email: string): Promise<(TimeproofEntry & { vaName: string })[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT te.*, vp.first_name, vp.last_name
+    FROM timeproof_entries te
+    JOIN va_profiles vp ON vp.id = te.va_id
+    JOIN client_accounts ca ON ca.id = te.client_id
+    WHERE ca.email = ${email}
+    ORDER BY te.punch_date DESC, te.time_in DESC
+  `;
+  return rows.map((r) => ({ ...rowToTimeproofEntry(r), vaName: `${r.first_name} ${r.last_name}` }));
+}
+
+export async function getAllTimeproofEntries(): Promise<(TimeproofEntry & { vaName: string; clientName: string })[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT te.*, vp.first_name, vp.last_name, ca.display_name as client_name
+    FROM timeproof_entries te
+    JOIN va_profiles vp ON vp.id = te.va_id
+    JOIN client_accounts ca ON ca.id = te.client_id
+    ORDER BY te.punch_date DESC, te.time_in DESC
+  `;
+  return rows.map((r) => ({ ...rowToTimeproofEntry(r), vaName: `${r.first_name} ${r.last_name}`, clientName: (r.client_name as string) || "" }));
+}
+
+export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Promise<void> {
+  await ensureTablesOnce();
+  await sql`
+    INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at)
+    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt})
+  `;
+}
+
+export async function updateTimeproofEntry(id: number, updates: { timeIn?: string; timeOut?: string; notes?: string; punchDate?: string }): Promise<void> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
+  if (rows.length === 0) return;
+  const current = rowToTimeproofEntry(rows[0]);
+  await sql`
+    UPDATE timeproof_entries SET
+      punch_date = ${updates.punchDate ?? current.punchDate},
+      time_in = ${updates.timeIn ?? current.timeIn},
+      time_out = ${updates.timeOut ?? current.timeOut},
+      notes = ${updates.notes ?? current.notes}
+    WHERE id = ${id}
+  `;
+}
+
+export async function deleteTimeproofEntry(id: number): Promise<void> {
+  await sql`DELETE FROM timeproof_entries WHERE id = ${id}`;
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {
