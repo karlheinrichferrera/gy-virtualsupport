@@ -115,6 +115,7 @@ export default function ClientTimeproofPage() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">VA</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Type</th>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Date</th>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Time In</th>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Time Out</th>
@@ -126,10 +127,19 @@ export default function ClientTimeproofPage() {
                     {filtered.map((entry) => (
                       <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                         <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            entry.entryType === "absence" ? "bg-amber-100 text-amber-700" :
+                            entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
+                            "bg-blue-100 text-blue-700"
+                          }`}>
+                            {entry.entryType === "absence" ? "Absence" : entry.entryType === "leave" ? "Leave" : "Time"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                        <td className="px-4 py-3 text-slate-700">{fmtTime12(entry.timeIn)}</td>
-                        <td className="px-4 py-3 text-slate-700">{entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
-                        <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
+                        <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" ? fmtTime12(entry.timeIn) : "—"}</td>
+                        <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">{entry.entryType === "time" ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                         <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                       </tr>
                     ))}
@@ -137,7 +147,7 @@ export default function ClientTimeproofPage() {
                   {totalMins > 0 && (
                     <tfoot>
                       <tr className="bg-slate-50 border-t border-slate-200">
-                        <td colSpan={4} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
+                        <td colSpan={5} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
                         <td className="px-4 py-3 font-bold text-emerald-700">{fmtDuration(totalMins)}</td>
                         <td />
                       </tr>

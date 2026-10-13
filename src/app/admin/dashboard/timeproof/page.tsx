@@ -37,7 +37,7 @@ export default function AdminTimeproofPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState<FullEntry | null>(null);
-  const [form, setForm] = useState({ vaId: "", clientId: "", punchDate: "", timeIn: "", timeOut: "", notes: "" });
+  const [form, setForm] = useState({ vaId: "", clientId: "", punchDate: "", timeIn: "", timeOut: "", notes: "", entryType: "time" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -70,13 +70,13 @@ export default function AdminTimeproofPage() {
   const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
 
   function openCreate() {
-    setForm({ vaId: vas[0]?.id || "", clientId: String(clients[0]?.id || ""), punchDate: estDate(), timeIn: estTime(), timeOut: "", notes: "" });
+    setForm({ vaId: vas[0]?.id || "", clientId: String(clients[0]?.id || ""), punchDate: estDate(), timeIn: estTime(), timeOut: "", notes: "", entryType: "time" });
     setEditEntry(null);
     setShowForm(true);
   }
 
   function openEdit(entry: FullEntry) {
-    setForm({ vaId: entry.vaId, clientId: String(entry.clientId), punchDate: entry.punchDate, timeIn: entry.timeIn, timeOut: entry.timeOut, notes: entry.notes });
+    setForm({ vaId: entry.vaId, clientId: String(entry.clientId), punchDate: entry.punchDate, timeIn: entry.timeIn, timeOut: entry.timeOut, notes: entry.notes, entryType: entry.entryType || "time" });
     setEditEntry(entry);
     setShowForm(true);
   }
@@ -84,11 +84,13 @@ export default function AdminTimeproofPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    const timeIn = form.entryType === "time" ? form.timeIn : "";
+    const timeOut = form.entryType === "time" ? form.timeOut : "";
     if (editEntry) {
-      await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes });
+      await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn, timeOut, notes: form.notes, entryType: form.entryType });
     } else {
       const now = estDateLong();
-      await actions.addTimeproofEntry({ vaId: form.vaId, clientId: Number(form.clientId), punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now });
+      await actions.addTimeproofEntry({ vaId: form.vaId, clientId: Number(form.clientId), punchDate: form.punchDate, timeIn, timeOut, notes: form.notes, createdAt: now, entryType: form.entryType });
     }
     setSaving(false);
     setShowForm(false);
@@ -168,6 +170,7 @@ export default function AdminTimeproofPage() {
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">VA</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Client</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Type</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Date</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Time In</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Time Out</th>
@@ -181,10 +184,19 @@ export default function AdminTimeproofPage() {
                   <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                     <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.clientName}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        entry.entryType === "absence" ? "bg-amber-100 text-amber-700" :
+                        entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
+                        "bg-blue-100 text-blue-700"
+                      }`}>
+                        {entry.entryType === "absence" ? "Absence" : entry.entryType === "leave" ? "Leave" : "Time"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                    <td className="px-4 py-3 text-slate-700">{fmtTime12(entry.timeIn)}</td>
-                    <td className="px-4 py-3 text-slate-700">{entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" ? fmtTime12(entry.timeIn) : "—"}</td>
+                    <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{entry.entryType === "time" ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -202,7 +214,7 @@ export default function AdminTimeproofPage() {
               {totalMins > 0 && (
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
-                    <td colSpan={5} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
+                    <td colSpan={6} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
                     <td className="px-4 py-3 font-bold text-indigo-700">{fmtDuration(totalMins)}</td>
                     <td colSpan={2} />
                   </tr>
@@ -246,22 +258,32 @@ export default function AdminTimeproofPage() {
                 </>
               )}
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Entry Type</label>
+                <select value={form.entryType} onChange={(e) => setForm((f) => ({ ...f, entryType: e.target.value }))} className={inputClass}>
+                  <option value="time">Time Entry</option>
+                  <option value="absence">Absence</option>
+                  <option value="leave">Leave</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
                 <input type="date" value={form.punchDate} onChange={(e) => setForm((f) => ({ ...f, punchDate: e.target.value }))} required className={inputClass} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Time In</label>
-                  <input type="time" value={form.timeIn} onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))} required className={inputClass} />
+              {form.entryType === "time" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Time In</label>
+                    <input type="time" value={form.timeIn} onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))} required className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Time Out</label>
+                    <input type="time" value={form.timeOut} onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))} className={inputClass} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Time Out</label>
-                  <input type="time" value={form.timeOut} onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))} className={inputClass} />
-                </div>
-              </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-                <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional" className={inputClass} />
+                <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder={form.entryType === "time" ? "Optional" : "Reason for " + form.entryType} className={inputClass} />
               </div>
               <button type="submit" disabled={saving} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                 <Fingerprint size={16} /> {saving ? "Saving..." : editEntry ? "Update Entry" : "Add Entry"}

@@ -752,6 +752,7 @@ export type TimeproofEntry = {
   timeOut: string;
   notes: string;
   createdAt: string;
+  entryType: string;
 };
 
 function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
@@ -764,6 +765,7 @@ function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
     timeOut: r.time_out as string,
     notes: (r.notes as string) || "",
     createdAt: (r.created_at as string) || "",
+    entryType: (r.entry_type as string) || "time",
   };
 }
 
@@ -807,12 +809,12 @@ export async function getAllTimeproofEntries(): Promise<(TimeproofEntry & { vaNa
 export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Promise<void> {
   await ensureTablesOnce();
   await sql`
-    INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at)
-    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt})
+    INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type)
+    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"})
   `;
 }
 
-export async function updateTimeproofEntry(id: number, updates: { timeIn?: string; timeOut?: string; notes?: string; punchDate?: string }): Promise<void> {
+export async function updateTimeproofEntry(id: number, updates: { timeIn?: string; timeOut?: string; notes?: string; punchDate?: string; entryType?: string }): Promise<void> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
   if (rows.length === 0) return;
@@ -822,7 +824,8 @@ export async function updateTimeproofEntry(id: number, updates: { timeIn?: strin
       punch_date = ${updates.punchDate ?? current.punchDate},
       time_in = ${updates.timeIn ?? current.timeIn},
       time_out = ${updates.timeOut ?? current.timeOut},
-      notes = ${updates.notes ?? current.notes}
+      notes = ${updates.notes ?? current.notes},
+      entry_type = ${updates.entryType ?? current.entryType}
     WHERE id = ${id}
   `;
 }

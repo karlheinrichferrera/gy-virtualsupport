@@ -80,7 +80,7 @@ export default function TimeproofPage() {
       await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes });
     } else {
       const now = estDateLong();
-      await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now });
+      await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now, entryType: "time" });
     }
     setSaving(false);
     setShowForm(false);
@@ -192,6 +192,7 @@ export default function TimeproofPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Date</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Type</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Time In</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Time Out</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Duration</th>
@@ -203,12 +204,25 @@ export default function TimeproofPage() {
                 {filtered.map((entry) => (
                   <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                     <td className="px-4 py-3 text-slate-900 font-medium">{entry.punchDate}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        entry.entryType === "absence" ? "bg-amber-100 text-amber-700" :
+                        entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
+                        "bg-blue-100 text-blue-700"
+                      }`}>
+                        {entry.entryType === "absence" ? "Absence" : entry.entryType === "leave" ? "Leave" : "Time"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-700">
-                      {fmtTime12(entry.timeIn)}
-                      {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
+                      {entry.entryType === "time" ? (
+                        <>
+                          {fmtTime12(entry.timeIn)}
+                          {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
+                        </>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {entry.timeOut ? (
+                      {entry.entryType !== "time" ? "—" : entry.timeOut ? (
                         <span className="text-slate-700">
                           {fmtTime12(entry.timeOut)}
                           {(() => { const l = estToLocal(entry.timeOut, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
@@ -219,7 +233,7 @@ export default function TimeproofPage() {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{fmtDuration(calcMins(entry.timeIn, entry.timeOut))}</td>
+                    <td className="px-4 py-3 text-slate-600">{entry.entryType === "time" ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -237,7 +251,7 @@ export default function TimeproofPage() {
               {totalMins > 0 && (
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
-                    <td colSpan={3} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
+                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
                     <td className="px-4 py-3 font-bold text-blue-700">{fmtDuration(totalMins)}</td>
                     <td colSpan={2} />
                   </tr>

@@ -19,6 +19,7 @@ export default function ClientVAsPage() {
         actions.getVAsByClientEmail(email),
         actions.getActiveVAIdsByClientEmail(email),
       ]);
+      profiles.sort((a, b) => a.id.localeCompare(b.id));
       setVAs(profiles);
       setActiveVAIds(activeIds);
       setLoading(false);
