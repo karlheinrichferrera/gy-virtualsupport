@@ -190,7 +190,7 @@ export default function AdminTimeproofPage() {
                         entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
                         "bg-blue-100 text-blue-700"
                       }`}>
-                        {entry.entryType === "absence" ? "Absence" : entry.entryType === "leave" ? "Leave" : "Time"}
+                        {entry.entryType === "absence" ? "Absent" : entry.entryType === "leave" ? "On Leave" : "Worked"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
@@ -260,9 +260,9 @@ export default function AdminTimeproofPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Entry Type</label>
                 <select value={form.entryType} onChange={(e) => setForm((f) => ({ ...f, entryType: e.target.value }))} className={inputClass}>
-                  <option value="time">Time Entry</option>
-                  <option value="absence">Absence</option>
-                  <option value="leave">Leave</option>
+                  <option value="time">Worked</option>
+                  <option value="absence">Absent</option>
+                  <option value="leave">On Leave</option>
                 </select>
               </div>
               <div>

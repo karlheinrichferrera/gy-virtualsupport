@@ -133,7 +133,7 @@ export default function ClientTimeproofPage() {
                             entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
                             "bg-blue-100 text-blue-700"
                           }`}>
-                            {entry.entryType === "absence" ? "Absence" : entry.entryType === "leave" ? "Leave" : "Time"}
+                            {entry.entryType === "absence" ? "Absent" : entry.entryType === "leave" ? "On Leave" : "Worked"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
