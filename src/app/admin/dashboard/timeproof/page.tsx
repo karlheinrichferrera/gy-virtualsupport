@@ -24,10 +24,14 @@ function fmtDuration(mins: number): string {
   return `${h}h ${m}m`;
 }
 
-function getMonday(d: Date): Date {
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.getFullYear(), d.getMonth(), diff);
+const BIWEEKLY_ANCHOR = new Date(2026, 9, 5);
+
+function getBiweeklyStart(d: Date): Date {
+  const diffDays = Math.floor((d.getTime() - BIWEEKLY_ANCHOR.getTime()) / 86400000);
+  const periodIndex = Math.floor(diffDays / 14);
+  const start = new Date(BIWEEKLY_ANCHOR);
+  start.setDate(start.getDate() + periodIndex * 14);
+  return start;
 }
 
 function fmtDate(d: Date): string {
@@ -56,7 +60,7 @@ export default function AdminTimeproofPage() {
   const [form, setForm] = useState({ vaId: "", clientId: "", punchDate: "", timeIn: "", timeOut: "", notes: "", entryType: "time" });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "week">("list");
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [weekStart, setWeekStart] = useState(() => getBiweeklyStart(new Date()));
 
   useEffect(() => {
     (async () => {
@@ -285,7 +289,7 @@ export default function AdminTimeproofPage() {
             <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronRight size={18} />
             </button>
-            <button onClick={() => setWeekStart(getMonday(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
+            <button onClick={() => setWeekStart(getBiweeklyStart(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
           </div>
 
           {weekVAIds.length === 0 ? (
