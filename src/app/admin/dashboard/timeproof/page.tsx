@@ -122,14 +122,16 @@ export default function AdminTimeproofPage() {
     await reload();
   }
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
+  const periodDays = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
     return d;
   });
 
-  const weekEnd = weekDays[6];
-  const weekEntries = filtered.filter((e) => e.punchDate >= fmtDate(weekStart) && e.punchDate <= fmtDate(weekEnd));
+  const periodEnd = periodDays[13];
+  const weekEntries = filtered.filter((e) => e.punchDate >= fmtDate(weekStart) && e.punchDate <= fmtDate(periodEnd));
+  const week1Days = periodDays.slice(0, 7);
+  const week2Days = periodDays.slice(7, 14);
 
   const weekVAIds = Array.from(new Set(weekEntries.map((e) => e.vaId)));
   const vaMap = new Map(vas.map((v) => [v.id, `${v.firstName} ${v.lastName}`]));
@@ -156,7 +158,7 @@ export default function AdminTimeproofPage() {
               <List size={14} /> List
             </button>
             <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "week" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              <CalendarRange size={14} /> Week
+              <CalendarRange size={14} /> Biweekly
             </button>
           </div>
           <button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
@@ -274,13 +276,13 @@ export default function AdminTimeproofPage() {
       {viewMode === "week" && (
         <>
           <div className="flex items-center gap-3">
-            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
+            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronLeft size={18} />
             </button>
             <div className="text-sm font-semibold text-slate-700">
-              {shortDate(weekStart)} — {shortDate(weekEnd)}
+              {shortDate(weekStart)} — {shortDate(periodEnd)}
             </div>
-            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
+            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronRight size={18} />
             </button>
             <button onClick={() => setWeekStart(getMonday(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
@@ -289,76 +291,80 @@ export default function AdminTimeproofPage() {
           {weekVAIds.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
               <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
-              <h2 className="text-lg font-semibold text-slate-700 mb-2">No Entries This Week</h2>
-              <p className="text-slate-500">No timeproof entries for the selected week.</p>
+              <h2 className="text-lg font-semibold text-slate-700 mb-2">No Entries This Period</h2>
+              <p className="text-slate-500">No timeproof entries for the selected two-week period.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200">
+                      <th rowSpan={2} className="text-left px-4 py-2 font-semibold text-slate-600 min-w-[140px] border-r border-slate-200">VA</th>
+                      <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs border-r border-slate-200">Week 1: {shortDate(week1Days[0])} – {shortDate(week1Days[6])}</th>
+                      <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Total</th>
+                    </tr>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600 min-w-[140px]">VA</th>
-                      {weekDays.map((d) => {
+                      {periodDays.map((d, i) => {
                         const isToday = fmtDate(d) === fmtDate(new Date());
                         return (
-                          <th key={fmtDate(d)} className={`text-center px-2 py-3 font-semibold min-w-[100px] ${isToday ? "text-indigo-700 bg-indigo-50" : "text-slate-600"}`}>
-                            <div>{shortDay(d)}</div>
-                            <div className="text-xs font-normal">{shortDate(d)}</div>
+                          <th key={fmtDate(d)} className={`text-center px-1.5 py-2 font-semibold min-w-[72px] ${isToday ? "text-indigo-700 bg-indigo-50" : "text-slate-600"} ${i === 6 ? "border-r border-slate-200" : ""}`}>
+                            <div className="text-xs">{shortDay(d)}</div>
+                            <div className="text-xs font-normal">{d.getDate()}</div>
                           </th>
                         );
                       })}
-                      <th className="text-center px-3 py-3 font-semibold text-slate-700 min-w-[80px]">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {weekVAIds.map((vaId) => {
+                    {[...weekVAIds].sort((a, b) => a.localeCompare(b)).map((vaId) => {
                       const vaEntries = weekEntries.filter((e) => e.vaId === vaId);
-                      let weekTotal = 0;
+                      let periodTotal = 0;
                       return (
                         <tr key={vaId} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-900 font-medium">{vaMap.get(vaId) || vaId}</td>
-                          {weekDays.map((d) => {
+                          <td className="px-4 py-3 text-slate-900 font-medium border-r border-slate-200 whitespace-nowrap">{vaMap.get(vaId) || vaId}</td>
+                          {periodDays.map((d, i) => {
                             const dayStr = fmtDate(d);
                             const dayEntries = vaEntries.filter((e) => e.punchDate === dayStr);
                             const dayMins = dayEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
-                            weekTotal += dayMins;
+                            periodTotal += dayMins;
                             const hasAbsence = dayEntries.some((e) => e.entryType === "absence");
                             const hasLeave = dayEntries.some((e) => e.entryType === "leave");
                             const isToday = dayStr === fmtDate(new Date());
                             return (
-                              <td key={dayStr} className={`px-2 py-3 text-center ${isToday ? "bg-indigo-50/50" : ""}`}>
+                              <td key={dayStr} className={`px-1.5 py-2 text-center ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
                                 {dayEntries.length === 0 ? (
-                                  <span className="text-slate-300">—</span>
+                                  <span className="text-slate-300 text-xs">—</span>
                                 ) : (
-                                  <div className="space-y-1">
-                                    {dayMins > 0 && <div className="text-slate-700 font-medium">{fmtDuration(dayMins)}</div>}
-                                    {hasAbsence && <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Absent</span>}
-                                    {hasLeave && <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">On Leave</span>}
+                                  <div className="space-y-0.5">
+                                    {dayMins > 0 && <div className="text-slate-700 font-medium text-xs">{fmtDuration(dayMins)}</div>}
+                                    {hasAbsence && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">A</span>}
+                                    {hasLeave && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">L</span>}
                                   </div>
                                 )}
                               </td>
                             );
                           })}
-                          <td className="px-3 py-3 text-center font-bold text-indigo-700">{weekTotal > 0 ? fmtDuration(weekTotal) : "—"}</td>
+                          <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-50 border-t border-slate-200">
-                      <td className="px-4 py-3 font-semibold text-slate-700">Team Total</td>
-                      {weekDays.map((d) => {
+                      <td className="px-4 py-3 font-semibold text-slate-700 border-r border-slate-200">Team Total</td>
+                      {periodDays.map((d, i) => {
                         const dayStr = fmtDate(d);
                         const dayMins = weekEntries.filter((e) => e.punchDate === dayStr && e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                         const isToday = dayStr === fmtDate(new Date());
                         return (
-                          <td key={dayStr} className={`px-2 py-3 text-center font-semibold text-slate-600 ${isToday ? "bg-indigo-50/50" : ""}`}>
+                          <td key={dayStr} className={`px-1.5 py-3 text-center font-semibold text-slate-600 text-xs ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
                             {dayMins > 0 ? fmtDuration(dayMins) : "—"}
                           </td>
                         );
                       })}
-                      <td className="px-3 py-3 text-center font-bold text-indigo-700">
+                      <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">
                         {(() => { const t = weekEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0); return t > 0 ? fmtDuration(t) : "—"; })()}
                       </td>
                     </tr>
