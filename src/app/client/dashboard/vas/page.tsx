@@ -53,9 +53,13 @@ export default function ClientVAsPage() {
           {vas.map((va) => (
             <div key={va.id} className="bg-card border border-border rounded-xl p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-bold">
-                  {va.firstName.charAt(0)}{va.lastName.charAt(0)}
-                </div>
+                {va.profilePicture ? (
+                  <img src={va.profilePicture} alt="" className="w-12 h-12 rounded-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-bold">
+                    {va.firstName.charAt(0)}{va.lastName.charAt(0)}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-foreground truncate">
@@ -104,9 +108,13 @@ export default function ClientVAsPage() {
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-bold">
-                  {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
-                </div>
+                {profile.profilePicture ? (
+                  <img src={profile.profilePicture} alt="" className="w-14 h-14 rounded-full object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-bold">
+                    {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
                     {profile.firstName} {profile.middleName} {profile.lastName} {profile.suffix}
