@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Clock, ClipboardList, FileText, CalendarDays, DollarSign, Users } from "lucide-react";
+import { LayoutDashboard, Clock, ClipboardList, FileText, CalendarDays, DollarSign, Users, Briefcase } from "lucide-react";
 import Link from "next/link";
 import * as actions from "@/lib/actions";
 
@@ -9,22 +9,26 @@ export default function ClientDashboardPage() {
   const [invoiceCount, setInvoiceCount] = useState(0);
   const [requestCount, setRequestCount] = useState(0);
   const [vaCount, setVaCount] = useState(0);
+  const [activeCount, setActiveCount] = useState(0);
 
   useEffect(() => {
     (async () => {
       const email = localStorage.getItem("clientEmail") || "";
-      const [invoices, requests, myVAs] = await Promise.all([
+      const [invoices, requests, myVAs, activeIds] = await Promise.all([
         actions.getClientInvoices(),
         actions.getAllRequestsFlat(),
         actions.getVAsByClientEmail(email),
+        actions.getActiveVAIdsByClientEmail(email),
       ]);
       setInvoiceCount(invoices.length);
       setRequestCount(requests.filter((r) => r.request.status === "Pending").length);
       setVaCount(myVAs.length);
+      setActiveCount(activeIds.length);
     })();
   }, []);
 
   const cards = [
+    { label: "Working Now", icon: Briefcase, href: "/client/dashboard/vas", color: "bg-green-500", count: activeCount, desc: "VAs actively working today" },
     { label: "My VAs", icon: Users, href: "/client/dashboard/vas", color: "bg-indigo-500", count: vaCount, desc: "Your assigned virtual assistants" },
     { label: "Timesheet", icon: Clock, href: "/client/dashboard/timesheet", color: "bg-blue-500", count: null, desc: "View VA timesheets" },
     { label: "Weekly Reports", icon: ClipboardList, href: "/client/dashboard/reports", color: "bg-purple-500", count: null, desc: "VA weekly reports" },
