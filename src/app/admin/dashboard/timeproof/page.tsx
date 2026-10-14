@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
+import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
@@ -126,6 +127,26 @@ export default function AdminTimeproofPage() {
     await reload();
   }
 
+  function downloadXLSX() {
+    const source = viewMode === "week" ? weekEntries : filtered;
+    const rows = source.map((e) => ({
+      "VA ID": e.vaId,
+      "VA Name": e.vaName,
+      "Client": e.clientName,
+      "Type": e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "On Leave" : "Worked",
+      "Date": e.punchDate,
+      "Time In": e.entryType === "time" ? fmtTime12(e.timeIn) : "",
+      "Time Out": e.entryType === "time" && e.timeOut ? fmtTime12(e.timeOut) : "",
+      "Duration": e.entryType === "time" ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
+      "Notes": e.notes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Timeproof");
+    const dateLabel = viewMode === "week" ? `${fmtDate(weekStart)}_to_${fmtDate(periodEnd)}` : dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : "all";
+    XLSX.writeFile(wb, `timeproof_${dateLabel}.xlsx`);
+  }
+
   const periodDays = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
@@ -165,6 +186,9 @@ export default function AdminTimeproofPage() {
               <CalendarRange size={14} /> Biweekly
             </button>
           </div>
+          <button onClick={downloadXLSX} className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            <Download size={16} /> Download
+          </button>
           <button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Add Entry
           </button>

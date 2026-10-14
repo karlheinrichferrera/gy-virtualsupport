@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
+import { Fingerprint, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry } from "@/lib/actions";
 import { fmtTime12 } from "@/lib/est";
@@ -91,6 +92,25 @@ export default function ClientTimeproofPage() {
   const weekVAIds = Array.from(new Set(weekEntries.map((e) => e.vaId)));
   const vaNameMap = new Map(entries.map((e) => [e.vaId, e.vaName]));
 
+  function downloadXLSX() {
+    const source = viewMode === "week" ? weekEntries : filtered;
+    const rows = source.map((e) => ({
+      "VA ID": e.vaId,
+      "VA Name": e.vaName,
+      "Type": e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "On Leave" : "Worked",
+      "Date": e.punchDate,
+      "Time In": e.entryType === "time" ? fmtTime12(e.timeIn) : "",
+      "Time Out": e.entryType === "time" && e.timeOut ? fmtTime12(e.timeOut) : "",
+      "Duration": e.entryType === "time" ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
+      "Notes": e.notes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Timeproof");
+    const dateLabel = viewMode === "week" ? `${fmtDate(weekStart)}_to_${fmtDate(periodEnd)}` : dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : "all";
+    XLSX.writeFile(wb, `timeproof_${dateLabel}.xlsx`);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -105,12 +125,17 @@ export default function ClientTimeproofPage() {
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Fingerprint size={24} /> Timeproof
         </h1>
-        <div className="flex bg-slate-100 rounded-lg p-0.5">
-          <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "list" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-            <List size={14} /> List
-          </button>
-          <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "week" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-            <CalendarRange size={14} /> Biweekly
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "list" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+              <List size={14} /> List
+            </button>
+            <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "week" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+              <CalendarRange size={14} /> Biweekly
+            </button>
+          </div>
+          <button onClick={downloadXLSX} className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            <Download size={16} /> Download
           </button>
         </div>
       </div>
