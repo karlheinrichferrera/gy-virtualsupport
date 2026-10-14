@@ -2,22 +2,134 @@
 
 import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
-import type { VAProfile } from "@/lib/data";
-import { Users, FileText, CalendarDays, DollarSign, Clock } from "lucide-react";
+import type { VAProfile, SalaryAdjustment } from "@/lib/data";
+import type { ClientSalaryAdjustment, TimeproofEntry, ClientAccount, ClientInvoice } from "@/lib/actions";
+import { Users, FileText, CalendarDays, DollarSign, Clock, Download } from "lucide-react";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 export default function AdminDashboardPage() {
   const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
-  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; invoice: { status: string; amountDisbursed: string } }[]>([]);
-  const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: { id: string; type: string; reason: string; status: string } }[]>([]);
+  const [allInvoices, setAllInvoices] = useState<{ vaId: string; vaName: string; clientName: string; invoice: { invoiceNumber: string; clientId: number; dateCovered: string; amount: string; transactionFee: string; amountDisbursed: string; status: string } }[]>([]);
+  const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: { id: string; type: string; dateSubmitted: string; dateFrom: string; dateTo: string; reason: string; status: string; remarks: string } }[]>([]);
+  const [allAdjustments, setAllAdjustments] = useState<Record<string, (SalaryAdjustment & { id: number })[]>>({});
+  const [clientAdjustments, setClientAdjustments] = useState<ClientSalaryAdjustment[]>([]);
+  const [allTimeproof, setAllTimeproof] = useState<(TimeproofEntry & { vaName: string; clientName: string })[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
+  const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
-      setVaProfiles(await actions.getProfiles());
-      setAllInvoices(await actions.getAllInvoicesFlat());
-      setAllRequests(await actions.getAllRequestsFlat());
+      const [profiles, invoices, requests, adj, cAdj, tp, cl, ci] = await Promise.all([
+        actions.getProfiles(),
+        actions.getAllInvoicesFlat(),
+        actions.getAllRequestsFlat(),
+        actions.getAllAdjustments(),
+        actions.getClientSalaryAdjustments(),
+        actions.getAllTimeproofEntries(),
+        actions.getClientAccounts(),
+        actions.getClientInvoices(),
+      ]);
+      setVaProfiles(profiles);
+      setAllInvoices(invoices);
+      setAllRequests(requests);
+      setAllAdjustments(adj);
+      setClientAdjustments(cAdj);
+      setAllTimeproof(tp);
+      setClients(cl);
+      setClientInvoices(ci);
     })();
   }, []);
+
+  function downloadAllData() {
+    setDownloading(true);
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const vaRows = vaProfiles.map((v) => ({
+        "VA ID": v.id, "First Name": v.firstName, "Middle Name": v.middleName || "", "Last Name": v.lastName,
+        "Suffix": v.suffix || "", "Phone": v.phone || "", "Alt Phone": v.altPhone || "", "Email": v.email || "",
+        "Date of Birth": v.dateOfBirth || "", "Position": v.position || "", "Employment Status": v.employmentStatus || "",
+        "Date Hired": v.dateHired || "", "Current Rate": v.currentRate || "", "Contractor ID": v.contractorId || "",
+        "Payout Mode": v.payoutMode || "", "PayPal Link": v.paypalLink || "",
+        "E-Wallet Name": v.ewalletName || "", "E-Wallet Number": v.ewalletNumber || "",
+        "Bank Name": v.bankName || "", "Bank Account Number": v.bankAccountNumber || "",
+        "Bank Account Name": v.bankAccountName || "",
+        "Emergency Contact": v.emergencyContact || "", "Emergency Phone": v.emergencyPhone || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vaRows), "VA Master File");
+
+      const reqRows = allRequests.map((r) => ({
+        "Request ID": r.request.id, "VA ID": r.vaId, "VA Name": r.vaName,
+        "Type": r.request.type, "Date Submitted": r.request.dateSubmitted || "",
+        "Date From": r.request.dateFrom || "", "Date To": r.request.dateTo || "",
+        "Reason": r.request.reason || "", "Status": r.request.status || "", "Remarks": r.request.remarks || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reqRows), "Leave & Shift Requests");
+
+      const tpRows = allTimeproof.map((t) => ({
+        "ID": t.id, "VA ID": t.vaId, "VA Name": t.vaName, "Client": t.clientName,
+        "Type": t.entryType === "absence" ? "Absent" : t.entryType === "leave" ? "On Leave" : "Worked",
+        "Date": t.punchDate, "Time In": t.timeIn || "", "Time Out": t.timeOut || "",
+        "Notes": t.notes || "", "Created At": t.createdAt || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tpRows), "Timeproof");
+
+      const adjRows: Record<string, string>[] = [];
+      const vaNameMap: Record<string, string> = {};
+      for (const v of vaProfiles) vaNameMap[v.id] = `${v.firstName} ${v.lastName}`;
+      for (const [vaId, adjs] of Object.entries(allAdjustments)) {
+        for (const a of adjs) {
+          adjRows.push({
+            "ID": String(a.id), "VA ID": vaId, "VA Name": vaNameMap[vaId] || vaId,
+            "Effectivity Date": a.effectivityDate || "", "Type": a.type || "",
+            "Hourly Rate": a.hourlyRate || "", "Sales Commission": a.salesCommission || "",
+            "Referral Bonus": a.referralBonus || "", "Notes": a.notes || "",
+          });
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adjRows), "VA Salary Adjustments");
+
+      const clientNameMap: Record<number, string> = {};
+      for (const c of clients) clientNameMap[c.id] = c.displayName;
+      const csaRows = clientAdjustments.map((a) => ({
+        "ID": a.id, "Client": clientNameMap[a.clientId] || String(a.clientId),
+        "VA ID": a.vaId, "VA Name": vaNameMap[a.vaId] || a.vaId,
+        "Effectivity Date": a.effectivityDate || "", "Type": a.type || "",
+        "Hourly Rate": a.hourlyRate || "", "Sales Commission": a.salesCommission || "",
+        "Referral Bonus": a.referralBonus || "", "Notes": a.notes || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(csaRows), "Client Salary Adj");
+
+      const invRows = allInvoices.map((i) => ({
+        "Invoice Number": i.invoice.invoiceNumber, "VA ID": i.vaId, "VA Name": i.vaName,
+        "Client": i.clientName || "", "Date Covered": i.invoice.dateCovered || "",
+        "Amount": i.invoice.amount || "", "Transaction Fee": i.invoice.transactionFee || "",
+        "Amount Disbursed": i.invoice.amountDisbursed || "", "Status": i.invoice.status || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(invRows), "VA Invoices");
+
+      const ciRows = clientInvoices.map((ci) => ({
+        "ID": ci.id, "Client": clientNameMap[ci.clientId] || String(ci.clientId),
+        "Invoice Number": ci.invoiceNumber || "", "Bill Coverage": ci.billCoverage || "",
+        "Amount": ci.amount || "", "Invoice Due Date": ci.invoiceDueDate || "",
+        "Status": ci.status || "", "Invoice Link": ci.invoiceLink || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ciRows), "Client Invoices");
+
+      const clRows = clients.map((c) => ({
+        "Client ID": c.id, "Email": c.email, "Display Name": c.displayName,
+        "Company Name": c.companyName || "", "Address": c.address || "",
+        "Phone": c.phone || "", "Created At": c.createdAt || "",
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clRows), "Clients");
+
+      XLSX.writeFile(wb, `GY_VirtualSupport_AllData_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const pendingInvoices = allInvoices.filter((i) => i.invoice.status === "Pending");
   const pendingRequests = allRequests.filter((r) => r.request.status === "Pending");
@@ -59,6 +171,21 @@ export default function AdminDashboardPage() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Download All Data</h2>
+          <p className="text-sm text-muted mt-1">Export all portal data as a single XLSX workbook with multiple sheets</p>
+        </div>
+        <button
+          onClick={downloadAllData}
+          disabled={downloading || vaProfiles.length === 0}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+        >
+          <Download size={18} />
+          {downloading ? "Preparing..." : "Download XLSX"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
