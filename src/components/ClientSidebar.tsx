@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
-  Clock,
   ClipboardList,
   FileText,
   Fingerprint,
@@ -19,7 +18,6 @@ import {
 const navItems = [
   { href: "/client/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/client/dashboard/vas", label: "My VAs", icon: Users },
-  { href: "/client/dashboard/timesheet", label: "Timesheet", icon: Clock },
   { href: "/client/dashboard/timeproof", label: "Timeproof", icon: Fingerprint },
   { href: "/client/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/client/dashboard/invoices", label: "Invoices", icon: FileText },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Clock, ClipboardList, FileText, CalendarDays, DollarSign, Users, Briefcase } from "lucide-react";
+import { LayoutDashboard, ClipboardList, FileText, CalendarDays, DollarSign, Users, Briefcase } from "lucide-react";
 import Link from "next/link";
 import * as actions from "@/lib/actions";
 
@@ -30,7 +30,6 @@ export default function ClientDashboardPage() {
   const cards = [
     { label: "Working Now", icon: Briefcase, href: "/client/dashboard/vas", color: "bg-green-500", count: activeCount, desc: "VAs actively working today" },
     { label: "My VAs", icon: Users, href: "/client/dashboard/vas", color: "bg-indigo-500", count: vaCount, desc: "Your assigned virtual assistants" },
-    { label: "Timesheet", icon: Clock, href: "/client/dashboard/timesheet", color: "bg-blue-500", count: null, desc: "View VA timesheets" },
     { label: "Weekly Reports", icon: ClipboardList, href: "/client/dashboard/reports", color: "bg-purple-500", count: null, desc: "VA weekly reports" },
     { label: "Invoices", icon: FileText, href: "/client/dashboard/invoices", color: "bg-emerald-500", count: invoiceCount, desc: "View & download invoices" },
     { label: "Leave & Requests", icon: CalendarDays, href: "/client/dashboard/requests", color: "bg-amber-500", count: requestCount, desc: "Pending requests" },
