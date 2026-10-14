@@ -292,6 +292,13 @@ export default function AdminTimeproofPage() {
             <button onClick={() => setWeekStart(getBiweeklyStart(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
           </div>
 
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="font-medium text-slate-600">Legend:</span>
+            <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700">3h 20m</span> Worked</span>
+            <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700">A</span> Absent</span>
+            <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-purple-100 text-purple-700">L</span> On Leave</span>
+          </div>
+
           {weekVAIds.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
               <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
