@@ -22,7 +22,7 @@ export default function AdminAdjustmentsPage() {
   });
   const [form, setForm] = useState({
     effectivityDate: "",
-    type: "",
+    type: "INCREASE",
     hourlyRate: "",
     salesCommission: "",
     referralBonus: "",
@@ -51,7 +51,7 @@ export default function AdminAdjustmentsPage() {
     await actions.addAdjustment(selectedVA, newAdj);
     setAdjustments(await actions.getAllAdjustments());
     setShowAdd(false);
-    setForm({ effectivityDate: "", type: "", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
+    setForm({ effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   }
 
   async function handleDelete(adjId: number) {
@@ -200,7 +200,12 @@ export default function AdminAdjustmentsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
-                <input type="text" required value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputClass} placeholder="e.g. Salary Adjustment" />
+                <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
+                  <option value="INCREASE">INCREASE</option>
+                  <option value="DECREASE">DECREASE</option>
+                  <option value="BONUS">BONUS</option>
+                  <option value="INITIAL">INITIAL</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Hourly Rate</label>
@@ -256,7 +261,12 @@ export default function AdminAdjustmentsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
-                <input type="text" required value={editForm.type} onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))} className={inputClass} placeholder="e.g. Salary Adjustment" />
+                <select value={editForm.type} onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
+                  <option value="INCREASE">INCREASE</option>
+                  <option value="DECREASE">DECREASE</option>
+                  <option value="BONUS">BONUS</option>
+                  <option value="INITIAL">INITIAL</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Hourly Rate</label>
