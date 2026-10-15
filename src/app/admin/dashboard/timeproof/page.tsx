@@ -436,8 +436,9 @@ export default function AdminTimeproofPage() {
                       <th rowSpan={2} className="text-left px-4 py-2 font-semibold text-slate-600 min-w-[140px] border-r border-slate-200">VA</th>
                       <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs border-r border-slate-200">Week 1: {shortDate(week1Days[0])} – {shortDate(week1Days[6])}</th>
                       <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>
-                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Total</th>
-                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Overtime</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Regular</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-red-600 min-w-[80px] border-l border-slate-200">Overtime</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Billed</th>
                     </tr>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       {periodDays.map((d, i) => {
@@ -455,6 +456,7 @@ export default function AdminTimeproofPage() {
                     {[...weekVAIds].sort((a, b) => a.localeCompare(b)).map((vaId) => {
                       const vaEntries = weekEntries.filter((e) => e.vaId === vaId);
                       let periodTotal = 0;
+                      let periodOT = 0;
                       return (
                         <tr key={vaId} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-900 font-medium border-r border-slate-200 whitespace-nowrap">{vaMap.get(vaId) || vaId}</td>
@@ -462,7 +464,9 @@ export default function AdminTimeproofPage() {
                             const dayStr = fmtDate(d);
                             const dayEntries = vaEntries.filter((e) => e.punchDate === dayStr);
                             const dayMins = dayEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                            const dayOTMins = dayEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                             periodTotal += dayMins;
+                            periodOT += dayOTMins;
                             const isToday = dayStr === fmtDate(new Date());
                             return (
                               <td key={dayStr} className={`px-1.5 py-2 text-center ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
@@ -471,26 +475,27 @@ export default function AdminTimeproofPage() {
                                 ) : (
                                   <div className="space-y-0.5">
                                     {dayMins > 0 && <div className="text-slate-700 font-medium text-xs">{fmtDuration(dayMins)}</div>}
-                                    {dayEntries.filter((e) => e.entryType !== "time").map((e) => {
+                                    {dayOTMins > 0 && <div className="text-red-600 font-medium text-xs">+{fmtDuration(dayOTMins)}</div>}
+                                    {dayEntries.filter((e) => e.entryType !== "time" && e.entryType !== "overtime").map((e) => {
                                       const t = ENTRY_TYPES[e.entryType] || ENTRY_TYPES.time;
                                       return <span key={e.id} className={`inline-block px-1 py-0.5 rounded text-[10px] font-medium ${t.bg} ${t.text}`}>{t.short}</span>;
                                     })}
+                                    {dayEntries.some((e) => e.entryType === "overtime" && e.status === "pending") && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">OT?</span>}
                                   </div>
                                 )}
                               </td>
                             );
                           })}
                           {(() => {
-                            const vaProfile = vas.find((v) => v.id === vaId);
-                            const scheduledMins = getScheduledMins(vaProfile?.workSchedule, periodDays);
-                            const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
-                            const excessMins = periodTotal - scheduledMins;
-                            const overMins = (excessMins > 0 ? excessMins : 0) + overtimeEntryMins;
+                            const billedMins = periodTotal + periodOT;
                             return (
                               <>
                                 <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
                                 <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
-                                  {overMins > 0 ? `+${fmtDuration(overMins)}` : "—"}
+                                  {periodOT > 0 ? `+${fmtDuration(periodOT)}` : "—"}
+                                </td>
+                                <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-indigo-900">
+                                  {billedMins > 0 ? fmtDuration(billedMins) : "—"}
                                 </td>
                               </>
                             );
@@ -505,29 +510,29 @@ export default function AdminTimeproofPage() {
                       {periodDays.map((d, i) => {
                         const dayStr = fmtDate(d);
                         const dayMins = weekEntries.filter((e) => e.punchDate === dayStr && e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                        const dayOTMins = weekEntries.filter((e) => e.punchDate === dayStr && e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                         const isToday = dayStr === fmtDate(new Date());
                         return (
-                          <td key={dayStr} className={`px-1.5 py-3 text-center font-semibold text-slate-600 text-xs ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
-                            {dayMins > 0 ? fmtDuration(dayMins) : "—"}
+                          <td key={dayStr} className={`px-1.5 py-3 text-center font-semibold text-xs ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
+                            <div className="text-slate-600">{dayMins > 0 ? fmtDuration(dayMins) : "—"}</div>
+                            {dayOTMins > 0 && <div className="text-red-600">+{fmtDuration(dayOTMins)}</div>}
                           </td>
                         );
                       })}
                       {(() => {
                         const totalWorked = weekEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
-                        const totalScheduled = weekVAIds.reduce((s, vaId) => {
-                          const vaProfile = vas.find((v) => v.id === vaId);
-                          return s + getScheduledMins(vaProfile?.workSchedule, periodDays);
-                        }, 0);
-                        const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
-                        const totalExcess = totalWorked - totalScheduled;
-                        const totalOver = (totalExcess > 0 ? totalExcess : 0) + totalOvertimeEntries;
+                        const totalOT = weekEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                        const totalBilled = totalWorked + totalOT;
                         return (
                           <>
                             <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">
                               {totalWorked > 0 ? fmtDuration(totalWorked) : "—"}
                             </td>
                             <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
-                              {totalOver > 0 ? `+${fmtDuration(totalOver)}` : "—"}
+                              {totalOT > 0 ? `+${fmtDuration(totalOT)}` : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-indigo-900">
+                              {totalBilled > 0 ? fmtDuration(totalBilled) : "—"}
                             </td>
                           </>
                         );
