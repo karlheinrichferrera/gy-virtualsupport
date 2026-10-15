@@ -26,6 +26,7 @@ export default function AdminClientsPage() {
   const [tab, setTab] = useState<"accounts" | "invoices" | "adjustments">("accounts");
   const [adjClientFilter, setAdjClientFilter] = useState<number>(0);
   const [adjVAFilter, setAdjVAFilter] = useState("");
+  const [adjDateFilter, setAdjDateFilter] = useState("");
 
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
@@ -149,6 +150,7 @@ export default function AdminClientsPage() {
   const filteredAdjs = clientAdjs.filter((a) => {
     if (adjClientFilter && a.clientId !== adjClientFilter) return false;
     if (adjVAFilter && a.vaId !== adjVAFilter) return false;
+    if (adjDateFilter && !a.effectivityDate.toLowerCase().includes(adjDateFilter.toLowerCase())) return false;
     return true;
   });
 
@@ -303,6 +305,7 @@ export default function AdminClientsPage() {
               <option value="">All VAs</option>
               {vaProfiles.map((va) => (<option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>))}
             </select>
+            <input type="text" value={adjDateFilter} onChange={(e) => setAdjDateFilter(e.target.value)} placeholder="Filter by date..." className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[180px]" />
             <div className="flex-1" />
             <button onClick={() => setShowAddAdj(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
               <Plus size={16} /> Add Adjustment

@@ -17,6 +17,7 @@ export default function ClientAdjustmentsPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [dateFilter, setDateFilter] = useState("");
   const [form, setForm] = useState({ effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
 
   async function loadData() {
@@ -68,7 +69,11 @@ export default function ClientAdjustmentsPage() {
     );
   }
 
-  const currentAdj = adjustments.filter((a) => a.vaId === selectedVA);
+  const currentAdj = adjustments.filter((a) => {
+    if (a.vaId !== selectedVA) return false;
+    if (dateFilter && !a.effectivityDate.toLowerCase().includes(dateFilter.toLowerCase())) return false;
+    return true;
+  });
   const selectedProfile = vaProfiles.find((v) => v.id === selectedVA);
 
   return (
@@ -83,7 +88,7 @@ export default function ClientAdjustmentsPage() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <select
           value={selectedVA}
           onChange={(e) => setSelectedVA(e.target.value)}
@@ -93,6 +98,7 @@ export default function ClientAdjustmentsPage() {
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
           ))}
         </select>
+        <input type="text" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} placeholder="Filter by date..." className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px]" />
         {selectedProfile && (
           <span className="text-sm text-slate-500">Current Rate: <span className="font-medium text-foreground">{selectedProfile.clientRate || "N/A"}</span></span>
         )}
