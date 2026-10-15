@@ -12,6 +12,7 @@ const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm 
 
 export default function ClientAdjustmentsPage() {
   const [vaProfiles, setVaProfiles] = useState<VAWithClientRate[]>([]);
+  const [allVAs, setAllVAs] = useState<VAProfile[]>([]);
   const [selectedVA, setSelectedVA] = useState("");
   const [adjustments, setAdjustments] = useState<ClientSalaryAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,13 +23,15 @@ export default function ClientAdjustmentsPage() {
 
   async function loadData() {
     const email = localStorage.getItem("clientEmail") || "";
-    const [profiles, adjs] = await Promise.all([
+    const [profiles, adjs, allProfiles] = await Promise.all([
       actions.getVAsByClientEmail(email),
       actions.getClientSalaryAdjustmentsByEmail(email),
+      actions.getProfiles(),
     ]);
     setVaProfiles(profiles);
+    setAllVAs(allProfiles);
     setAdjustments(adjs);
-    if (!selectedVA && profiles.length > 0) setSelectedVA(profiles[0].id);
+    if (!selectedVA && allProfiles.length > 0) setSelectedVA(allProfiles[0].id);
     setLoading(false);
   }
 
@@ -74,7 +77,8 @@ export default function ClientAdjustmentsPage() {
     if (dateFilter && !a.effectivityDate.toLowerCase().includes(dateFilter.toLowerCase())) return false;
     return true;
   });
-  const selectedProfile = vaProfiles.find((v) => v.id === selectedVA);
+  const selectedAssigned = vaProfiles.find((v) => v.id === selectedVA);
+  const selectedProfile = allVAs.find((v) => v.id === selectedVA);
 
   return (
     <div className="space-y-4">
@@ -94,13 +98,13 @@ export default function ClientAdjustmentsPage() {
           onChange={(e) => setSelectedVA(e.target.value)}
           className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px]"
         >
-          {vaProfiles.map((va) => (
+          {allVAs.map((va) => (
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
           ))}
         </select>
         <input type="text" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} placeholder="Filter by date..." className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px]" />
-        {selectedProfile && (
-          <span className="text-sm text-slate-500">Current Rate: <span className="font-medium text-foreground">{selectedProfile.clientRate || "N/A"}</span></span>
+        {selectedAssigned && (
+          <span className="text-sm text-slate-500">Current Rate: <span className="font-medium text-foreground">{selectedAssigned.clientRate || "N/A"}</span></span>
         )}
       </div>
 
@@ -165,7 +169,7 @@ export default function ClientAdjustmentsPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">VA</label>
                 <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className={inputClass}>
-                  {vaProfiles.map((va) => (
+                  {allVAs.map((va) => (
                     <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
                   ))}
                 </select>
