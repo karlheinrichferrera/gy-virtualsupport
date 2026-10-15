@@ -797,6 +797,7 @@ export type TimeproofEntry = {
   notes: string;
   createdAt: string;
   entryType: string;
+  status: string;
 };
 
 function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
@@ -810,6 +811,7 @@ function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
     notes: (r.notes as string) || "",
     createdAt: (r.created_at as string) || "",
     entryType: (r.entry_type as string) || "time",
+    status: (r.status as string) || "approved",
   };
 }
 
@@ -853,8 +855,8 @@ export async function getAllTimeproofEntries(): Promise<(TimeproofEntry & { vaNa
 export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Promise<void> {
   await ensureTablesOnce();
   await sql`
-    INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type)
-    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"})
+    INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
+    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
   `;
 }
 
@@ -862,8 +864,8 @@ export async function addBulkTimeproofEntries(entries: Omit<TimeproofEntry, "id"
   await ensureTablesOnce();
   for (const entry of entries) {
     await sql`
-      INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type)
-      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"})
+      INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
+      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
     `;
   }
 }
@@ -886,6 +888,24 @@ export async function updateTimeproofEntry(id: number, updates: { timeIn?: strin
 
 export async function deleteTimeproofEntry(id: number): Promise<void> {
   await sql`DELETE FROM timeproof_entries WHERE id = ${id}`;
+}
+
+export async function updateTimeproofEntryStatus(id: number, status: string): Promise<void> {
+  await ensureTablesOnce();
+  await sql`UPDATE timeproof_entries SET status = ${status} WHERE id = ${id}`;
+}
+
+export async function getPendingOvertimeRequests(): Promise<(TimeproofEntry & { vaName: string; clientName: string })[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT te.*, vp.first_name, vp.last_name, ca.display_name as client_name
+    FROM timeproof_entries te
+    JOIN va_profiles vp ON vp.id = te.va_id
+    JOIN client_accounts ca ON ca.id = te.client_id
+    WHERE te.entry_type = 'overtime' AND te.status = 'pending'
+    ORDER BY te.created_at DESC
+  `;
+  return rows.map((r) => ({ ...rowToTimeproofEntry(r), vaName: `${r.first_name} ${r.last_name}`, clientName: (r.client_name as string) || "" }));
 }
 
 export async function getActiveVAIdsByClientEmail(email: string): Promise<string[]> {

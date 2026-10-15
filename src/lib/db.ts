@@ -155,6 +155,7 @@ export async function ensureTables() {
   `;
 
   await sql`ALTER TABLE timeproof_entries ADD COLUMN IF NOT EXISTS entry_type TEXT NOT NULL DEFAULT 'time'`;
+  await sql`ALTER TABLE timeproof_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS client_salary_adjustments (

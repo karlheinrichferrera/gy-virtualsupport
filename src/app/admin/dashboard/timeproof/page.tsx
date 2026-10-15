@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download, Copy } from "lucide-react";
+import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download, Copy, Clock, Check, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
@@ -94,24 +94,31 @@ export default function AdminTimeproofPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "week">("list");
   const [weekStart, setWeekStart] = useState(() => getBiweeklyStart(new Date()));
+  const [pendingOT, setPendingOT] = useState<FullEntry[]>([]);
 
   useEffect(() => {
     (async () => {
-      const [entries, vaList, clientList] = await Promise.all([
+      const [entries, vaList, clientList, pending] = await Promise.all([
         actions.getAllTimeproofEntries(),
         actions.getProfiles(),
         actions.getClientAccounts(),
+        actions.getPendingOvertimeRequests(),
       ]);
       setAllEntries(entries);
       setVAs(vaList);
       setClients(clientList);
+      setPendingOT(pending);
       setLoading(false);
     })();
   }, []);
 
   async function reload() {
-    const entries = await actions.getAllTimeproofEntries();
+    const [entries, pending] = await Promise.all([
+      actions.getAllTimeproofEntries(),
+      actions.getPendingOvertimeRequests(),
+    ]);
     setAllEntries(entries);
+    setPendingOT(pending);
   }
 
   const filtered = allEntries.filter((e) => {
@@ -148,7 +155,7 @@ export default function AdminTimeproofPage() {
       await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn, timeOut, notes: form.notes, entryType: form.entryType });
     } else {
       const now = estDateLong();
-      await actions.addTimeproofEntry({ vaId: form.vaId, clientId: Number(form.clientId), punchDate: form.punchDate, timeIn, timeOut, notes: form.notes, createdAt: now, entryType: form.entryType });
+      await actions.addTimeproofEntry({ vaId: form.vaId, clientId: Number(form.clientId), punchDate: form.punchDate, timeIn, timeOut, notes: form.notes, createdAt: now, entryType: form.entryType, status: "approved" });
     }
     setSaving(false);
     setShowForm(false);
@@ -231,6 +238,41 @@ export default function AdminTimeproofPage() {
         </div>
       </div>
 
+      {pendingOT.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
+            <Clock size={16} /> Pending Overtime Requests ({pendingOT.length})
+          </h3>
+          <div className="space-y-2">
+            {pendingOT.map((req) => (
+              <div key={req.id} className="flex items-center gap-3 bg-white rounded-lg border border-amber-200 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-slate-900">{req.vaName}</span>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">{req.clientName}</span>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">{req.punchDate}</span>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">{fmtTime12(req.timeIn)} – {fmtTime12(req.timeOut)}</span>
+                    <span className="text-xs text-slate-500">({fmtDuration(calcMins(req.timeIn, req.timeOut))})</span>
+                  </div>
+                  {req.notes && <p className="text-xs text-slate-500 mt-0.5">{req.notes}</p>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={async () => { await actions.updateTimeproofEntryStatus(req.id, "approved"); await reload(); }} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                    <Check size={14} /> Approve
+                  </button>
+                  <button onClick={async () => { await actions.updateTimeproofEntryStatus(req.id, "rejected"); await reload(); }} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
+                    <XCircle size={14} /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px] bg-white text-slate-900">
           <option value="">All VAs</option>
@@ -286,6 +328,7 @@ export default function AdminTimeproofPage() {
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Time Out</th>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Duration</th>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Notes</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
                       <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
                     </tr>
                   </thead>
@@ -300,8 +343,32 @@ export default function AdminTimeproofPage() {
                         <td className="px-4 py-3 text-slate-700">{(entry.entryType === "time" || entry.entryType === "overtime") && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
                         <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                         <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
+                        <td className="px-4 py-3">
+                          {entry.entryType === "overtime" ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              entry.status === "pending" ? "bg-amber-100 text-amber-700" :
+                              entry.status === "approved" ? "bg-green-100 text-green-700" :
+                              entry.status === "rejected" ? "bg-red-100 text-red-700" :
+                              "bg-slate-100 text-slate-600"
+                            }`}>
+                              {entry.status === "pending" ? "Pending" : entry.status === "approved" ? "Approved" : entry.status === "rejected" ? "Rejected" : entry.status}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {entry.entryType === "overtime" && entry.status === "pending" && (
+                              <>
+                                <button onClick={async () => { await actions.updateTimeproofEntryStatus(entry.id, "approved"); await reload(); }} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 hover:text-green-700 transition-colors" title="Approve">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={async () => { await actions.updateTimeproofEntryStatus(entry.id, "rejected"); await reload(); }} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700 transition-colors" title="Reject">
+                                  <XCircle size={14} />
+                                </button>
+                              </>
+                            )}
                             <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
                               <Pencil size={14} />
                             </button>
@@ -316,7 +383,7 @@ export default function AdminTimeproofPage() {
                   {totalMins > 0 && (
                     <tfoot>
                       <tr className="bg-slate-50 border-t border-slate-200">
-                        <td colSpan={6} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
+                        <td colSpan={7} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
                         <td className="px-4 py-3 font-bold text-indigo-700">{fmtDuration(totalMins)}</td>
                         <td colSpan={2} />
                       </tr>
@@ -526,6 +593,7 @@ export default function AdminTimeproofPage() {
                   notes: bulkForm.notes,
                   createdAt: now,
                   entryType: bulkForm.entryType,
+                  status: "approved",
                 }))
               );
               await actions.addBulkTimeproofEntries(entries);

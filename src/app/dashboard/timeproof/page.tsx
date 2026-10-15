@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays } from "lucide-react";
+import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, Clock } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import { estDate, estTime, estDateLong, localTZ, estToLocal, fmtTime12 } from "@/lib/est";
@@ -32,6 +32,9 @@ export default function TimeproofPage() {
   const [saving, setSaving] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [showOTForm, setShowOTForm] = useState(false);
+  const [otForm, setOTForm] = useState({ punchDate: "", timeIn: "", timeOut: "", notes: "" });
+  const [otSaving, setOTSaving] = useState(false);
 
   const vaId = typeof window !== "undefined" ? localStorage.getItem("vaId") || "" : "";
 
@@ -80,7 +83,7 @@ export default function TimeproofPage() {
       await actions.updateTimeproofEntry(editEntry.id, { punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes });
     } else {
       const now = estDateLong();
-      await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now, entryType: "time" });
+      await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: form.punchDate, timeIn: form.timeIn, timeOut: form.timeOut, notes: form.notes, createdAt: now, entryType: "time", status: "approved" });
     }
     setSaving(false);
     setShowForm(false);
@@ -98,6 +101,17 @@ export default function TimeproofPage() {
       await actions.updateTimeproofEntry(entry.id, { timeOut: now });
       await reload();
     })();
+  }
+
+  async function handleOTSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedClient || !vaId) return;
+    setOTSaving(true);
+    const now = estDateLong();
+    await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: otForm.punchDate, timeIn: otForm.timeIn, timeOut: otForm.timeOut, notes: otForm.notes, createdAt: now, entryType: "overtime", status: "pending" });
+    setOTSaving(false);
+    setShowOTForm(false);
+    await reload();
   }
 
   const filtered = entries.filter((e) => {
@@ -148,6 +162,9 @@ export default function TimeproofPage() {
               ))}
             </select>
           )}
+          <button onClick={() => { setOTForm({ punchDate: estDate(), timeIn: "", timeOut: "", notes: "" }); setShowOTForm(true); }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            <Clock size={16} /> Request Overtime
+          </button>
           <button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Punch In
           </button>
@@ -197,6 +214,7 @@ export default function TimeproofPage() {
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Time Out</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Duration</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Notes</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
                   <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
                 </tr>
               </thead>
@@ -240,14 +258,32 @@ export default function TimeproofPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
+                    <td className="px-4 py-3">
+                      {entry.entryType === "overtime" ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          entry.status === "pending" ? "bg-amber-100 text-amber-700" :
+                          entry.status === "approved" ? "bg-green-100 text-green-700" :
+                          entry.status === "rejected" ? "bg-red-100 text-red-700" :
+                          "bg-slate-100 text-slate-600"
+                        }`}>
+                          {entry.status === "pending" ? "Pending" : entry.status === "approved" ? "Approved" : entry.status === "rejected" ? "Rejected" : entry.status}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => handleDelete(entry.id)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
+                        {entry.entryType !== "overtime" && (
+                          <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {(entry.entryType !== "overtime" || entry.status === "pending") && (
+                          <button onClick={() => handleDelete(entry.id)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -258,11 +294,52 @@ export default function TimeproofPage() {
                   <tr className="bg-slate-50 border-t border-slate-200">
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-slate-700">Total Hours:</td>
                     <td className="px-4 py-3 font-bold text-blue-700">{fmtDuration(totalMins)}</td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                 </tfoot>
               )}
             </table>
+          </div>
+        </div>
+      )}
+
+      {showOTForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Clock size={20} className="text-red-600" /> Request Overtime
+              </h2>
+              <button onClick={() => setShowOTForm(false)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleOTSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                <input type="date" value={otForm.punchDate} onChange={(e) => setOTForm((f) => ({ ...f, punchDate: e.target.value }))} required className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Time In</label>
+                  <input type="time" value={otForm.timeIn} onChange={(e) => setOTForm((f) => ({ ...f, timeIn: e.target.value }))} required className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Time Out</label>
+                  <input type="time" value={otForm.timeOut} onChange={(e) => setOTForm((f) => ({ ...f, timeOut: e.target.value }))} required className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason</label>
+                <input type="text" value={otForm.notes} onChange={(e) => setOTForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Reason for overtime" required className={inputClass} />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+                Your overtime request will be sent to admin for approval.
+              </div>
+              <button type="submit" disabled={otSaving} className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                <Clock size={16} /> {otSaving ? "Submitting..." : "Submit Request"}
+              </button>
+            </form>
           </div>
         </div>
       )}
