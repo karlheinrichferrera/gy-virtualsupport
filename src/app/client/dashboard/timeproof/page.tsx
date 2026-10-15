@@ -118,7 +118,7 @@ export default function ClientTimeproofPage() {
     const rows = source.map((e) => ({
       "VA ID": e.vaId,
       "VA Name": e.vaName,
-      "Type": e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "On Leave" : "Worked",
+      "Type": ({ time: "Worked", absence: "Absent", leave: "On Leave", holiday: "Holiday", office_closed: "Office Closed" }[e.entryType] || "Worked"),
       "Date": e.punchDate,
       "Time In": e.entryType === "time" ? fmtTime12(e.timeIn) : "",
       "Time Out": e.entryType === "time" && e.timeOut ? fmtTime12(e.timeOut) : "",
@@ -224,13 +224,17 @@ export default function ClientTimeproofPage() {
                           <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                             <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
                             <td className="px-4 py-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                entry.entryType === "absence" ? "bg-amber-100 text-amber-700" :
-                                entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
-                                "bg-blue-100 text-blue-700"
-                              }`}>
-                                {entry.entryType === "absence" ? "Absent" : entry.entryType === "leave" ? "On Leave" : "Worked"}
-                              </span>
+                              {(() => {
+                                const types: Record<string, { label: string; bg: string; text: string }> = {
+                                  time: { label: "Worked", bg: "bg-blue-100", text: "text-blue-700" },
+                                  absence: { label: "Absent", bg: "bg-amber-100", text: "text-amber-700" },
+                                  leave: { label: "On Leave", bg: "bg-purple-100", text: "text-purple-700" },
+                                  holiday: { label: "Holiday", bg: "bg-green-100", text: "text-green-700" },
+                                  office_closed: { label: "Office Closed", bg: "bg-slate-200", text: "text-slate-600" },
+                                };
+                                const t = types[entry.entryType] || types.time;
+                                return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${t.bg} ${t.text}`}>{t.label}</span>;
+                              })()}
                             </td>
                             <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
                             <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" ? fmtTime12(entry.timeIn) : "—"}</td>
@@ -271,11 +275,13 @@ export default function ClientTimeproofPage() {
                 <button onClick={() => setWeekStart(getBiweeklyStart(new Date()))} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium ml-1">Today</button>
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-slate-500">
+              <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
                 <span className="font-medium text-slate-600">Legend:</span>
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700">3h 20m</span> Worked</span>
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700">A</span> Absent</span>
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-purple-100 text-purple-700">L</span> On Leave</span>
+                <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-700">H</span> Holiday</span>
+                <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-slate-200 text-slate-600">C</span> Office Closed</span>
               </div>
 
               {weekVAIds.length === 0 ? (
@@ -321,9 +327,13 @@ export default function ClientTimeproofPage() {
                                 const dayEntries = vaEntries.filter((e) => e.punchDate === dayStr);
                                 const dayMins = dayEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                                 periodTotal += dayMins;
-                                const hasAbsence = dayEntries.some((e) => e.entryType === "absence");
-                                const hasLeave = dayEntries.some((e) => e.entryType === "leave");
                                 const isToday = dayStr === fmtDate(new Date());
+                                const shortTypes: Record<string, { short: string; bg: string; text: string }> = {
+                                  absence: { short: "A", bg: "bg-amber-100", text: "text-amber-700" },
+                                  leave: { short: "L", bg: "bg-purple-100", text: "text-purple-700" },
+                                  holiday: { short: "H", bg: "bg-green-100", text: "text-green-700" },
+                                  office_closed: { short: "C", bg: "bg-slate-200", text: "text-slate-600" },
+                                };
                                 return (
                                   <td key={dayStr} className={`px-1.5 py-2 text-center ${isToday ? "bg-emerald-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
                                     {dayEntries.length === 0 ? (
@@ -331,8 +341,11 @@ export default function ClientTimeproofPage() {
                                     ) : (
                                       <div className="space-y-0.5">
                                         {dayMins > 0 && <div className="text-slate-700 font-medium text-xs">{fmtDuration(dayMins)}</div>}
-                                        {hasAbsence && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">A</span>}
-                                        {hasLeave && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">L</span>}
+                                        {dayEntries.filter((e) => e.entryType !== "time").map((e) => {
+                                          const t = shortTypes[e.entryType];
+                                          if (!t) return null;
+                                          return <span key={e.id} className={`inline-block px-1 py-0.5 rounded text-[10px] font-medium ${t.bg} ${t.text}`}>{t.short}</span>;
+                                        })}
                                       </div>
                                     )}
                                   </td>
@@ -408,13 +421,17 @@ export default function ClientTimeproofPage() {
                         <div key={e.id} className="flex items-start gap-3 text-sm">
                           <span className="text-slate-400 min-w-[80px]">{e.punchDate}</span>
                           <span className="font-medium text-slate-700 min-w-[120px]">{e.vaName}</span>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${
-                            e.entryType === "absence" ? "bg-amber-100 text-amber-700" :
-                            e.entryType === "leave" ? "bg-purple-100 text-purple-700" :
-                            "bg-blue-100 text-blue-700"
-                          }`}>
-                            {e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "Leave" : "Work"}
-                          </span>
+                          {(() => {
+                            const types: Record<string, { label: string; bg: string; text: string }> = {
+                              time: { label: "Work", bg: "bg-blue-100", text: "text-blue-700" },
+                              absence: { label: "Absent", bg: "bg-amber-100", text: "text-amber-700" },
+                              leave: { label: "Leave", bg: "bg-purple-100", text: "text-purple-700" },
+                              holiday: { label: "Holiday", bg: "bg-green-100", text: "text-green-700" },
+                              office_closed: { label: "Closed", bg: "bg-slate-200", text: "text-slate-600" },
+                            };
+                            const t = types[e.entryType] || types.time;
+                            return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${t.bg} ${t.text}`}>{t.label}</span>;
+                          })()}
                           <span className="text-slate-600">{e.notes}</span>
                         </div>
                       ))}

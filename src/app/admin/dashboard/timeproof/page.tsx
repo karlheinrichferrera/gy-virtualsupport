@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download, Copy } from "lucide-react";
 import * as XLSX from "xlsx";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
@@ -62,6 +62,19 @@ function getScheduledMins(schedule: VAProfile["workSchedule"] | undefined, days:
   return total;
 }
 
+const ENTRY_TYPES: Record<string, { label: string; short: string; bg: string; text: string }> = {
+  time: { label: "Worked", short: "W", bg: "bg-blue-100", text: "text-blue-700" },
+  absence: { label: "Absent", short: "A", bg: "bg-amber-100", text: "text-amber-700" },
+  leave: { label: "On Leave", short: "L", bg: "bg-purple-100", text: "text-purple-700" },
+  holiday: { label: "Holiday", short: "H", bg: "bg-green-100", text: "text-green-700" },
+  office_closed: { label: "Office Closed", short: "C", bg: "bg-slate-200", text: "text-slate-600" },
+};
+
+function entryBadge(type: string) {
+  const t = ENTRY_TYPES[type] || ENTRY_TYPES.time;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${t.bg} ${t.text}`}>{t.label}</span>;
+}
+
 export default function AdminTimeproofPage() {
   const [allEntries, setAllEntries] = useState<FullEntry[]>([]);
   const [vas, setVAs] = useState<VAProfile[]>([]);
@@ -75,6 +88,9 @@ export default function AdminTimeproofPage() {
   const [editEntry, setEditEntry] = useState<FullEntry | null>(null);
   const [form, setForm] = useState({ vaId: "", clientId: "", punchDate: "", timeIn: "", timeOut: "", notes: "", entryType: "time" });
   const [saving, setSaving] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkForm, setBulkForm] = useState({ vaIds: [] as string[], clientId: "", dateFrom: "", dateTo: "", entryType: "holiday", notes: "" });
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "week">("list");
   const [weekStart, setWeekStart] = useState(() => getBiweeklyStart(new Date()));
 
@@ -148,7 +164,7 @@ export default function AdminTimeproofPage() {
       "VA ID": e.vaId,
       "VA Name": e.vaName,
       "Client": e.clientName,
-      "Type": e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "On Leave" : "Worked",
+      "Type": (ENTRY_TYPES[e.entryType] || ENTRY_TYPES.time).label,
       "Date": e.punchDate,
       "Time In": e.entryType === "time" ? fmtTime12(e.timeIn) : "",
       "Time Out": e.entryType === "time" && e.timeOut ? fmtTime12(e.timeOut) : "",
@@ -203,6 +219,9 @@ export default function AdminTimeproofPage() {
           </div>
           <button onClick={downloadXLSX} className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
             <Download size={16} /> Download
+          </button>
+          <button onClick={() => { setBulkForm({ vaIds: [], clientId: String(clients[0]?.id || ""), dateFrom: estDate(), dateTo: estDate(), entryType: "holiday", notes: "" }); setShowBulk(true); }} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            <Copy size={16} /> Bulk Add
           </button>
           <button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
             <Plus size={16} /> Add Entry
@@ -273,15 +292,7 @@ export default function AdminTimeproofPage() {
                       <tr key={entry.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 bg-white">
                         <td className="px-4 py-3 text-slate-900 font-medium">{entry.vaName}</td>
                         <td className="px-4 py-3 text-slate-700">{entry.clientName}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            entry.entryType === "absence" ? "bg-amber-100 text-amber-700" :
-                            entry.entryType === "leave" ? "bg-purple-100 text-purple-700" :
-                            "bg-blue-100 text-blue-700"
-                          }`}>
-                            {entry.entryType === "absence" ? "Absent" : entry.entryType === "leave" ? "On Leave" : "Worked"}
-                          </span>
-                        </td>
+                        <td className="px-4 py-3">{entryBadge(entry.entryType)}</td>
                         <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
                         <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" ? fmtTime12(entry.timeIn) : "—"}</td>
                         <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
@@ -331,11 +342,13 @@ export default function AdminTimeproofPage() {
             <button onClick={() => setWeekStart(getBiweeklyStart(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-slate-500">
+          <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
             <span className="font-medium text-slate-600">Legend:</span>
             <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700">3h 20m</span> Worked</span>
             <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700">A</span> Absent</span>
             <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-purple-100 text-purple-700">L</span> On Leave</span>
+            <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-700">H</span> Holiday</span>
+            <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-slate-200 text-slate-600">C</span> Office Closed</span>
           </div>
 
           {weekVAIds.length === 0 ? (
@@ -381,8 +394,6 @@ export default function AdminTimeproofPage() {
                             const dayEntries = vaEntries.filter((e) => e.punchDate === dayStr);
                             const dayMins = dayEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                             periodTotal += dayMins;
-                            const hasAbsence = dayEntries.some((e) => e.entryType === "absence");
-                            const hasLeave = dayEntries.some((e) => e.entryType === "leave");
                             const isToday = dayStr === fmtDate(new Date());
                             return (
                               <td key={dayStr} className={`px-1.5 py-2 text-center ${isToday ? "bg-indigo-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
@@ -391,8 +402,10 @@ export default function AdminTimeproofPage() {
                                 ) : (
                                   <div className="space-y-0.5">
                                     {dayMins > 0 && <div className="text-slate-700 font-medium text-xs">{fmtDuration(dayMins)}</div>}
-                                    {hasAbsence && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">A</span>}
-                                    {hasLeave && <span className="inline-block px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">L</span>}
+                                    {dayEntries.filter((e) => e.entryType !== "time").map((e) => {
+                                      const t = ENTRY_TYPES[e.entryType] || ENTRY_TYPES.time;
+                                      return <span key={e.id} className={`inline-block px-1 py-0.5 rounded text-[10px] font-medium ${t.bg} ${t.text}`}>{t.short}</span>;
+                                    })}
                                   </div>
                                 )}
                               </td>
@@ -468,13 +481,9 @@ export default function AdminTimeproofPage() {
                     <div key={e.id} className="flex items-start gap-3 text-sm">
                       <span className="text-slate-400 min-w-[80px]">{e.punchDate}</span>
                       <span className="font-medium text-slate-700 min-w-[120px]">{e.vaName}</span>
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${
-                        e.entryType === "absence" ? "bg-amber-100 text-amber-700" :
-                        e.entryType === "leave" ? "bg-purple-100 text-purple-700" :
-                        "bg-blue-100 text-blue-700"
-                      }`}>
-                        {e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "Leave" : "Work"}
-                      </span>
+                      {(() => { const t = ENTRY_TYPES[e.entryType] || ENTRY_TYPES.time; return (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${t.bg} ${t.text}`}>{t.label}</span>
+                      ); })()}
                       <span className="text-slate-600">{e.notes}</span>
                     </div>
                   ))}
@@ -483,6 +492,104 @@ export default function AdminTimeproofPage() {
             );
           })()}
         </>
+      )}
+
+      {showBulk && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Copy size={20} className="text-indigo-600" /> Bulk Add Entries
+              </h2>
+              <button onClick={() => setShowBulk(false)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (bulkForm.vaIds.length === 0) return;
+              setBulkSaving(true);
+              const start = new Date(bulkForm.dateFrom + "T00:00:00");
+              const end = new Date(bulkForm.dateTo + "T00:00:00");
+              const dates: string[] = [];
+              for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                dates.push(fmtDate(d));
+              }
+              const now = estDateLong();
+              const entries = bulkForm.vaIds.flatMap((vaId) =>
+                dates.map((date) => ({
+                  vaId,
+                  clientId: Number(bulkForm.clientId),
+                  punchDate: date,
+                  timeIn: "",
+                  timeOut: "",
+                  notes: bulkForm.notes,
+                  createdAt: now,
+                  entryType: bulkForm.entryType,
+                }))
+              );
+              await actions.addBulkTimeproofEntries(entries);
+              setBulkSaving(false);
+              setShowBulk(false);
+              await reload();
+            }} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Select VAs</label>
+                <div className="border border-slate-300 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
+                    <input type="checkbox" checked={bulkForm.vaIds.length === vas.length} onChange={(e) => setBulkForm((f) => ({ ...f, vaIds: e.target.checked ? vas.map((v) => v.id) : [] }))} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <span className="font-medium">Select All</span>
+                  </label>
+                  <hr className="border-slate-200" />
+                  {vas.map((va) => (
+                    <label key={va.id} className="flex items-center gap-2 text-sm text-slate-700 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
+                      <input type="checkbox" checked={bulkForm.vaIds.includes(va.id)} onChange={(e) => {
+                        setBulkForm((f) => ({ ...f, vaIds: e.target.checked ? [...f.vaIds, va.id] : f.vaIds.filter((id) => id !== va.id) }));
+                      }} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                      {va.id} - {va.firstName} {va.lastName}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{bulkForm.vaIds.length} VA(s) selected</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Client</label>
+                <select value={bulkForm.clientId} onChange={(e) => setBulkForm((f) => ({ ...f, clientId: e.target.value }))} required className={inputClass}>
+                  {clients.map((c) => (
+                    <option key={c.id} value={String(c.id)}>{c.displayName}{c.companyName ? ` (${c.companyName})` : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Entry Type</label>
+                <select value={bulkForm.entryType} onChange={(e) => setBulkForm((f) => ({ ...f, entryType: e.target.value }))} className={inputClass}>
+                  <option value="time">Worked</option>
+                  <option value="absence">Absent</option>
+                  <option value="leave">On Leave</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="office_closed">Office Closed</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
+                  <input type="date" value={bulkForm.dateFrom} onChange={(e) => setBulkForm((f) => ({ ...f, dateFrom: e.target.value }))} required className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Date To</label>
+                  <input type="date" value={bulkForm.dateTo} onChange={(e) => setBulkForm((f) => ({ ...f, dateTo: e.target.value }))} required className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <input type="text" value={bulkForm.notes} onChange={(e) => setBulkForm((f) => ({ ...f, notes: e.target.value }))} placeholder="e.g. Christmas Day" className={inputClass} />
+              </div>
+              <button type="submit" disabled={bulkSaving || bulkForm.vaIds.length === 0} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                <Copy size={16} /> {bulkSaving ? "Adding..." : `Add ${bulkForm.vaIds.length > 0 ? bulkForm.vaIds.length + " VA(s)" : ""} Entries`}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
 
       {showForm && (
@@ -523,6 +630,8 @@ export default function AdminTimeproofPage() {
                   <option value="time">Worked</option>
                   <option value="absence">Absent</option>
                   <option value="leave">On Leave</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="office_closed">Office Closed</option>
                 </select>
               </div>
               <div>

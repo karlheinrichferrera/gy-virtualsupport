@@ -858,6 +858,16 @@ export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Prom
   `;
 }
 
+export async function addBulkTimeproofEntries(entries: Omit<TimeproofEntry, "id">[]): Promise<void> {
+  await ensureTablesOnce();
+  for (const entry of entries) {
+    await sql`
+      INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type)
+      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"})
+    `;
+  }
+}
+
 export async function updateTimeproofEntry(id: number, updates: { timeIn?: string; timeOut?: string; notes?: string; punchDate?: string; entryType?: string }): Promise<void> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
