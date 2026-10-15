@@ -5,7 +5,7 @@ import * as actions from "@/lib/actions";
 import type { ClientAccount } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import { estDateLong } from "@/lib/est";
-import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList, Camera } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, MapPin, Briefcase, Plus, Trash2, AlertTriangle, KeyRound, Pencil, Save, CreditCard, Heart, Download, Wallet, SlidersHorizontal, Check, ClipboardList, Camera, Clock } from "lucide-react";
 
 const POSITION_OPTIONS = ["Telemarketer", "Sales Support", "Operations Support", "Admin Support", "Customer Service", "Marketing Support", "Video Editor", "Graphics Designer", "GHL Specialist"];
 const EMPLOYMENT_STATUS_OPTIONS = ["Probationary Hire", "Seasonal / Contractual Hire", "Regular Hire", "Terminated", "Resigned"];
@@ -208,6 +208,102 @@ function ProfilePictureUpload({ value, onChange }: { value: string; onChange: (v
   );
 }
 
+type DaySchedule = { enabled: boolean; start: string; end: string };
+type WorkSchedule = { monday: DaySchedule; tuesday: DaySchedule; wednesday: DaySchedule; thursday: DaySchedule; friday: DaySchedule; saturday: DaySchedule; sunday: DaySchedule };
+
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+const EMPTY_SCHEDULE: WorkSchedule = {
+  monday: { enabled: false, start: "", end: "" }, tuesday: { enabled: false, start: "", end: "" },
+  wednesday: { enabled: false, start: "", end: "" }, thursday: { enabled: false, start: "", end: "" },
+  friday: { enabled: false, start: "", end: "" }, saturday: { enabled: false, start: "", end: "" },
+  sunday: { enabled: false, start: "", end: "" },
+};
+
+function fmt24to12(t: string): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function WorkScheduleEditor({ value, onChange }: { value: WorkSchedule; onChange: (v: WorkSchedule) => void }) {
+  function updateDay(day: string, field: keyof DaySchedule, val: string | boolean) {
+    onChange({ ...value, [day]: { ...value[day as keyof WorkSchedule], [field]: val } });
+  }
+  return (
+    <div className="space-y-2">
+      {DAYS.map((day) => {
+        const d = value[day];
+        return (
+          <div key={day} className="flex items-center gap-3">
+            <button type="button" onClick={() => updateDay(day, "enabled", !d.enabled)}
+              className={`w-12 text-xs font-semibold py-1.5 rounded-lg border transition-colors ${d.enabled ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-400 border-slate-300"}`}>
+              {DAY_LABELS[day]}
+            </button>
+            {d.enabled ? (
+              <div className="flex items-center gap-2 flex-1">
+                <input type="time" value={d.start} onChange={(e) => updateDay(day, "start", e.target.value)}
+                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+                <span className="text-xs text-slate-400">to</span>
+                <input type="time" value={d.end} onChange={(e) => updateDay(day, "end", e.target.value)}
+                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400 italic">Day off</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorkScheduleDisplay({ schedule, compact }: { schedule: WorkSchedule; compact?: boolean }) {
+  const hasSchedule = DAYS.some((d) => schedule[d].enabled);
+  if (!hasSchedule) return <span className="text-slate-400 text-sm">No schedule set</span>;
+  if (compact) {
+    const working = DAYS.filter((d) => schedule[d].enabled);
+    const allSame = working.length > 0 && working.every((d) => schedule[d].start === schedule[working[0]].start && schedule[d].end === schedule[working[0]].end);
+    if (allSame) {
+      const labels = working.map((d) => DAY_LABELS[d]);
+      let rangeStr = labels[0];
+      if (labels.length > 1) {
+        let i = 0;
+        const ranges: string[] = [];
+        while (i < working.length) {
+          let j = i;
+          const dayIdx = DAYS.indexOf(working[i]);
+          while (j + 1 < working.length && DAYS.indexOf(working[j + 1]) === dayIdx + (j - i) + 1) j++;
+          ranges.push(j > i ? `${DAY_LABELS[working[i]]}-${DAY_LABELS[working[j]]}` : DAY_LABELS[working[i]]);
+          i = j + 1;
+        }
+        rangeStr = ranges.join(", ");
+      }
+      return <span className="text-sm text-foreground">{rangeStr}, {fmt24to12(schedule[working[0]].start)} - {fmt24to12(schedule[working[0]].end)}</span>;
+    }
+  }
+  return (
+    <div className="space-y-1">
+      {DAYS.map((day) => {
+        const d = schedule[day];
+        return (
+          <div key={day} className="flex items-center gap-2 text-sm">
+            <span className={`w-10 font-medium ${d.enabled ? "text-foreground" : "text-slate-300"}`}>{DAY_LABELS[day]}</span>
+            {d.enabled ? (
+              <span className="text-foreground">{fmt24to12(d.start)} - {fmt24to12(d.end)}</span>
+            ) : (
+              <span className="text-slate-300 italic">Off</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function escapeCsv(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
     return `"${val.replace(/"/g, '""')}"`;
@@ -265,6 +361,7 @@ export default function VAManagementPage() {
     weeklyReportLink: "",
     profilePicture: "",
     clientAssignments: [] as ClientAssignment[],
+    workSchedule: { ...EMPTY_SCHEDULE } as WorkSchedule,
   });
   const [editForm, setEditForm] = useState({
     firstName: "", middleName: "", lastName: "", suffix: "",
@@ -278,6 +375,7 @@ export default function VAManagementPage() {
     weeklyReportLink: "",
     profilePicture: "",
     clientAssignments: [] as ClientAssignment[],
+    workSchedule: { ...EMPTY_SCHEDULE } as WorkSchedule,
   });
 
   const [clients, setClients] = useState<ClientAccount[]>([]);
@@ -371,6 +469,7 @@ export default function VAManagementPage() {
       bankAccountName: form.bankAccountName,
       weeklyReportLink: form.weeklyReportLink,
       profilePicture: form.profilePicture,
+      workSchedule: form.workSchedule,
     };
     await actions.addProfile(newVA);
     await actions.setVAClientAssignments(newVA.id, form.clientAssignments);
@@ -387,6 +486,7 @@ export default function VAManagementPage() {
       weeklyReportLink: "",
       profilePicture: "",
       clientAssignments: [],
+      workSchedule: { ...EMPTY_SCHEDULE },
     });
     await loadData();
   }
@@ -412,6 +512,7 @@ export default function VAManagementPage() {
       weeklyReportLink: va.weeklyReportLink || "",
       profilePicture: va.profilePicture || "",
       clientAssignments: vaAssignments[va.id] || [],
+      workSchedule: va.workSchedule || { ...EMPTY_SCHEDULE },
     });
     setEditTarget(va.id);
   }
@@ -441,6 +542,7 @@ export default function VAManagementPage() {
       bankAccountName: editForm.bankAccountName,
       weeklyReportLink: editForm.weeklyReportLink,
       profilePicture: editForm.profilePicture,
+      workSchedule: editForm.workSchedule,
     });
     await actions.setVAClientAssignments(editTarget, editForm.clientAssignments);
     setEditTarget(null);
@@ -624,6 +726,9 @@ export default function VAManagementPage() {
                 <div className="flex items-start gap-2"><ClipboardList size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Weekly Report Link</p>{profile.weeklyReportLink ? <a href={profile.weeklyReportLink} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-600 hover:underline break-all">{profile.weeklyReportLink}</a> : <p className="font-medium text-slate-900">N/A</p>}</div></div>
               </div>
               <div className="text-sm pt-2 border-t border-slate-100">
+                <div className="flex items-start gap-2"><Clock size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500 mb-1">Work Schedule</p><WorkScheduleDisplay schedule={profile.workSchedule} /></div></div>
+              </div>
+              <div className="text-sm pt-2 border-t border-slate-100">
                 <p className="text-slate-500 mb-1">Assigned Clients</p>
                 <div className="flex flex-wrap gap-1">
                   {(vaAssignments[profile.id] || []).map((a) => {
@@ -763,6 +868,10 @@ export default function VAManagementPage() {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={form.weeklyReportLink} onChange={(e) => setForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
               </div>
               <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Work Schedule</h3>
+                <WorkScheduleEditor value={form.workSchedule} onChange={(v) => setForm((f) => ({ ...f, workSchedule: v }))} />
+              </div>
+              <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-2">Assigned Clients</label>
@@ -860,6 +969,10 @@ export default function VAManagementPage() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Weekly Report</h3>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Google Sheet Link</label><input type="text" value={editForm.weeklyReportLink} onChange={(e) => setEditForm((f) => ({ ...f, weeklyReportLink: e.target.value }))} className={inputClass} placeholder="https://docs.google.com/spreadsheets/d/..." /></div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Work Schedule</h3>
+                <WorkScheduleEditor value={editForm.workSchedule} onChange={(v) => setEditForm((f) => ({ ...f, workSchedule: v }))} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Client Assignment</h3>

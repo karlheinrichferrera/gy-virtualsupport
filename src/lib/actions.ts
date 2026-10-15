@@ -49,7 +49,28 @@ function rowToProfile(r: Record<string, unknown>): VAProfile {
     bankAccountName: r.bank_account_name as string,
     weeklyReportLink: (r.weekly_report_link as string) || "",
     profilePicture: (r.profile_picture as string) || "",
+    workSchedule: parseWorkSchedule((r.work_schedule as string) || ""),
   };
+}
+
+const DEFAULT_SCHEDULE: VAProfile["workSchedule"] = {
+  monday: { enabled: false, start: "", end: "" },
+  tuesday: { enabled: false, start: "", end: "" },
+  wednesday: { enabled: false, start: "", end: "" },
+  thursday: { enabled: false, start: "", end: "" },
+  friday: { enabled: false, start: "", end: "" },
+  saturday: { enabled: false, start: "", end: "" },
+  sunday: { enabled: false, start: "", end: "" },
+};
+
+function parseWorkSchedule(raw: string): VAProfile["workSchedule"] {
+  if (!raw) return { ...DEFAULT_SCHEDULE };
+  try {
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_SCHEDULE, ...parsed };
+  } catch {
+    return { ...DEFAULT_SCHEDULE };
+  }
 }
 
 function rowToAdjustment(r: Record<string, unknown>): SalaryAdjustment & { id: number } {
@@ -114,7 +135,7 @@ export async function addProfile(p: VAProfile): Promise<void> {
       temporary_address, position, employment_status, date_hired, current_rate,
       emergency_contact, emergency_phone, password, contractor_id,
       payout_mode, paypal_link, ewallet_name, ewallet_number,
-      bank_name, bank_account_number, bank_account_name, weekly_report_link, profile_picture
+      bank_name, bank_account_number, bank_account_name, weekly_report_link, profile_picture, work_schedule
     ) VALUES (
       ${p.id}, ${p.firstName}, ${p.middleName}, ${p.lastName}, ${p.suffix},
       ${p.phone}, ${p.altPhone}, ${p.email}, ${p.dateOfBirth},
@@ -123,7 +144,8 @@ export async function addProfile(p: VAProfile): Promise<void> {
       ${p.temporaryAddress}, ${p.position}, ${p.employmentStatus}, ${p.dateHired}, ${p.currentRate},
       ${p.emergencyContact}, ${p.emergencyPhone}, ${p.password}, ${p.contractorId},
       ${p.payoutMode}, ${p.paypalLink}, ${p.ewalletName}, ${p.ewalletNumber},
-      ${p.bankName}, ${p.bankAccountNumber}, ${p.bankAccountName}, ${p.weeklyReportLink || ""}, ${p.profilePicture || ""}
+      ${p.bankName}, ${p.bankAccountNumber}, ${p.bankAccountName}, ${p.weeklyReportLink || ""}, ${p.profilePicture || ""},
+      ${JSON.stringify(p.workSchedule || DEFAULT_SCHEDULE)}
     )
   `;
 }
@@ -169,7 +191,8 @@ export async function updateProfile(id: string, updates: Partial<VAProfile>): Pr
       bank_account_number = ${merged.bankAccountNumber},
       bank_account_name = ${merged.bankAccountName},
       weekly_report_link = ${merged.weeklyReportLink},
-      profile_picture = ${merged.profilePicture}
+      profile_picture = ${merged.profilePicture},
+      work_schedule = ${JSON.stringify(merged.workSchedule || DEFAULT_SCHEDULE)}
     WHERE id = ${id}
   `;
 }

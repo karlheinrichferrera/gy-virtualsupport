@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { User, Phone, MapPin, Briefcase, Heart, CreditCard, Pencil, Save, X, Wallet, Camera } from "lucide-react";
+import { User, Phone, MapPin, Briefcase, Heart, CreditCard, Pencil, Save, X, Wallet, Camera, Clock } from "lucide-react";
 
 const PAYOUT_MODE_OPTIONS = ["Paypal", "Wise", "Bank Transfer", "Ewallet"];
 const EWALLET_NAME_OPTIONS = ["Gcash", "Maya", "Maribank", "GoTyme"];
@@ -249,6 +249,10 @@ export default function ProfilePage() {
               <Field label="Current Rate" value={profile.currentRate} />
             </Section>
 
+            <Section icon={Clock} title="Work Schedule">
+              <WorkScheduleView schedule={profile.workSchedule} />
+            </Section>
+
             <Section icon={Wallet} title="Payout Information">
               <Field label="Mode of Payout" value={profile.payoutMode || "N/A"} />
               {profile.payoutMode === "Paypal" && (
@@ -277,6 +281,39 @@ export default function ProfilePage() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+function fmt24to12(t: string): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function WorkScheduleView({ schedule }: { schedule: VAProfile["workSchedule"] }) {
+  const hasSchedule = DAYS.some((d) => schedule?.[d]?.enabled);
+  if (!hasSchedule) return <span className="text-slate-400 text-sm italic">No schedule set</span>;
+  return (
+    <div className="space-y-1 col-span-full">
+      {DAYS.map((day) => {
+        const d = schedule[day];
+        return (
+          <div key={day} className="flex items-center gap-2 text-sm">
+            <span className={`w-10 font-medium ${d.enabled ? "text-foreground" : "text-slate-300"}`}>{DAY_LABELS[day]}</span>
+            {d.enabled ? (
+              <span className="text-foreground">{fmt24to12(d.start)} - {fmt24to12(d.end)}</span>
+            ) : (
+              <span className="text-slate-300 italic">Off</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

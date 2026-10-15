@@ -120,6 +120,12 @@ export default function RegisterPage() {
         bankAccountName: form.bankAccountName,
         weeklyReportLink: "",
         profilePicture: "",
+        workSchedule: {
+          monday: { enabled: false, start: "", end: "" }, tuesday: { enabled: false, start: "", end: "" },
+          wednesday: { enabled: false, start: "", end: "" }, thursday: { enabled: false, start: "", end: "" },
+          friday: { enabled: false, start: "", end: "" }, saturday: { enabled: false, start: "", end: "" },
+          sunday: { enabled: false, start: "", end: "" },
+        },
       };
       try {
         await actions.addProfile(newVA);

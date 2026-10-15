@@ -4,7 +4,18 @@ import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 type VAWithClientRate = VAProfile & { clientRate: string };
-import { Users, Eye, X, Mail, Phone, Briefcase, MapPin } from "lucide-react";
+import { Users, Eye, X, Mail, Phone, Briefcase, MapPin, Clock } from "lucide-react";
+
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+function fmt24to12(t: string): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
 export default function ClientVAsPage() {
   const [vas, setVAs] = useState<VAWithClientRate[]>([]);
@@ -163,6 +174,35 @@ export default function ClientVAsPage() {
                 <div>
                   <p className="text-slate-500">Location</p>
                   <p className="font-medium text-slate-900">{profile.permanentAddress.city}, {profile.permanentAddress.province}</p>
+                </div>
+              </div>
+
+              <div className="text-sm pt-2 border-t border-slate-100">
+                <div className="flex items-start gap-2">
+                  <Clock size={16} className="text-slate-400 mt-0.5" />
+                  <div>
+                    <p className="text-slate-500 mb-1">Work Schedule</p>
+                    {DAYS.some((d) => profile.workSchedule?.[d]?.enabled) ? (
+                      <div className="space-y-1">
+                        {DAYS.map((day) => {
+                          const d = profile.workSchedule?.[day];
+                          if (!d) return null;
+                          return (
+                            <div key={day} className="flex items-center gap-2">
+                              <span className={`w-10 font-medium ${d.enabled ? "text-slate-900" : "text-slate-300"}`}>{DAY_LABELS[day]}</span>
+                              {d.enabled ? (
+                                <span className="text-slate-900">{fmt24to12(d.start)} - {fmt24to12(d.end)}</span>
+                              ) : (
+                                <span className="text-slate-300 italic">Off</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">No schedule set</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

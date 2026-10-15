@@ -34,6 +34,15 @@ export interface VAProfile {
   bankAccountName: string;
   weeklyReportLink: string;
   profilePicture: string;
+  workSchedule: {
+    monday: { enabled: boolean; start: string; end: string };
+    tuesday: { enabled: boolean; start: string; end: string };
+    wednesday: { enabled: boolean; start: string; end: string };
+    thursday: { enabled: boolean; start: string; end: string };
+    friday: { enabled: boolean; start: string; end: string };
+    saturday: { enabled: boolean; start: string; end: string };
+    sunday: { enabled: boolean; start: string; end: string };
+  };
 }
 
 export interface SalaryAdjustment {
@@ -104,6 +113,15 @@ export const vaProfiles: VAProfile[] = [
     bankAccountName: "Domingo M. Soltes Jr.",
     weeklyReportLink: "",
     profilePicture: "",
+    workSchedule: {
+      monday: { enabled: true, start: "08:00", end: "17:00" },
+      tuesday: { enabled: true, start: "08:00", end: "17:00" },
+      wednesday: { enabled: true, start: "08:00", end: "17:00" },
+      thursday: { enabled: true, start: "08:00", end: "17:00" },
+      friday: { enabled: true, start: "08:00", end: "17:00" },
+      saturday: { enabled: false, start: "", end: "" },
+      sunday: { enabled: false, start: "", end: "" },
+    },
   },
   {
     id: "500103",
@@ -141,6 +159,15 @@ export const vaProfiles: VAProfile[] = [
     bankAccountName: "Maria C. Santos",
     weeklyReportLink: "",
     profilePicture: "",
+    workSchedule: {
+      monday: { enabled: true, start: "08:00", end: "17:00" },
+      tuesday: { enabled: true, start: "08:00", end: "17:00" },
+      wednesday: { enabled: true, start: "08:00", end: "17:00" },
+      thursday: { enabled: true, start: "08:00", end: "17:00" },
+      friday: { enabled: true, start: "08:00", end: "17:00" },
+      saturday: { enabled: false, start: "", end: "" },
+      sunday: { enabled: false, start: "", end: "" },
+    },
   },
 ];
 
