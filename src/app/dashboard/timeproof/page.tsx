@@ -212,13 +212,14 @@ export default function TimeproofPage() {
                           leave: { label: "On Leave", bg: "bg-purple-100", text: "text-purple-700" },
                           holiday: { label: "Holiday", bg: "bg-green-100", text: "text-green-700" },
                           office_closed: { label: "Office Closed", bg: "bg-slate-200", text: "text-slate-600" },
+                          overtime: { label: "Overtime", bg: "bg-red-100", text: "text-red-700" },
                         };
                         const t = types[entry.entryType] || types.time;
                         return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${t.bg} ${t.text}`}>{t.label}</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
-                      {entry.entryType === "time" ? (
+                      {(entry.entryType === "time" || entry.entryType === "overtime") ? (
                         <>
                           {fmtTime12(entry.timeIn)}
                           {(() => { const l = estToLocal(entry.timeIn, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
@@ -226,7 +227,7 @@ export default function TimeproofPage() {
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {entry.entryType !== "time" ? "—" : entry.timeOut ? (
+                      {(entry.entryType !== "time" && entry.entryType !== "overtime") ? "—" : entry.timeOut ? (
                         <span className="text-slate-700">
                           {fmtTime12(entry.timeOut)}
                           {(() => { const l = estToLocal(entry.timeOut, entry.punchDate); return l ? <span className="text-xs text-slate-400 ml-1">({fmtTime12(l)} {tzLabel})</span> : null; })()}
@@ -237,7 +238,7 @@ export default function TimeproofPage() {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{entry.entryType === "time" ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

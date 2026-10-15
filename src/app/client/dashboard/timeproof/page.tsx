@@ -118,11 +118,11 @@ export default function ClientTimeproofPage() {
     const rows = source.map((e) => ({
       "VA ID": e.vaId,
       "VA Name": e.vaName,
-      "Type": ({ time: "Worked", absence: "Absent", leave: "On Leave", holiday: "Holiday", office_closed: "Office Closed" }[e.entryType] || "Worked"),
+      "Type": ({ time: "Worked", absence: "Absent", leave: "On Leave", holiday: "Holiday", office_closed: "Office Closed", overtime: "Overtime" }[e.entryType] || "Worked"),
       "Date": e.punchDate,
-      "Time In": e.entryType === "time" ? fmtTime12(e.timeIn) : "",
-      "Time Out": e.entryType === "time" && e.timeOut ? fmtTime12(e.timeOut) : "",
-      "Duration": e.entryType === "time" ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
+      "Time In": (e.entryType === "time" || e.entryType === "overtime") ? fmtTime12(e.timeIn) : "",
+      "Time Out": (e.entryType === "time" || e.entryType === "overtime") && e.timeOut ? fmtTime12(e.timeOut) : "",
+      "Duration": (e.entryType === "time" || e.entryType === "overtime") ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
       "Notes": e.notes || "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -231,15 +231,16 @@ export default function ClientTimeproofPage() {
                                   leave: { label: "On Leave", bg: "bg-purple-100", text: "text-purple-700" },
                                   holiday: { label: "Holiday", bg: "bg-green-100", text: "text-green-700" },
                                   office_closed: { label: "Office Closed", bg: "bg-slate-200", text: "text-slate-600" },
+                                  overtime: { label: "Overtime", bg: "bg-red-100", text: "text-red-700" },
                                 };
                                 const t = types[entry.entryType] || types.time;
                                 return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${t.bg} ${t.text}`}>{t.label}</span>;
                               })()}
                             </td>
                             <td className="px-4 py-3 text-slate-700">{entry.punchDate}</td>
-                            <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" ? fmtTime12(entry.timeIn) : "—"}</td>
-                            <td className="px-4 py-3 text-slate-700">{entry.entryType === "time" && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
-                            <td className="px-4 py-3 text-slate-600">{entry.entryType === "time" ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
+                            <td className="px-4 py-3 text-slate-700">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtTime12(entry.timeIn) : "—"}</td>
+                            <td className="px-4 py-3 text-slate-700">{(entry.entryType === "time" || entry.entryType === "overtime") && entry.timeOut ? fmtTime12(entry.timeOut) : "—"}</td>
+                            <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                             <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                           </tr>
                         ))}
@@ -282,6 +283,7 @@ export default function ClientTimeproofPage() {
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-purple-100 text-purple-700">L</span> On Leave</span>
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-700">H</span> Holiday</span>
                 <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-slate-200 text-slate-600">C</span> Office Closed</span>
+                <span className="flex items-center gap-1"><span className="inline-block px-1.5 py-0.5 rounded font-medium bg-red-100 text-red-700">OT</span> Overtime</span>
               </div>
 
               {weekVAIds.length === 0 ? (
@@ -300,8 +302,7 @@ export default function ClientTimeproofPage() {
                           <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-emerald-700 text-xs border-r border-slate-200">Week 1: {shortDate(week1Days[0])} – {shortDate(week1Days[6])}</th>
                           <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-emerald-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>
                           <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Total</th>
-                          <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Scheduled</th>
-                          <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Overhours</th>
+                          <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Overtime</th>
                         </tr>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           {periodDays.map((d, i) => {
@@ -333,6 +334,7 @@ export default function ClientTimeproofPage() {
                                   leave: { short: "L", bg: "bg-purple-100", text: "text-purple-700" },
                                   holiday: { short: "H", bg: "bg-green-100", text: "text-green-700" },
                                   office_closed: { short: "C", bg: "bg-slate-200", text: "text-slate-600" },
+                                  overtime: { short: "OT", bg: "bg-red-100", text: "text-red-700" },
                                 };
                                 return (
                                   <td key={dayStr} className={`px-1.5 py-2 text-center ${isToday ? "bg-emerald-50/50" : ""} ${i === 6 ? "border-r border-slate-200" : ""}`}>
@@ -354,11 +356,11 @@ export default function ClientTimeproofPage() {
                               {(() => {
                                 const vaProfile = vaProfiles.find((v) => v.id === vaId);
                                 const scheduledMins = getScheduledMins(vaProfile?.workSchedule, periodDays);
-                                const overMins = periodTotal - scheduledMins;
+                                const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                                const overMins = (periodTotal - scheduledMins) + overtimeEntryMins;
                                 return (
                                   <>
                                     <td className="px-3 py-3 text-center font-bold text-emerald-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
-                                    <td className="px-3 py-3 text-center font-medium text-slate-600 border-l border-slate-200">{scheduledMins > 0 ? fmtDuration(scheduledMins) : "—"}</td>
                                     <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
                                       {overMins > 0 ? `+${fmtDuration(overMins)}` : "—"}
                                     </td>
@@ -388,14 +390,12 @@ export default function ClientTimeproofPage() {
                               const vaProfile = vaProfiles.find((v) => v.id === vaId);
                               return s + getScheduledMins(vaProfile?.workSchedule, periodDays);
                             }, 0);
-                            const totalOver = totalWorked - totalScheduled;
+                            const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                            const totalOver = (totalWorked - totalScheduled) + totalOvertimeEntries;
                             return (
                               <>
                                 <td className="px-3 py-3 text-center font-bold text-emerald-700 border-l border-slate-200">
                                   {totalWorked > 0 ? fmtDuration(totalWorked) : "—"}
-                                </td>
-                                <td className="px-3 py-3 text-center font-semibold text-slate-600 border-l border-slate-200">
-                                  {totalScheduled > 0 ? fmtDuration(totalScheduled) : "—"}
                                 </td>
                                 <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
                                   {totalOver > 0 ? `+${fmtDuration(totalOver)}` : "—"}
@@ -428,6 +428,7 @@ export default function ClientTimeproofPage() {
                               leave: { label: "Leave", bg: "bg-purple-100", text: "text-purple-700" },
                               holiday: { label: "Holiday", bg: "bg-green-100", text: "text-green-700" },
                               office_closed: { label: "Closed", bg: "bg-slate-200", text: "text-slate-600" },
+                              overtime: { label: "OT", bg: "bg-red-100", text: "text-red-700" },
                             };
                             const t = types[e.entryType] || types.time;
                             return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${t.bg} ${t.text}`}>{t.label}</span>;

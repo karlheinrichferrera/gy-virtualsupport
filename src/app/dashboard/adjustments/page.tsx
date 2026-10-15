@@ -92,7 +92,7 @@ export default function AdjustmentsPage() {
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <h3 className="font-semibold text-blue-800 mb-2">
-          Salary History Timeline
+          Appraisal Timeline
         </h3>
         <div className="space-y-3">
           {adjustments.map((adj, i) => (
