@@ -10,11 +10,15 @@ import { estDate, estTime, estDateLong, fmtTime12 } from "@/lib/est";
 
 type FullEntry = TimeproofEntry & { vaName: string; clientName: string };
 
+function round15(totalMins: number): number {
+  return Math.round(totalMins / 15) * 15;
+}
+
 function calcMins(timeIn: string, timeOut: string): number {
   if (!timeIn || !timeOut) return 0;
   const [ih, im] = timeIn.split(":").map(Number);
   const [oh, om] = timeOut.split(":").map(Number);
-  const m = (oh * 60 + om) - (ih * 60 + im);
+  const m = round15(oh * 60 + om) - round15(ih * 60 + im);
   return m > 0 ? m : 0;
 }
 
