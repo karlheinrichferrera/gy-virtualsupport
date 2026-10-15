@@ -47,6 +47,21 @@ function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+function getScheduledMins(schedule: VAProfile["workSchedule"] | undefined, days: Date[]): number {
+  if (!schedule) return 0;
+  let total = 0;
+  for (const d of days) {
+    const dayName = DAY_NAMES[d.getDay()];
+    const s = schedule[dayName];
+    if (s?.enabled && s.start && s.end) {
+      total += calcMins(s.start, s.end);
+    }
+  }
+  return total;
+}
+
 export default function AdminTimeproofPage() {
   const [allEntries, setAllEntries] = useState<FullEntry[]>([]);
   const [vas, setVAs] = useState<VAProfile[]>([]);
@@ -339,6 +354,8 @@ export default function AdminTimeproofPage() {
                       <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs border-r border-slate-200">Week 1: {shortDate(week1Days[0])} – {shortDate(week1Days[6])}</th>
                       <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>
                       <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Total</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Scheduled</th>
+                      <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Overhours</th>
                     </tr>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       {periodDays.map((d, i) => {
@@ -381,7 +398,20 @@ export default function AdminTimeproofPage() {
                               </td>
                             );
                           })}
-                          <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
+                          {(() => {
+                            const vaProfile = vas.find((v) => v.id === vaId);
+                            const scheduledMins = getScheduledMins(vaProfile?.workSchedule, periodDays);
+                            const overMins = periodTotal - scheduledMins;
+                            return (
+                              <>
+                                <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
+                                <td className="px-3 py-3 text-center font-medium text-slate-600 border-l border-slate-200">{scheduledMins > 0 ? fmtDuration(scheduledMins) : "—"}</td>
+                                <td className={`px-3 py-3 text-center font-bold border-l border-slate-200 ${overMins > 0 ? "text-red-600" : overMins < 0 ? "text-amber-600" : "text-slate-400"}`}>
+                                  {scheduledMins === 0 && periodTotal === 0 ? "—" : overMins > 0 ? `+${fmtDuration(overMins)}` : overMins < 0 ? `-${fmtDuration(Math.abs(overMins))}` : "0h 0m"}
+                                </td>
+                              </>
+                            );
+                          })()}
                         </tr>
                       );
                     })}
@@ -399,15 +429,59 @@ export default function AdminTimeproofPage() {
                           </td>
                         );
                       })}
-                      <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">
-                        {(() => { const t = weekEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0); return t > 0 ? fmtDuration(t) : "—"; })()}
-                      </td>
+                      {(() => {
+                        const totalWorked = weekEntries.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                        const totalScheduled = weekVAIds.reduce((s, vaId) => {
+                          const vaProfile = vas.find((v) => v.id === vaId);
+                          return s + getScheduledMins(vaProfile?.workSchedule, periodDays);
+                        }, 0);
+                        const totalOver = totalWorked - totalScheduled;
+                        return (
+                          <>
+                            <td className="px-3 py-3 text-center font-bold text-indigo-700 border-l border-slate-200">
+                              {totalWorked > 0 ? fmtDuration(totalWorked) : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-center font-semibold text-slate-600 border-l border-slate-200">
+                              {totalScheduled > 0 ? fmtDuration(totalScheduled) : "—"}
+                            </td>
+                            <td className={`px-3 py-3 text-center font-bold border-l border-slate-200 ${totalOver > 0 ? "text-red-600" : totalOver < 0 ? "text-amber-600" : "text-slate-400"}`}>
+                              {totalScheduled === 0 && totalWorked === 0 ? "—" : totalOver > 0 ? `+${fmtDuration(totalOver)}` : totalOver < 0 ? `-${fmtDuration(Math.abs(totalOver))}` : "0h 0m"}
+                            </td>
+                          </>
+                        );
+                      })()}
                     </tr>
                   </tfoot>
                 </table>
               </div>
             </div>
           )}
+
+          {(() => {
+            const notesEntries = weekEntries.filter((e) => e.notes);
+            if (notesEntries.length === 0) return null;
+            return (
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Notes for this period</h3>
+                <div className="space-y-2">
+                  {notesEntries.map((e) => (
+                    <div key={e.id} className="flex items-start gap-3 text-sm">
+                      <span className="text-slate-400 min-w-[80px]">{e.punchDate}</span>
+                      <span className="font-medium text-slate-700 min-w-[120px]">{e.vaName}</span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] justify-center ${
+                        e.entryType === "absence" ? "bg-amber-100 text-amber-700" :
+                        e.entryType === "leave" ? "bg-purple-100 text-purple-700" :
+                        "bg-blue-100 text-blue-700"
+                      }`}>
+                        {e.entryType === "absence" ? "Absent" : e.entryType === "leave" ? "Leave" : "Work"}
+                      </span>
+                      <span className="text-slate-600">{e.notes}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
