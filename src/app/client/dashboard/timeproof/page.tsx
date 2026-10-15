@@ -346,8 +346,8 @@ export default function ClientTimeproofPage() {
                                   <>
                                     <td className="px-3 py-3 text-center font-bold text-emerald-700 border-l border-slate-200">{periodTotal > 0 ? fmtDuration(periodTotal) : "—"}</td>
                                     <td className="px-3 py-3 text-center font-medium text-slate-600 border-l border-slate-200">{scheduledMins > 0 ? fmtDuration(scheduledMins) : "—"}</td>
-                                    <td className={`px-3 py-3 text-center font-bold border-l border-slate-200 ${overMins > 0 ? "text-red-600" : overMins < 0 ? "text-amber-600" : "text-slate-400"}`}>
-                                      {scheduledMins === 0 && periodTotal === 0 ? "—" : overMins > 0 ? `+${fmtDuration(overMins)}` : overMins < 0 ? `-${fmtDuration(Math.abs(overMins))}` : "0h 0m"}
+                                    <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
+                                      {overMins > 0 ? `+${fmtDuration(overMins)}` : "—"}
                                     </td>
                                   </>
                                 );
@@ -384,8 +384,8 @@ export default function ClientTimeproofPage() {
                                 <td className="px-3 py-3 text-center font-semibold text-slate-600 border-l border-slate-200">
                                   {totalScheduled > 0 ? fmtDuration(totalScheduled) : "—"}
                                 </td>
-                                <td className={`px-3 py-3 text-center font-bold border-l border-slate-200 ${totalOver > 0 ? "text-red-600" : totalOver < 0 ? "text-amber-600" : "text-slate-400"}`}>
-                                  {totalScheduled === 0 && totalWorked === 0 ? "—" : totalOver > 0 ? `+${fmtDuration(totalOver)}` : totalOver < 0 ? `-${fmtDuration(Math.abs(totalOver))}` : "0h 0m"}
+                                <td className="px-3 py-3 text-center font-bold border-l border-slate-200 text-red-600">
+                                  {totalOver > 0 ? `+${fmtDuration(totalOver)}` : "—"}
                                 </td>
                               </>
                             );
