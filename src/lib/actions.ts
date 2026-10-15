@@ -760,6 +760,17 @@ export async function addClientSalaryAdjustment(adj: Omit<ClientSalaryAdjustment
   `;
 }
 
+export async function updateClientSalaryAdjustment(id: number, adj: Omit<ClientSalaryAdjustment, "id">): Promise<void> {
+  await ensureTablesOnce();
+  await sql`
+    UPDATE client_salary_adjustments
+    SET client_id = ${adj.clientId}, va_id = ${adj.vaId}, effectivity_date = ${adj.effectivityDate},
+        type = ${adj.type}, hourly_rate = ${adj.hourlyRate}, sales_commission = ${adj.salesCommission},
+        referral_bonus = ${adj.referralBonus}, notes = ${adj.notes}
+    WHERE id = ${id}
+  `;
+}
+
 export async function deleteClientSalaryAdjustment(id: number): Promise<void> {
   await sql`DELETE FROM client_salary_adjustments WHERE id = ${id}`;
 }

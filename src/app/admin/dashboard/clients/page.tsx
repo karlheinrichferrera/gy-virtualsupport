@@ -20,6 +20,8 @@ export default function AdminClientsPage() {
   const [resetTarget, setResetTarget] = useState<number | null>(null);
   const [deleteInvTarget, setDeleteInvTarget] = useState<number | null>(null);
   const [deleteAdjTarget, setDeleteAdjTarget] = useState<number | null>(null);
+  const [editAdj, setEditAdj] = useState<ClientSalaryAdjustment | null>(null);
+  const [editAdjForm, setEditAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [editInv, setEditInv] = useState<ClientInvoice | null>(null);
   const [tab, setTab] = useState<"accounts" | "invoices" | "adjustments">("accounts");
   const [adjClientFilter, setAdjClientFilter] = useState<number>(0);
@@ -117,6 +119,23 @@ export default function AdminClientsPage() {
     });
     setShowAddAdj(false);
     setAdjForm({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
+    await loadData();
+  }
+
+  async function handleEditAdj(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editAdj) return;
+    await actions.updateClientSalaryAdjustment(editAdj.id, {
+      clientId: editAdjForm.clientId,
+      vaId: editAdjForm.vaId,
+      effectivityDate: editAdjForm.effectivityDate,
+      type: editAdjForm.type,
+      hourlyRate: editAdjForm.hourlyRate,
+      salesCommission: editAdjForm.salesCommission,
+      referralBonus: editAdjForm.referralBonus,
+      notes: editAdjForm.notes,
+    });
+    setEditAdj(null);
     await loadData();
   }
 
@@ -327,9 +346,14 @@ export default function AdminClientsPage() {
                         <td className="px-4 py-3 text-foreground">{adj.referralBonus}</td>
                         <td className="px-4 py-3 text-foreground text-xs">{adj.notes || "—"}</td>
                         <td className="px-4 py-3">
-                          <button onClick={() => setDeleteAdjTarget(adj.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
-                            <Trash2 size={14} className="text-red-600" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => { setEditAdj(adj); setEditAdjForm({ clientId: adj.clientId, vaId: adj.vaId, effectivityDate: adj.effectivityDate, type: adj.type, hourlyRate: adj.hourlyRate, salesCommission: adj.salesCommission, referralBonus: adj.referralBonus, notes: adj.notes }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                              <Pencil size={14} className="text-blue-600" />
+                            </button>
+                            <button onClick={() => setDeleteAdjTarget(adj.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
+                              <Trash2 size={14} className="text-red-600" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -402,6 +426,51 @@ export default function AdminClientsPage() {
                 <button onClick={handleDeleteAdj} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg">Delete</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Adjustment Modal */}
+      {editAdj && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Pencil size={20} className="text-emerald-600" /> Edit Client Salary Adjustment</h2>
+              <button onClick={() => setEditAdj(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+            </div>
+            <form onSubmit={handleEditAdj} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
+                  <select required value={editAdjForm.clientId || ""} onChange={(e) => setEditAdjForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                    <option value="">Select a client</option>
+                    {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName}</option>))}
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">VA *</label>
+                  <select required value={editAdjForm.vaId} onChange={(e) => setEditAdjForm((f) => ({ ...f, vaId: e.target.value }))} className={inputClass}>
+                    <option value="">Select a VA</option>
+                    {vaProfiles.map((va) => (<option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>))}
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Effectivity Date *</label><input type="text" required value={editAdjForm.effectivityDate} onChange={(e) => setEditAdjForm((f) => ({ ...f, effectivityDate: e.target.value }))} className={inputClass} placeholder="e.g. October 1, 2026" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Type *</label>
+                  <select value={editAdjForm.type} onChange={(e) => setEditAdjForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
+                    <option value="INCREASE">INCREASE</option>
+                    <option value="DECREASE">DECREASE</option>
+                    <option value="BONUS">BONUS</option>
+                    <option value="INITIAL">INITIAL</option>
+                  </select>
+                </div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={editAdjForm.hourlyRate} onChange={(e) => setEditAdjForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.00" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Sales Commission</label><input type="text" value={editAdjForm.salesCommission} onChange={(e) => setEditAdjForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="e.g. 5%" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Referral Bonus</label><input type="text" value={editAdjForm.referralBonus} onChange={(e) => setEditAdjForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="e.g. $50" /></div>
+                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={editAdjForm.notes} onChange={(e) => setEditAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditAdj(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
