@@ -31,8 +31,8 @@ export default function AdminClientsPage() {
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
   const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
-  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
-  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
+  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
+  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
   const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [error, setError] = useState("");
 
@@ -83,18 +83,33 @@ export default function AdminClientsPage() {
     await loadData();
   }
 
+  function fmtCoverage(from: string, to: string): string {
+    if (!from || !to) return "";
+    const f = new Date(from + "T00:00:00");
+    const t = new Date(to + "T00:00:00");
+    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+    return `${f.toLocaleDateString("en-US", opts)} – ${t.toLocaleDateString("en-US", opts)}`;
+  }
+  function fmtDueDate(d: string): string {
+    if (!d) return "";
+    const dt = new Date(d + "T00:00:00");
+    return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  }
+
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
-    await actions.addClientInvoice(invForm);
+    const payload = { ...invForm, billCoverage: fmtCoverage(invForm.billFrom, invForm.billTo), invoiceDueDate: fmtDueDate(invForm.invoiceDueDate) };
+    await actions.addClientInvoice(payload);
     setShowAddInvoice(false);
-    setInvForm({ clientId: 0, invoiceNumber: "", billCoverage: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
+    setInvForm({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
     await loadData();
   }
 
   async function handleEditInvoice(e: React.FormEvent) {
     e.preventDefault();
     if (!editInv) return;
-    await actions.updateClientInvoice(editInv.id, editInvForm);
+    const payload = { ...editInvForm, billCoverage: fmtCoverage(editInvForm.billFrom, editInvForm.billTo), invoiceDueDate: fmtDueDate(editInvForm.invoiceDueDate) };
+    await actions.updateClientInvoice(editInv.id, payload);
     setEditInv(null);
     await loadData();
   }
@@ -274,7 +289,7 @@ export default function AdminClientsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditInv(inv); setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billCoverage: inv.billCoverage, amount: inv.amount, invoiceDueDate: inv.invoiceDueDate, status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditInv(inv); setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billFrom: "", billTo: "", amount: inv.amount, invoiceDueDate: "", status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setDeleteInvTarget(inv.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
@@ -546,8 +561,9 @@ export default function AdminClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={invForm.invoiceNumber} onChange={(e) => setInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} placeholder="e.g. INV-001" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={invForm.amount} onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="e.g. $2,500.00" /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage *</label><input type="text" required value={invForm.billCoverage} onChange={(e) => setInvForm((f) => ({ ...f, billCoverage: e.target.value }))} className={inputClass} placeholder="e.g. Oct 1-15, 2026" /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="text" required value={invForm.invoiceDueDate} onChange={(e) => setInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} placeholder="e.g. October 30, 2026" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={invForm.billFrom} onChange={(e) => setInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (To) *</label><input type="date" required value={invForm.billTo} onChange={(e) => setInvForm((f) => ({ ...f, billTo: e.target.value }))} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="date" required value={invForm.invoiceDueDate} onChange={(e) => setInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
                   <select value={invForm.status} onChange={(e) => setInvForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                     <option value="Pending">Pending</option>
@@ -585,8 +601,9 @@ export default function AdminClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={editInvForm.invoiceNumber} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={editInvForm.amount} onChange={(e) => setEditInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage *</label><input type="text" required value={editInvForm.billCoverage} onChange={(e) => setEditInvForm((f) => ({ ...f, billCoverage: e.target.value }))} className={inputClass} /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="text" required value={editInvForm.invoiceDueDate} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={editInvForm.billFrom} onChange={(e) => setEditInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (To) *</label><input type="date" required value={editInvForm.billTo} onChange={(e) => setEditInvForm((f) => ({ ...f, billTo: e.target.value }))} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="date" required value={editInvForm.invoiceDueDate} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
                   <select value={editInvForm.status} onChange={(e) => setEditInvForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                     <option value="Pending">Pending</option>
