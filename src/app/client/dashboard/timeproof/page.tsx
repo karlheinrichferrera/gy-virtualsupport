@@ -126,6 +126,11 @@ export default function ClientTimeproofPage() {
       "Duration": (e.entryType === "time" || e.entryType === "overtime") ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
       "Notes": e.notes || "",
     }));
+    const regularMins = source.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+    const otMins = source.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+    rows.push({ "VA ID": "", "VA Name": "", "Type": "", "Date": "", "Time In": "", "Time Out": "Regular Hours:", "Duration": fmtDuration(regularMins), "Notes": "" });
+    rows.push({ "VA ID": "", "VA Name": "", "Type": "", "Date": "", "Time In": "", "Time Out": "Overtime Hours:", "Duration": fmtDuration(otMins), "Notes": "" });
+    rows.push({ "VA ID": "", "VA Name": "", "Type": "", "Date": "", "Time In": "", "Time Out": "Total Billed:", "Duration": fmtDuration(regularMins + otMins), "Notes": "" });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Timeproof");

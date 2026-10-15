@@ -174,12 +174,18 @@ export default function AdminTimeproofPage() {
       "VA Name": e.vaName,
       "Client": e.clientName,
       "Type": (ENTRY_TYPES[e.entryType] || ENTRY_TYPES.time).label,
+      "Status": e.entryType === "overtime" ? (e.status === "approved" ? "Approved" : e.status === "rejected" ? "Rejected" : "Pending") : "",
       "Date": e.punchDate,
       "Time In": (e.entryType === "time" || e.entryType === "overtime") ? fmtTime12(e.timeIn) : "",
       "Time Out": (e.entryType === "time" || e.entryType === "overtime") && e.timeOut ? fmtTime12(e.timeOut) : "",
       "Duration": (e.entryType === "time" || e.entryType === "overtime") ? fmtDuration(calcMins(e.timeIn, e.timeOut)) : "",
       "Notes": e.notes || "",
     }));
+    const regularMins = source.filter((e) => e.entryType === "time").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+    const otMins = source.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+    rows.push({ "VA ID": "", "VA Name": "", "Client": "", "Type": "", "Status": "", "Date": "", "Time In": "", "Time Out": "Regular Hours:", "Duration": fmtDuration(regularMins), "Notes": "" });
+    rows.push({ "VA ID": "", "VA Name": "", "Client": "", "Type": "", "Status": "", "Date": "", "Time In": "", "Time Out": "Overtime Hours:", "Duration": fmtDuration(otMins), "Notes": "" });
+    rows.push({ "VA ID": "", "VA Name": "", "Client": "", "Type": "", "Status": "", "Date": "", "Time In": "", "Time Out": "Total Billed:", "Duration": fmtDuration(regularMins + otMins), "Notes": "" });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Timeproof");
