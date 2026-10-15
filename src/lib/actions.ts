@@ -852,20 +852,33 @@ export async function getAllTimeproofEntries(): Promise<(TimeproofEntry & { vaNa
   return rows.map((r) => ({ ...rowToTimeproofEntry(r), vaName: `${r.first_name} ${r.last_name}`, clientName: (r.client_name as string) || "" }));
 }
 
+function roundTime15(t: string): string {
+  if (!t) return t;
+  const [h, m] = t.split(":").map(Number);
+  const total = Math.round((h * 60 + m) / 15) * 15;
+  const rh = Math.floor(total / 60) % 24;
+  const rm = total % 60;
+  return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
+}
+
 export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Promise<void> {
   await ensureTablesOnce();
+  const timeIn = roundTime15(entry.timeIn);
+  const timeOut = roundTime15(entry.timeOut);
   await sql`
     INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
-    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
+    VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${timeIn}, ${timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
   `;
 }
 
 export async function addBulkTimeproofEntries(entries: Omit<TimeproofEntry, "id">[]): Promise<void> {
   await ensureTablesOnce();
   for (const entry of entries) {
+    const timeIn = roundTime15(entry.timeIn);
+    const timeOut = roundTime15(entry.timeOut);
     await sql`
       INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
-      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${entry.timeIn}, ${entry.timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
+      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${timeIn}, ${timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
     `;
   }
 }
@@ -875,15 +888,34 @@ export async function updateTimeproofEntry(id: number, updates: { timeIn?: strin
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
   if (rows.length === 0) return;
   const current = rowToTimeproofEntry(rows[0]);
+  const timeIn = roundTime15(updates.timeIn ?? current.timeIn);
+  const timeOut = roundTime15(updates.timeOut ?? current.timeOut);
   await sql`
     UPDATE timeproof_entries SET
       punch_date = ${updates.punchDate ?? current.punchDate},
-      time_in = ${updates.timeIn ?? current.timeIn},
-      time_out = ${updates.timeOut ?? current.timeOut},
+      time_in = ${timeIn},
+      time_out = ${timeOut},
       notes = ${updates.notes ?? current.notes},
       entry_type = ${updates.entryType ?? current.entryType}
     WHERE id = ${id}
   `;
+}
+
+export async function roundExistingTimeproofEntries(): Promise<number> {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id, time_in, time_out FROM timeproof_entries WHERE time_in != '' OR time_out != ''`;
+  let updated = 0;
+  for (const r of rows) {
+    const oldIn = (r.time_in as string) || "";
+    const oldOut = (r.time_out as string) || "";
+    const newIn = roundTime15(oldIn);
+    const newOut = roundTime15(oldOut);
+    if (newIn !== oldIn || newOut !== oldOut) {
+      await sql`UPDATE timeproof_entries SET time_in = ${newIn}, time_out = ${newOut} WHERE id = ${r.id}`;
+      updated++;
+    }
+  }
+  return updated;
 }
 
 export async function deleteTimeproofEntry(id: number): Promise<void> {
