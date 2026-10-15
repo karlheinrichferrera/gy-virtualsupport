@@ -483,7 +483,7 @@ export default function AdminTimeproofPage() {
                           {(() => {
                             const vaProfile = vas.find((v) => v.id === vaId);
                             const scheduledMins = getScheduledMins(vaProfile?.workSchedule, periodDays);
-                            const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                            const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                             const overMins = (periodTotal - scheduledMins) + overtimeEntryMins;
                             return (
                               <>
@@ -517,7 +517,7 @@ export default function AdminTimeproofPage() {
                           const vaProfile = vas.find((v) => v.id === vaId);
                           return s + getScheduledMins(vaProfile?.workSchedule, periodDays);
                         }, 0);
-                        const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                        const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                         const totalOver = (totalWorked - totalScheduled) + totalOvertimeEntries;
                         return (
                           <>

@@ -120,7 +120,7 @@ export default function TimeproofPage() {
     return true;
   });
 
-  const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
+  const totalMins = filtered.filter((e) => e.entryType !== "overtime" || e.status === "approved").reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
   const tzLabel = localTZ();
 
   if (loading) {

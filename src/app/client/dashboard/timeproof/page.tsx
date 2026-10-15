@@ -89,6 +89,7 @@ export default function ClientTimeproofPage() {
   const uniqueVAs = Array.from(new Map(entries.map((e) => [e.vaId, e.vaName])).entries());
 
   const filtered = entries.filter((e) => {
+    if (e.entryType === "overtime" && e.status !== "approved") return false;
     if (filterVA && e.vaId !== filterVA) return false;
     if (viewMode === "list") {
       if (dateFrom && e.punchDate < dateFrom) return false;
@@ -356,7 +357,7 @@ export default function ClientTimeproofPage() {
                               {(() => {
                                 const vaProfile = vaProfiles.find((v) => v.id === vaId);
                                 const scheduledMins = getScheduledMins(vaProfile?.workSchedule, periodDays);
-                                const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                                const overtimeEntryMins = vaEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                                 const overMins = (periodTotal - scheduledMins) + overtimeEntryMins;
                                 return (
                                   <>
@@ -390,7 +391,7 @@ export default function ClientTimeproofPage() {
                               const vaProfile = vaProfiles.find((v) => v.id === vaId);
                               return s + getScheduledMins(vaProfile?.workSchedule, periodDays);
                             }, 0);
-                            const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
+                            const totalOvertimeEntries = weekEntries.filter((e) => e.entryType === "overtime" && e.status === "approved").reduce((s, e) => s + calcMins(e.timeIn, e.timeOut), 0);
                             const totalOver = (totalWorked - totalScheduled) + totalOvertimeEntries;
                             return (
                               <>
