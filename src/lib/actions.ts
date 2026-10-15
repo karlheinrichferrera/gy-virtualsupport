@@ -241,6 +241,16 @@ export async function addAdjustment(vaId: string, adj: SalaryAdjustment): Promis
   `;
 }
 
+export async function updateAdjustment(adjId: number, vaId: string, adj: SalaryAdjustment): Promise<void> {
+  await sql`
+    UPDATE salary_adjustments
+    SET va_id = ${vaId}, effectivity_date = ${adj.effectivityDate}, type = ${adj.type},
+        hourly_rate = ${adj.hourlyRate}, sales_commission = ${adj.salesCommission},
+        referral_bonus = ${adj.referralBonus}, notes = ${adj.notes}
+    WHERE id = ${adjId}
+  `;
+}
+
 export async function deleteAdjustment(adjId: number): Promise<void> {
   await sql`DELETE FROM salary_adjustments WHERE id = ${adjId}`;
 }

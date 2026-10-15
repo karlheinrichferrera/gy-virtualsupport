@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile, SalaryAdjustment } from "@/lib/data";
-import { DollarSign, Plus, X, Trash2, AlertTriangle } from "lucide-react";
+import { DollarSign, Plus, X, Trash2, AlertTriangle, Pencil, Save } from "lucide-react";
 
 export default function AdminAdjustmentsPage() {
   const [vaProfiles, setVaProfiles] = useState<VAProfile[]>([]);
@@ -11,6 +11,15 @@ export default function AdminAdjustmentsPage() {
   const [adjustments, setAdjustments] = useState<Record<string, (SalaryAdjustment & { id: number })[]>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ vaId: string; adjId: number } | null>(null);
+  const [editTarget, setEditTarget] = useState<(SalaryAdjustment & { id: number }) | null>(null);
+  const [editForm, setEditForm] = useState({
+    effectivityDate: "",
+    type: "",
+    hourlyRate: "",
+    salesCommission: "",
+    referralBonus: "",
+    notes: "",
+  });
   const [form, setForm] = useState({
     effectivityDate: "",
     type: "",
@@ -49,6 +58,21 @@ export default function AdminAdjustmentsPage() {
     await actions.deleteAdjustment(adjId);
     setAdjustments(await actions.getAllAdjustments());
     setDeleteTarget(null);
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    await actions.updateAdjustment(editTarget.id, selectedVA, {
+      effectivityDate: editForm.effectivityDate,
+      type: editForm.type.toUpperCase(),
+      hourlyRate: editForm.hourlyRate,
+      salesCommission: editForm.salesCommission || "No Adjustment",
+      referralBonus: editForm.referralBonus || "No Adjustment",
+      notes: editForm.notes,
+    });
+    setAdjustments(await actions.getAllAdjustments());
+    setEditTarget(null);
   }
 
   const currentAdj = adjustments[selectedVA] || [];
@@ -124,13 +148,22 @@ export default function AdminAdjustmentsPage() {
                     <td className="px-6 py-4 text-foreground">{adj.referralBonus}</td>
                     <td className="px-6 py-4 text-muted">{adj.notes}</td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setDeleteTarget({ vaId: selectedVA, adjId: adj.id })}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => { setEditTarget(adj); setEditForm({ effectivityDate: adj.effectivityDate, type: adj.type, hourlyRate: adj.hourlyRate, salesCommission: adj.salesCommission, referralBonus: adj.referralBonus, notes: adj.notes }); }}
+                          className="p-1.5 rounded hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget({ vaId: selectedVA, adjId: adj.id })}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -190,6 +223,62 @@ export default function AdminAdjustmentsPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors">Add Adjustment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Pencil size={20} className="text-emerald-600" />
+                Edit Salary Adjustment
+              </h2>
+              <button onClick={() => setEditTarget(null)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">VA</label>
+                <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className={inputClass}>
+                  {vaProfiles.map((va) => (
+                    <option key={va.id} value={va.id}>{va.firstName} {va.lastName} ({va.id})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Effectivity Date</label>
+                <input type="text" required value={editForm.effectivityDate} onChange={(e) => setEditForm((f) => ({ ...f, effectivityDate: e.target.value }))} className={inputClass} placeholder="e.g. October 07, 2026" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                <input type="text" required value={editForm.type} onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))} className={inputClass} placeholder="e.g. Salary Adjustment" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Hourly Rate</label>
+                <input type="text" required value={editForm.hourlyRate} onChange={(e) => setEditForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.50 / Hour" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Sales Commission</label>
+                  <input type="text" value={editForm.salesCommission} onChange={(e) => setEditForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="No Adjustment" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Referral Bonus</label>
+                  <input type="text" value={editForm.referralBonus} onChange={(e) => setEditForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="No Adjustment" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <input type="text" value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditTarget(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
               </div>
             </form>
           </div>
