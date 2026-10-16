@@ -970,27 +970,28 @@ export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-// ── Heartbeat / Online Status ──
+// ── Online / Working Status ──
 
-export async function updateHeartbeat(vaId: string): Promise<void> {
+export async function getWorkingVAs(): Promise<{ id: string; firstName: string; lastName: string; position: string; clientName: string; timeIn: string }[]> {
   await ensureTablesOnce();
-  await sql`UPDATE va_profiles SET last_active = NOW() WHERE id = ${vaId}`;
-}
-
-export async function getOnlineVAs(): Promise<{ id: string; firstName: string; lastName: string; position: string; lastActive: string }[]> {
-  await ensureTablesOnce();
+  const today = estDate();
   const { rows } = await sql`
-    SELECT id, first_name, last_name, position, last_active
-    FROM va_profiles
-    WHERE last_active IS NOT NULL AND last_active > NOW() - INTERVAL '3 minutes'
-    ORDER BY first_name
+    SELECT DISTINCT ON (vp.id) vp.id, vp.first_name, vp.last_name, vp.position, ca.display_name as client_name, te.time_in
+    FROM timeproof_entries te
+    JOIN va_profiles vp ON vp.id = te.va_id
+    JOIN client_accounts ca ON ca.id = te.client_id
+    WHERE te.punch_date = ${today}
+      AND te.time_in != ''
+      AND (te.time_out IS NULL OR te.time_out = '')
+    ORDER BY vp.id, te.time_in ASC
   `;
   return rows.map((r) => ({
     id: r.id as string,
     firstName: r.first_name as string,
     lastName: r.last_name as string,
     position: r.position as string,
-    lastActive: r.last_active ? String(r.last_active) : "",
+    clientName: (r.client_name as string) || "",
+    timeIn: (r.time_in as string) || "",
   }));
 }
 
