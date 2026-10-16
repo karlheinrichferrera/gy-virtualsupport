@@ -987,14 +987,15 @@ const HOLIDAYS: { month: number; day: number; title: string }[] = [
   { month: 2, day: 14, title: "Valentine's Day" },
   { month: 2, day: 25, title: "EDSA People Power Anniversary" },
   { month: 4, day: 9, title: "Araw ng Kagitingan (Day of Valor)" },
-  { month: 5, day: 1, title: "Labor Day" },
+  { month: 5, day: 1, title: "Labor Day (PH)" },
   { month: 6, day: 12, title: "Independence Day (PH)" },
+  { month: 6, day: 19, title: "Juneteenth (US)" },
   { month: 7, day: 4, title: "Independence Day (US)" },
   { month: 8, day: 21, title: "Ninoy Aquino Day" },
   { month: 8, day: 26, title: "National Heroes Day" },
-  { month: 9, day: 1, title: "Labor Day (US)" },
   { month: 11, day: 1, title: "All Saints' Day" },
   { month: 11, day: 2, title: "All Souls' Day" },
+  { month: 11, day: 11, title: "Veterans Day (US)" },
   { month: 11, day: 30, title: "Bonifacio Day" },
   { month: 12, day: 24, title: "Christmas Eve" },
   { month: 12, day: 25, title: "Christmas Day" },
@@ -1002,11 +1003,35 @@ const HOLIDAYS: { month: number; day: number; title: string }[] = [
   { month: 12, day: 31, title: "New Year's Eve" },
 ];
 
+function getNthWeekday(year: number, month: number, weekday: number, n: number): number {
+  const first = new Date(year, month - 1, 1).getDay();
+  let day = 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
+  return day;
+}
+
+function getLastWeekday(year: number, month: number, weekday: number): number {
+  const last = new Date(year, month, 0);
+  const diff = (last.getDay() - weekday + 7) % 7;
+  return last.getDate() - diff;
+}
+
+function getFloatingUSHolidays(year: number): { month: number; day: number; title: string }[] {
+  return [
+    { month: 1, day: getNthWeekday(year, 1, 1, 3), title: "Martin Luther King Jr. Day (US)" },
+    { month: 2, day: getNthWeekday(year, 2, 1, 3), title: "Presidents' Day (US)" },
+    { month: 5, day: getLastWeekday(year, 5, 1), title: "Memorial Day (US)" },
+    { month: 9, day: getNthWeekday(year, 9, 1, 1), title: "Labor Day (US)" },
+    { month: 10, day: getNthWeekday(year, 10, 1, 2), title: "Columbus Day (US)" },
+    { month: 11, day: getNthWeekday(year, 11, 4, 4), title: "Thanksgiving (US)" },
+  ];
+}
+
 export async function getCalendarEvents(year: number, month: number, includeLeaves = false): Promise<CalendarEvent[]> {
   await ensureTablesOnce();
   const events: CalendarEvent[] = [];
 
-  for (const h of HOLIDAYS) {
+  const allHolidays = [...HOLIDAYS, ...getFloatingUSHolidays(year)];
+  for (const h of allHolidays) {
     if (h.month === month) {
       events.push({ date: `${year}-${String(h.month).padStart(2, "0")}-${String(h.day).padStart(2, "0")}`, title: h.title, type: "holiday" });
     }
