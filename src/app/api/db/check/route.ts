@@ -1,6 +1,15 @@
 import { sql } from "@vercel/postgres";
+import { roundExistingTimeproofEntries } from "@/lib/actions";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("action") === "round") {
+    const updated = await roundExistingTimeproofEntries();
+    return Response.json({ ok: true, updated });
+  }
+
   const checks: Record<string, string> = {};
 
   checks.POSTGRES_URL = process.env.POSTGRES_URL ? "SET (length: " + process.env.POSTGRES_URL.length + ")" : "NOT SET";
