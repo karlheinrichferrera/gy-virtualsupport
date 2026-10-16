@@ -1037,42 +1037,44 @@ export async function getCalendarEvents(year: number, month: number, includeLeav
     }
   }
 
+  function parseFlexDate(s: string): { year: number; month: number; day: number } | null {
+    if (!s || !s.trim()) return null;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+    const dashParts = s.split("-");
+    if (dashParts.length >= 3) {
+      const y = parseInt(dashParts[0]); const m = parseInt(dashParts[1]); const dy = parseInt(dashParts[2]);
+      if (y && m && dy) return { year: y, month: m, day: dy };
+    }
+    const slashParts = s.split("/");
+    if (slashParts.length >= 3) {
+      const m = parseInt(slashParts[0]); const dy = parseInt(slashParts[1]); const y = parseInt(slashParts[2]);
+      if (y && m && dy) return { year: y, month: m, day: dy };
+    }
+    return null;
+  }
+
   const { rows } = await sql`SELECT id, first_name, last_name, date_of_birth, date_hired FROM va_profiles`;
   for (const r of rows) {
-    const dob = r.date_of_birth as string;
-    if (dob) {
-      const parts = dob.split("-");
-      if (parts.length >= 3) {
-        const bMonth = parseInt(parts[1]);
-        const bDay = parseInt(parts[2]);
-        if (bMonth === month) {
-          events.push({
-            date: `${year}-${String(bMonth).padStart(2, "0")}-${String(bDay).padStart(2, "0")}`,
-            title: `${r.first_name} ${r.last_name}'s Birthday`,
-            type: "birthday",
-            vaId: r.id as string,
-          });
-        }
-      }
+    const dobParsed = parseFlexDate(r.date_of_birth as string);
+    if (dobParsed && dobParsed.month === month) {
+      events.push({
+        date: `${year}-${String(dobParsed.month).padStart(2, "0")}-${String(dobParsed.day).padStart(2, "0")}`,
+        title: `${r.first_name} ${r.last_name}'s Birthday`,
+        type: "birthday",
+        vaId: r.id as string,
+      });
     }
 
-    const hired = r.date_hired as string;
-    if (hired) {
-      const parts = hired.split("-");
-      if (parts.length >= 3) {
-        const hMonth = parseInt(parts[1]);
-        const hDay = parseInt(parts[2]);
-        const hYear = parseInt(parts[0]);
-        if (hMonth === month && hYear < year) {
-          const yearsWorked = year - hYear;
-          events.push({
-            date: `${year}-${String(hMonth).padStart(2, "0")}-${String(hDay).padStart(2, "0")}`,
-            title: `${r.first_name} ${r.last_name}'s ${yearsWorked}-Year Work Anniversary`,
-            type: "anniversary",
-            vaId: r.id as string,
-          });
-        }
-      }
+    const hiredParsed = parseFlexDate(r.date_hired as string);
+    if (hiredParsed && hiredParsed.month === month && hiredParsed.year < year) {
+      const yearsWorked = year - hiredParsed.year;
+      events.push({
+        date: `${year}-${String(hiredParsed.month).padStart(2, "0")}-${String(hiredParsed.day).padStart(2, "0")}`,
+        title: `${r.first_name} ${r.last_name}'s ${yearsWorked}-Year Work Anniversary`,
+        type: "anniversary",
+        vaId: r.id as string,
+      });
     }
   }
 
