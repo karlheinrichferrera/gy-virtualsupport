@@ -590,10 +590,12 @@ export async function getClientInvoices(): Promise<ClientInvoice[]> {
   return rows.map(rowToClientInvoice);
 }
 
-export async function getClientInvoicesByClientId(clientId: number): Promise<ClientInvoice[]> {
+export async function getClientInvoicesByClientId(clientId: number, excludeDraft = false): Promise<ClientInvoice[]> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_invoices WHERE client_id = ${clientId} ORDER BY id DESC`;
-  return rows.map(rowToClientInvoice);
+  const all = rows.map(rowToClientInvoice);
+  if (excludeDraft) return all.filter((inv) => inv.status.toLowerCase() !== "draft");
+  return all;
 }
 
 export async function getClientInvoicesByEmail(email: string): Promise<ClientInvoice[]> {
@@ -601,7 +603,7 @@ export async function getClientInvoicesByEmail(email: string): Promise<ClientInv
   const { rows: acctRows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (acctRows.length === 0) return [];
   const clientId = acctRows[0].id as number;
-  return getClientInvoicesByClientId(clientId);
+  return getClientInvoicesByClientId(clientId, true);
 }
 
 export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<void> {
