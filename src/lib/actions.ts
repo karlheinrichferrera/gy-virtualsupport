@@ -970,6 +970,55 @@ export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+// ── Auto-fill Timeproof from Schedule ──
+
+const OWNER_VA_ID = "500101";
+
+function estDayOfWeek(): string {
+  const d = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long" });
+  return d.toLowerCase();
+}
+
+export async function autoFillScheduleTimeproof(vaId: string): Promise<{ filled: boolean; count: number }> {
+  if (vaId !== OWNER_VA_ID) return { filled: false, count: 0 };
+  await ensureTablesOnce();
+
+  const profile = await getProfile(vaId);
+  if (!profile || !profile.workSchedule) return { filled: false, count: 0 };
+
+  const today = estDate();
+  const dayName = estDayOfWeek() as keyof typeof profile.workSchedule;
+  const daySchedule = profile.workSchedule[dayName];
+  if (!daySchedule || !daySchedule.enabled || !daySchedule.start || !daySchedule.end) return { filled: false, count: 0 };
+
+  const { rows: existing } = await sql`
+    SELECT id FROM timeproof_entries
+    WHERE va_id = ${vaId} AND punch_date = ${today} AND entry_type = 'time'
+  `;
+  if (existing.length > 0) return { filled: false, count: 0 };
+
+  const clientIds = await getClientIdsForVA(vaId);
+  if (clientIds.length === 0) return { filled: false, count: 0 };
+
+  const now = estDateLong();
+  let count = 0;
+  for (const clientId of clientIds) {
+    await addTimeproofEntry({
+      vaId,
+      clientId,
+      punchDate: today,
+      timeIn: daySchedule.start,
+      timeOut: daySchedule.end,
+      notes: "Auto-filled from schedule",
+      createdAt: now,
+      entryType: "time",
+      status: "approved",
+    });
+    count++;
+  }
+  return { filled: true, count };
+}
+
 // ── Online / Working Status ──
 
 export async function getWorkingVAs(): Promise<{ id: string; firstName: string; lastName: string; position: string; clientName: string; timeIn: string }[]> {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getProfile } from "@/lib/actions";
+import { getProfile, autoFillScheduleTimeproof } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
 export default function DashboardLayout({
@@ -32,6 +32,7 @@ export default function DashboardLayout({
       setVaId(id);
       setVaName(`${profile.firstName} ${profile.lastName}`);
       setReady(true);
+      autoFillScheduleTimeproof(id);
     })();
   }, [router]);
 
