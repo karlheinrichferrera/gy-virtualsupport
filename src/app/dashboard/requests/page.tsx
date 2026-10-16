@@ -56,7 +56,6 @@ export default function RequestsPage() {
         remarks: "",
       };
       await actions.addRequest(id, newReq);
-      actions.notifyLeaveOrAdjustmentRequest(id, form.type, form.dateFrom, form.dateTo, form.reason);
       const updated = await actions.getRequestsFor(id);
       setRequests(updated);
       setSubmitted(true);

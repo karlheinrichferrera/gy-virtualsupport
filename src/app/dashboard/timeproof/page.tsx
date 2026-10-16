@@ -113,7 +113,6 @@ export default function TimeproofPage() {
     setOTSaving(true);
     const now = estDateLong();
     await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: otForm.punchDate, timeIn: otForm.timeIn, timeOut: otForm.timeOut, notes: otForm.notes, createdAt: now, entryType: "overtime", status: "pending" });
-    actions.notifyOvertimeRequest(vaId, otForm.punchDate, otForm.timeIn, otForm.timeOut, otForm.notes);
     setOTSaving(false);
     setShowOTForm(false);
     await reload();
