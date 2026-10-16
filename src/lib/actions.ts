@@ -3,6 +3,7 @@
 import { sql } from "@vercel/postgres";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
 import { estDate, estDateLong } from "./est";
+import { sendNotificationEmail, overtimeRequestEmail, leaveRequestEmail } from "./email";
 
 let tablesReady = false;
 async function ensureTablesOnce() {
@@ -989,4 +990,26 @@ export async function initDatabase(): Promise<{ created: boolean }> {
     }
   }
   return { created: true };
+}
+
+export async function notifyOvertimeRequest(vaId: string, date: string, timeIn: string, timeOut: string, reason: string): Promise<void> {
+  const profile = await getProfile(vaId);
+  if (!profile) return;
+  const vaName = `${profile.firstName} ${profile.lastName}`;
+  const clients = await getClientsForVA(vaId);
+  const { subject, html } = overtimeRequestEmail(vaName, date, timeIn, timeOut, reason);
+  for (const client of clients) {
+    if (client.email) await sendNotificationEmail(client.email, subject, html);
+  }
+}
+
+export async function notifyLeaveOrAdjustmentRequest(vaId: string, type: string, dateFrom: string, dateTo: string, reason: string): Promise<void> {
+  const profile = await getProfile(vaId);
+  if (!profile) return;
+  const vaName = `${profile.firstName} ${profile.lastName}`;
+  const clients = await getClientsForVA(vaId);
+  const { subject, html } = leaveRequestEmail(vaName, type, dateFrom, dateTo, reason);
+  for (const client of clients) {
+    if (client.email) await sendNotificationEmail(client.email, subject, html);
+  }
 }
