@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { VAProfile, SalaryAdjustment } from "@/lib/data";
 import type { ClientSalaryAdjustment, TimeproofEntry, ClientAccount, ClientInvoice } from "@/lib/actions";
-import { Users, FileText, CalendarDays, DollarSign, Clock, Download } from "lucide-react";
+import { Users, FileText, CalendarDays, DollarSign, Clock, Download, Wifi } from "lucide-react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 
@@ -17,6 +17,7 @@ export default function AdminDashboardPage() {
   const [allTimeproof, setAllTimeproof] = useState<(TimeproofEntry & { vaName: string; clientName: string })[]>([]);
   const [clients, setClients] = useState<ClientAccount[]>([]);
   const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
+  const [onlineVAs, setOnlineVAs] = useState<{ id: string; firstName: string; lastName: string; position: string; lastActive: string }[]>([]);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -40,6 +41,15 @@ export default function AdminDashboardPage() {
       setClients(cl);
       setClientInvoices(ci);
     })();
+    (async () => {
+      const online = await actions.getOnlineVAs();
+      setOnlineVAs(online);
+    })();
+    const interval = setInterval(async () => {
+      const online = await actions.getOnlineVAs();
+      setOnlineVAs(online);
+    }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   function downloadAllData() {
@@ -171,6 +181,34 @@ export default function AdminDashboardPage() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Wifi size={20} className="text-emerald-500" />
+          <h2 className="text-lg font-semibold text-foreground">Online Now</h2>
+          <span className="ml-auto text-xs text-muted">Auto-refreshes every 30s</span>
+        </div>
+        {onlineVAs.length === 0 ? (
+          <p className="text-sm text-muted">No VAs currently online</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {onlineVAs.map((va) => (
+              <div key={va.id} className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
+                    {va.firstName.charAt(0)}
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{va.firstName} {va.lastName}</p>
+                  <p className="text-xs text-muted truncate">{va.position || "VA"} &middot; {va.id}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bg-card rounded-xl border border-border p-5 flex items-center justify-between">

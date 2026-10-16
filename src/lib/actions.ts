@@ -970,6 +970,30 @@ export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+// ── Heartbeat / Online Status ──
+
+export async function updateHeartbeat(vaId: string): Promise<void> {
+  await ensureTablesOnce();
+  await sql`UPDATE va_profiles SET last_active = NOW() WHERE id = ${vaId}`;
+}
+
+export async function getOnlineVAs(): Promise<{ id: string; firstName: string; lastName: string; position: string; lastActive: string }[]> {
+  await ensureTablesOnce();
+  const { rows } = await sql`
+    SELECT id, first_name, last_name, position, last_active
+    FROM va_profiles
+    WHERE last_active IS NOT NULL AND last_active > NOW() - INTERVAL '3 minutes'
+    ORDER BY first_name
+  `;
+  return rows.map((r) => ({
+    id: r.id as string,
+    firstName: r.first_name as string,
+    lastName: r.last_name as string,
+    position: r.position as string,
+    lastActive: r.last_active ? String(r.last_active) : "",
+  }));
+}
+
 // ── DB Init ──
 
 export async function initDatabase(): Promise<{ created: boolean }> {

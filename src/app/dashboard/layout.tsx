@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getProfile } from "@/lib/actions";
+import { getProfile, updateHeartbeat } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
 export default function DashboardLayout({
@@ -32,8 +32,15 @@ export default function DashboardLayout({
       setVaId(id);
       setVaName(`${profile.firstName} ${profile.lastName}`);
       setReady(true);
+      updateHeartbeat(id);
     })();
   }, [router]);
+
+  useEffect(() => {
+    if (!vaId) return;
+    const interval = setInterval(() => { updateHeartbeat(vaId); }, 60_000);
+    return () => clearInterval(interval);
+  }, [vaId]);
 
   if (!ready) {
     return (
