@@ -24,6 +24,7 @@ const navItems = [
   { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/dashboard/requests", label: "Leave & Shift Requests", icon: CalendarDays },
   { href: "/dashboard/timeproof", label: "Timeproof", icon: Fingerprint },
+  { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

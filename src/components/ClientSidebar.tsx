@@ -22,6 +22,7 @@ const navItems = [
   { href: "/client/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/client/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/client/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
+  { href: "/client/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/client/dashboard/adjustments", label: "Salary Adjustments", icon: DollarSign },
   { href: "/client/dashboard/settings", label: "Settings", icon: Settings },
 ];

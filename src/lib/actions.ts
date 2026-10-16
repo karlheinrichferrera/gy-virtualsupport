@@ -970,6 +970,141 @@ export async function isVACurrentlyWorking(vaId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+// ── Calendar Events ──
+
+export type CalendarEvent = {
+  id?: number;
+  date: string;
+  title: string;
+  type: "holiday" | "birthday" | "anniversary" | "event" | "leave";
+  vaId?: string;
+};
+
+const HOLIDAYS: { month: number; day: number; title: string }[] = [
+  { month: 1, day: 1, title: "New Year's Day" },
+  { month: 2, day: 14, title: "Valentine's Day" },
+  { month: 2, day: 25, title: "EDSA People Power Anniversary" },
+  { month: 4, day: 9, title: "Araw ng Kagitingan (Day of Valor)" },
+  { month: 5, day: 1, title: "Labor Day" },
+  { month: 6, day: 12, title: "Independence Day (PH)" },
+  { month: 7, day: 4, title: "Independence Day (US)" },
+  { month: 8, day: 21, title: "Ninoy Aquino Day" },
+  { month: 8, day: 26, title: "National Heroes Day" },
+  { month: 9, day: 1, title: "Labor Day (US)" },
+  { month: 11, day: 1, title: "All Saints' Day" },
+  { month: 11, day: 2, title: "All Souls' Day" },
+  { month: 11, day: 30, title: "Bonifacio Day" },
+  { month: 12, day: 24, title: "Christmas Eve" },
+  { month: 12, day: 25, title: "Christmas Day" },
+  { month: 12, day: 30, title: "Rizal Day" },
+  { month: 12, day: 31, title: "New Year's Eve" },
+];
+
+export async function getCalendarEvents(year: number, month: number, includeLeaves = false): Promise<CalendarEvent[]> {
+  await ensureTablesOnce();
+  const events: CalendarEvent[] = [];
+
+  for (const h of HOLIDAYS) {
+    if (h.month === month) {
+      events.push({ date: `${year}-${String(h.month).padStart(2, "0")}-${String(h.day).padStart(2, "0")}`, title: h.title, type: "holiday" });
+    }
+  }
+
+  const { rows } = await sql`SELECT id, first_name, last_name, date_of_birth, date_hired FROM va_profiles`;
+  for (const r of rows) {
+    const dob = r.date_of_birth as string;
+    if (dob) {
+      const parts = dob.split("-");
+      if (parts.length >= 3) {
+        const bMonth = parseInt(parts[1]);
+        const bDay = parseInt(parts[2]);
+        if (bMonth === month) {
+          events.push({
+            date: `${year}-${String(bMonth).padStart(2, "0")}-${String(bDay).padStart(2, "0")}`,
+            title: `${r.first_name} ${r.last_name}'s Birthday`,
+            type: "birthday",
+            vaId: r.id as string,
+          });
+        }
+      }
+    }
+
+    const hired = r.date_hired as string;
+    if (hired) {
+      const parts = hired.split("-");
+      if (parts.length >= 3) {
+        const hMonth = parseInt(parts[1]);
+        const hDay = parseInt(parts[2]);
+        const hYear = parseInt(parts[0]);
+        if (hMonth === month && hYear < year) {
+          const yearsWorked = year - hYear;
+          events.push({
+            date: `${year}-${String(hMonth).padStart(2, "0")}-${String(hDay).padStart(2, "0")}`,
+            title: `${r.first_name} ${r.last_name}'s ${yearsWorked}-Year Work Anniversary`,
+            type: "anniversary",
+            vaId: r.id as string,
+          });
+        }
+      }
+    }
+  }
+
+  const { rows: customRows } = await sql`
+    SELECT id, event_date, title, event_type FROM calendar_events
+    WHERE event_date LIKE ${`${year}-${String(month).padStart(2, "0")}%`}
+  `;
+  for (const r of customRows) {
+    events.push({
+      date: r.event_date as string,
+      title: r.title as string,
+      type: (r.event_type as CalendarEvent["type"]) || "event",
+      id: r.id as number,
+    });
+  }
+
+  if (includeLeaves) {
+    const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+    const { rows: leaveRows } = await sql`
+      SELECT lr.va_id, lr.date_from, lr.date_to, lr.type, vp.first_name, vp.last_name
+      FROM leave_requests lr
+      JOIN va_profiles vp ON vp.id = lr.va_id
+      WHERE lr.status = 'Approved'
+        AND lr.date_from <= ${monthStr + "-31"}
+        AND lr.date_to >= ${monthStr + "-01"}
+    `;
+    for (const r of leaveRows) {
+      const from = new Date(r.date_from as string);
+      const to = new Date(r.date_to as string);
+      const monthStart = new Date(year, month - 1, 1);
+      const monthEnd = new Date(year, month, 0);
+      const start = from < monthStart ? monthStart : from;
+      const end = to > monthEnd ? monthEnd : to;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        events.push({
+          date: dd,
+          title: `${r.first_name} ${r.last_name} — ${r.type || "Leave"}`,
+          type: "leave",
+          vaId: r.va_id as string,
+        });
+      }
+    }
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  return events;
+}
+
+export async function addCalendarEvent(eventDate: string, title: string, eventType: string): Promise<void> {
+  await ensureTablesOnce();
+  const now = estDateLong();
+  await sql`INSERT INTO calendar_events (event_date, title, event_type, created_at) VALUES (${eventDate}, ${title}, ${eventType}, ${now})`;
+}
+
+export async function deleteCalendarEvent(id: number): Promise<void> {
+  await sql`DELETE FROM calendar_events WHERE id = ${id}`;
+}
+
 // ── Auto-fill Timeproof from Schedule ──
 
 const OWNER_VA_ID = "500101";

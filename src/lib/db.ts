@@ -184,6 +184,15 @@ export async function ensureTables() {
       invoice_link TEXT NOT NULL DEFAULT ''
     )
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id SERIAL PRIMARY KEY,
+      event_date TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL DEFAULT 'event',
+      created_at TEXT NOT NULL DEFAULT ''
+    )
+  `;
 }
 
 export { sql };
