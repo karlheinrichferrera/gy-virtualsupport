@@ -204,14 +204,14 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground truncate">{va.firstName} {va.lastName}</p>
+                    <p className="text-sm font-medium text-slate-900 truncate">{va.firstName} {va.lastName}</p>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                       Working
                     </span>
                   </div>
-                  <p className="text-xs text-muted truncate">{va.position || "VA"} &middot; {va.id}</p>
-                  <p className="text-xs text-muted truncate">Client: {va.clientName} &middot; In: {va.timeIn}</p>
+                  <p className="text-xs text-slate-500 truncate">{va.position || "VA"} &middot; {va.id}</p>
+                  <p className="text-xs text-slate-500 truncate">Client: {va.clientName} &middot; In: {va.timeIn}</p>
                 </div>
               </div>
             ))}
