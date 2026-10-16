@@ -6,15 +6,15 @@ import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
 import { estDate, estTime, estDateLong, localTZ, estToLocal, fmtTime12 } from "@/lib/est";
 
-function round15(totalMins: number): number {
-  return Math.round(totalMins / 15) * 15;
+function round30(totalMins: number): number {
+  return Math.round(totalMins / 30) * 30;
 }
 
 function calcMins(timeIn: string, timeOut: string): number {
   if (!timeIn || !timeOut) return 0;
   const [ih, im] = timeIn.split(":").map(Number);
   const [oh, om] = timeOut.split(":").map(Number);
-  const m = round15(oh * 60 + om) - round15(ih * 60 + im);
+  const m = round30(oh * 60 + om) - round30(ih * 60 + im);
   return m > 0 ? m : 0;
 }
 
