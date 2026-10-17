@@ -1,4 +1,5 @@
 import { sql } from "@vercel/postgres";
+import { ensureNotificationSchema } from "./notification-schema";
 
 export async function ensureTables() {
   await sql`
@@ -119,8 +120,6 @@ export async function ensureTables() {
     await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES ('devin@goldenyearsdesign.com', 'gyclient2026', 'Devin Rubin', 'System Default')`;
   }
 
-  await sql`ALTER TABLE client_invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
-
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''`;
@@ -184,6 +183,7 @@ export async function ensureTables() {
       invoice_link TEXT NOT NULL DEFAULT ''
     )
   `;
+  await sql`ALTER TABLE client_invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
   await sql`
     CREATE TABLE IF NOT EXISTS calendar_events (
       id SERIAL PRIMARY KEY,
@@ -215,6 +215,7 @@ export async function ensureTables() {
       UNIQUE(notification_id, va_id)
     )
   `;
+  await ensureNotificationSchema();
 }
 
 export { sql };

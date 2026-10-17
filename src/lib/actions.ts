@@ -1,16 +1,27 @@
 "use server";
 
 import { sql } from "@vercel/postgres";
+import * as notificationService from "./notifications";
+import type { NotificationInput } from "./notification-types";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
 import { estDate, estDateLong } from "./est";
 
 
 let tablesReady = false;
+let tablesPending: Promise<void> | undefined;
 async function ensureTablesOnce() {
   if (tablesReady) return;
-  const { ensureTables } = await import("./db");
-  await ensureTables();
-  tablesReady = true;
+  if (!tablesPending) {
+    tablesPending = (async () => {
+      const { ensureTables } = await import("./db");
+      await ensureTables();
+      tablesReady = true;
+    })().catch(error => {
+      tablesPending = undefined;
+      throw error;
+    });
+  }
+  await tablesPending;
 }
 
 function rowToProfile(r: Record<string, unknown>): VAProfile {
@@ -1212,95 +1223,72 @@ export async function getWorkingVAs(): Promise<{ id: string; firstName: string; 
 
 // ── Notifications ──
 
-export type Notification = {
-  id: number;
-  vaId: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  createdAt: string;
-  createdBy: string;
-};
+export type { Notification } from "./notification-types";
 
-export async function getNotifications(vaId: string): Promise<Notification[]> {
+export async function getNotifications(vaId: string) {
   await ensureTablesOnce();
-  const { rows } = await sql`
-    SELECT n.*,
-      CASE WHEN n.va_id = '' THEN EXISTS(SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.va_id = ${vaId}) ELSE n.is_read END as effective_read
-    FROM notifications n
-    WHERE n.va_id = ${vaId} OR n.va_id = ''
-    ORDER BY n.id DESC
-  `;
-  return rows.map(r => ({
-    id: r.id as number,
-    vaId: r.va_id as string,
-    title: r.title as string,
-    message: r.message as string,
-    type: r.type as string,
-    isRead: Boolean(r.effective_read),
-    createdAt: r.created_at as string,
-    createdBy: r.created_by as string,
-  }));
+  return notificationService.recipientNotifications("va", vaId);
 }
 
 export async function getUnreadNotificationCount(vaId: string): Promise<number> {
-  await ensureTablesOnce();
-  const { rows } = await sql`
-    SELECT COUNT(*) as cnt FROM notifications n
-    WHERE (n.va_id = ${vaId} AND n.is_read = false)
-       OR (n.va_id = '' AND NOT EXISTS(SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.va_id = ${vaId}))
-  `;
-  return parseInt(rows[0].cnt as string) || 0;
+  return (await getNotifications(vaId)).filter(n => !n.isRead).length;
 }
 
 export async function markNotificationRead(notificationId: number, vaId: string): Promise<void> {
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT va_id FROM notifications WHERE id = ${notificationId}`;
-  if (!rows.length) return;
-  if (rows[0].va_id === "") {
-    await sql`INSERT INTO notification_reads (notification_id, va_id) VALUES (${notificationId}, ${vaId}) ON CONFLICT DO NOTHING`;
-  } else {
-    await sql`UPDATE notifications SET is_read = true WHERE id = ${notificationId} AND va_id = ${vaId}`;
-  }
+  await notificationService.readRecipientNotifications("va", vaId, notificationId);
 }
 
 export async function markAllNotificationsRead(vaId: string): Promise<void> {
   await ensureTablesOnce();
-  await sql`UPDATE notifications SET is_read = true WHERE va_id = ${vaId} AND is_read = false`;
-  const { rows } = await sql`
-    SELECT n.id FROM notifications n
-    WHERE n.va_id = '' AND NOT EXISTS(SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.va_id = ${vaId})
-  `;
-  for (const r of rows) {
-    await sql`INSERT INTO notification_reads (notification_id, va_id) VALUES (${r.id}, ${vaId}) ON CONFLICT DO NOTHING`;
-  }
+  await notificationService.readRecipientNotifications("va", vaId);
 }
 
-export async function createNotification(data: { vaId: string; title: string; message: string; type?: string; createdBy?: string }): Promise<void> {
+export async function getClientNotifications(email: string) {
   await ensureTablesOnce();
-  const now = estDateLong();
-  await sql`INSERT INTO notifications (va_id, title, message, type, created_at, created_by) VALUES (${data.vaId}, ${data.title}, ${data.message}, ${data.type || "admin"}, ${now}, ${data.createdBy || "admin"})`;
+  const recipientId = await notificationService.clientRecipientId(email);
+  return notificationService.recipientNotifications("client", recipientId);
+}
+
+export async function getClientUnreadNotificationCount(email: string): Promise<number> {
+  return (await getClientNotifications(email)).filter(n => !n.isRead).length;
+}
+
+export async function markClientNotificationRead(notificationId: number, email: string): Promise<void> {
+  await ensureTablesOnce();
+  const recipientId = await notificationService.clientRecipientId(email);
+  await notificationService.readRecipientNotifications("client", recipientId, notificationId);
+}
+
+export async function markAllClientNotificationsRead(email: string): Promise<void> {
+  await ensureTablesOnce();
+  const recipientId = await notificationService.clientRecipientId(email);
+  await notificationService.readRecipientNotifications("client", recipientId);
+}
+
+export async function createNotification(data: NotificationInput): Promise<void> {
+  await ensureTablesOnce();
+  await notificationService.saveNotification(data);
 }
 
 export async function deleteNotification(id: number): Promise<void> {
   await ensureTablesOnce();
-  await sql`DELETE FROM notifications WHERE id = ${id}`;
+  await notificationService.removeNotification(id);
 }
 
-export async function getAllNotifications(): Promise<Notification[]> {
+export async function deleteNotificationSchedule(id: number): Promise<void> {
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT * FROM notifications ORDER BY id DESC`;
-  return rows.map(r => ({
-    id: r.id as number,
-    vaId: r.va_id as string,
-    title: r.title as string,
-    message: r.message as string,
-    type: r.type as string,
-    isRead: Boolean(r.is_read),
-    createdAt: r.created_at as string,
-    createdBy: r.created_by as string,
-  }));
+  await notificationService.removeNotificationSchedule(id);
+}
+
+export async function getAllNotifications() {
+  await ensureTablesOnce();
+  return notificationService.adminNotifications();
+}
+
+export async function processScheduledNotifications(): Promise<void> {
+  await ensureTablesOnce();
+  await notificationService.processNotificationMaintenance();
 }
 
 export async function generateBiweeklyReminders(): Promise<void> {
