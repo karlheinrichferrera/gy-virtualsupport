@@ -216,7 +216,7 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
                         {notification.imageUrl && (
                           <Image src={notification.imageUrl} alt={`Image for ${notification.title}`} width={640} height={320} unoptimized className={`mt-2 w-full rounded-lg object-contain ${isExpanded ? "max-h-64" : "max-h-32"}`} />
                         )}
-                        <span className={`mt-0.5 block whitespace-pre-wrap break-words text-xs text-gray-600 ${isExpanded ? "" : "line-clamp-2"}`}>{notification.message}</span>
+                        <span className={`mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-600 ${isExpanded ? "block" : "line-clamp-2"}`}>{notification.message}</span>
                         <span className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
                           <span className="text-[10px] text-gray-400">{notification.createdAt}</span>
                           {notification.redirectTo ? (
