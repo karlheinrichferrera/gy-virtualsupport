@@ -72,6 +72,21 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* iOS gives native date/time controls an intrinsic width that can exceed a
+   form column. Keep native picker behavior while fitting the styled field. */
+input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]) {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+input::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--muted) transparent;

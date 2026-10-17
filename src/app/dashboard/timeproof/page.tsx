@@ -183,12 +183,16 @@ export default function TimeproofPage() {
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <CalendarDays size={16} className="text-slate-400" />
-          <span className="text-sm text-slate-500">From</span>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900" />
-          <span className="text-sm text-slate-500">To</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900" />
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <label className="flex min-w-0 items-center gap-2">
+            <CalendarDays size={16} className="text-slate-400" />
+            <span className="text-sm text-slate-500">From</span>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900" />
+          </label>
+          <label className="flex min-w-0 items-center gap-2">
+            <span className="text-sm text-slate-500">To</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900" />
+          </label>
           {(dateFrom || dateTo) && (
             <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-slate-400 hover:text-slate-600 underline">Clear</button>
           )}
@@ -309,7 +313,7 @@ export default function TimeproofPage() {
 
       {showOTForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full min-w-0 max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Clock size={20} className="text-red-600" /> Request Overtime
@@ -350,7 +354,7 @@ export default function TimeproofPage() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full min-w-0 max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Fingerprint size={20} className="text-blue-600" /> {editEntry ? "Edit Entry" : "Punch In"}
