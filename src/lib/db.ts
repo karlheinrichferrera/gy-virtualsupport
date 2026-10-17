@@ -193,6 +193,28 @@ export async function ensureTables() {
       created_at TEXT NOT NULL DEFAULT ''
     )
   `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      va_id TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'general',
+      is_read BOOLEAN NOT NULL DEFAULT false,
+      created_at TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT 'system'
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      id SERIAL PRIMARY KEY,
+      notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+      va_id TEXT NOT NULL,
+      UNIQUE(notification_id, va_id)
+    )
+  `;
 }
 
 export { sql };

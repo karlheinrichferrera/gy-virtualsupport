@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import NotificationBell from "@/components/NotificationBell";
 import { getProfile, autoFillScheduleTimeproof } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
@@ -61,6 +62,7 @@ export default function DashboardLayout({
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <NotificationBell vaId={vaId} />
             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
               {vaName.charAt(0)}
             </div>

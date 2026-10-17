@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Building2,
   Fingerprint,
+  Bell,
   X,
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/admin/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/admin/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/admin/dashboard/clients", label: "Client Management", icon: Building2 },
+  { href: "/admin/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
