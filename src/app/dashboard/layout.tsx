@@ -48,27 +48,27 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="lg:ml-64">
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-background rounded-lg">
+      <div className="min-w-0 lg:ml-64">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 sticky top-0 z-20">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open navigation" className="lg:hidden shrink-0 p-2 hover:bg-background rounded-lg">
               <Menu size={20} className="text-muted" />
             </button>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">
+            <div className="min-w-0">
+              <h2 className="truncate text-sm sm:text-lg font-semibold text-foreground">
                 Welcome back, {vaName}
               </h2>
               <p className="text-xs text-muted">ID: {vaId}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-4">
             <NotificationBell vaId={vaId} />
             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
               {vaName.charAt(0)}
             </div>
           </div>
         </header>
-        <main className="p-4 lg:p-6">{children}</main>
+        <main className="min-w-0 p-3 sm:p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

@@ -171,7 +171,7 @@ export default function AdminClientsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Building2 size={24} />
           Client Management
@@ -395,7 +395,7 @@ export default function AdminClientsPage() {
               <button onClick={() => setShowAddAdj(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleAddAdj} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
                   <select required value={adjForm.clientId || ""} onChange={(e) => setAdjForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
                     <option value="">Select a client</option>
@@ -420,7 +420,7 @@ export default function AdminClientsPage() {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={adjForm.hourlyRate} onChange={(e) => setAdjForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.00" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Sales Commission</label><input type="text" value={adjForm.salesCommission} onChange={(e) => setAdjForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="e.g. 5%" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Referral Bonus</label><input type="text" value={adjForm.referralBonus} onChange={(e) => setAdjForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="e.g. $50" /></div>
-                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={adjForm.notes} onChange={(e) => setAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={adjForm.notes} onChange={(e) => setAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddAdj(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -457,7 +457,7 @@ export default function AdminClientsPage() {
               <button onClick={() => setEditAdj(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleEditAdj} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
                   <select required value={editAdjForm.clientId || ""} onChange={(e) => setEditAdjForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
                     <option value="">Select a client</option>
@@ -482,7 +482,7 @@ export default function AdminClientsPage() {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={editAdjForm.hourlyRate} onChange={(e) => setEditAdjForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.00" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Sales Commission</label><input type="text" value={editAdjForm.salesCommission} onChange={(e) => setEditAdjForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="e.g. 5%" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Referral Bonus</label><input type="text" value={editAdjForm.referralBonus} onChange={(e) => setEditAdjForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="e.g. $50" /></div>
-                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={editAdjForm.notes} onChange={(e) => setEditAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={editAdjForm.notes} onChange={(e) => setEditAdjForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditAdj(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -558,7 +558,7 @@ export default function AdminClientsPage() {
                   {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={invForm.invoiceNumber} onChange={(e) => setInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} placeholder="e.g. INV-001" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={invForm.amount} onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="e.g. $2,500.00" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={invForm.billFrom} onChange={(e) => setInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
@@ -572,7 +572,7 @@ export default function AdminClientsPage() {
                     <option value="Draft">Draft</option>
                   </select>
                 </div>
-                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={invForm.invoiceLink} onChange={(e) => setInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} placeholder="https://drive.google.com/..." /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={invForm.invoiceLink} onChange={(e) => setInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} placeholder="https://drive.google.com/..." /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddInvoice(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -598,7 +598,7 @@ export default function AdminClientsPage() {
                   {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={editInvForm.invoiceNumber} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={editInvForm.amount} onChange={(e) => setEditInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={editInvForm.billFrom} onChange={(e) => setEditInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
@@ -612,7 +612,7 @@ export default function AdminClientsPage() {
                     <option value="Draft">Draft</option>
                   </select>
                 </div>
-                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={editInvForm.invoiceLink} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={editInvForm.invoiceLink} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditInv(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>

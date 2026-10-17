@@ -179,7 +179,7 @@ export default function AdminInvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Invoice Management</h1>
         <button
           onClick={() => downloadAllInvoices(filtered)}

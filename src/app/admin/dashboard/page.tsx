@@ -219,7 +219,7 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      <div className="bg-card rounded-xl border border-border p-5 flex items-center justify-between">
+      <div className="bg-card rounded-xl border border-border p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Download All Data</h2>
           <p className="text-sm text-muted mt-1">Export all portal data as a single XLSX workbook with multiple sheets</p>

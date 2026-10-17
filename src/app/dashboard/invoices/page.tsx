@@ -128,7 +128,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
         <button
           onClick={() => {
@@ -362,7 +362,7 @@ export default function InvoicesPage() {
                   <p className="text-slate-600"><strong>From:</strong> {profile?.firstName} {profile?.lastName} ({profile?.id})</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
                     <input type="date" value={form.dateFrom} onChange={(e) => setForm((f) => ({ ...f, dateFrom: e.target.value }))} required className={inputClass} />
@@ -373,7 +373,7 @@ export default function InvoicesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Hours Worked</label>
                     <input type="number" value={form.hours} onChange={(e) => setForm((f) => ({ ...f, hours: e.target.value }))} required min="0" step="0.5" className={inputClass} placeholder="80" />

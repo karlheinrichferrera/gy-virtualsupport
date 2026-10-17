@@ -139,7 +139,7 @@ export default function ClientVAsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div className="flex items-start gap-2">
                   <Mail size={16} className="text-slate-400 mt-0.5" />
                   <div><p className="text-slate-500">Email</p><p className="font-medium text-slate-900">{profile.email}</p></div>

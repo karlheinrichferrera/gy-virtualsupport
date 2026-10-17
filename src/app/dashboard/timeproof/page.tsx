@@ -154,13 +154,13 @@ export default function TimeproofPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Fingerprint size={24} /> Timeproof
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           {clients.length > 1 && (
-            <select value={selectedClient ?? ""} onChange={(e) => setSelectedClient(Number(e.target.value))} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[220px] bg-white text-slate-900">
+            <select value={selectedClient ?? ""} onChange={(e) => setSelectedClient(Number(e.target.value))} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full min-w-0 sm:w-auto sm:min-w-[220px] bg-white text-slate-900">
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.displayName}{c.companyName ? ` (${c.companyName})` : ""}</option>
               ))}
@@ -323,7 +323,7 @@ export default function TimeproofPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
                 <input type="date" value={otForm.punchDate} onChange={(e) => setOTForm((f) => ({ ...f, punchDate: e.target.value }))} required className={inputClass} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Time In</label>
                   <input type="time" value={otForm.timeIn} onChange={(e) => setOTForm((f) => ({ ...f, timeIn: e.target.value }))} required className={inputClass} />

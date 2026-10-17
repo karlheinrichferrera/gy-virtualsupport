@@ -22,7 +22,7 @@ type ColumnDef = {
 const ALL_COLUMNS: ColumnDef[] = [
   { key: "id", label: "VA ID", defaultVisible: true, render: (va) => <span className="font-mono font-medium text-foreground">{va.id}</span> },
   { key: "name", label: "Name", defaultVisible: true, render: (va) => (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 flex-wrap items-center gap-3">
       {va.profilePicture ? (
         <img src={va.profilePicture} alt="" className="w-8 h-8 rounded-full object-cover" />
       ) : (
@@ -133,19 +133,19 @@ function ClientMultiSelect({ selected, onChange, clients }: { selected: ClientAs
             return c ? (
               <div key={s.clientId} className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 <p className="text-xs font-semibold text-slate-700">{c.displayName}</p>
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <label className="text-xs text-slate-500 w-20 shrink-0">Client Rate</label>
                   <input type="text" value={s.clientRate} onChange={(e) => updateField(s.clientId, "clientRate", e.target.value)}
                     className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                     placeholder="e.g. $5/hr" />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <label className="text-xs text-slate-500 w-20 shrink-0">Report (Edit)</label>
                   <input type="text" value={s.reportUrl} onChange={(e) => updateField(s.clientId, "reportUrl", e.target.value)}
                     className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                     placeholder="Editable Google Sheet link" />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <label className="text-xs text-slate-500 w-20 shrink-0">Report (View)</label>
                   <input type="text" value={s.reportViewUrl} onChange={(e) => updateField(s.clientId, "reportViewUrl", e.target.value)}
                     className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
@@ -238,18 +238,18 @@ function WorkScheduleEditor({ value, onChange }: { value: WorkSchedule; onChange
       {DAYS.map((day) => {
         const d = value[day];
         return (
-          <div key={day} className="flex items-center gap-3">
+          <div key={day} className="flex min-w-0 flex-wrap items-center gap-3">
             <button type="button" onClick={() => updateDay(day, "enabled", !d.enabled)}
               className={`w-12 text-xs font-semibold py-1.5 rounded-lg border transition-colors ${d.enabled ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-400 border-slate-300"}`}>
               {DAY_LABELS[day]}
             </button>
             {d.enabled ? (
-              <div className="flex items-center gap-2 flex-1">
+              <div className="grid min-w-0 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:w-auto sm:flex-1">
                 <input type="time" value={d.start} onChange={(e) => updateDay(day, "start", e.target.value)}
-                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+                  className="min-w-0 w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
                 <span className="text-xs text-slate-400">to</span>
                 <input type="time" value={d.end} onChange={(e) => updateDay(day, "end", e.target.value)}
-                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+                  className="min-w-0 w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
               </div>
             ) : (
               <span className="text-xs text-slate-400 italic">Day off</span>
@@ -564,9 +564,9 @@ export default function VAManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">VA Management</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <span className="text-sm text-muted">{vas.length} active VAs</span>
           <div className="relative">
             <button
@@ -676,7 +676,7 @@ export default function VAManagementPage() {
                   <PositionBadges position={profile.position} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div className="flex items-start gap-2"><Mail size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Email</p><p className="font-medium text-slate-900">{profile.email}</p></div></div>
                 <div className="flex items-start gap-2"><Phone size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Phone</p><p className="font-medium text-slate-900">{profile.phone}</p></div></div>
                 <div className="flex items-start gap-2"><Briefcase size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Contractor ID</p><p className="font-medium text-slate-900">{profile.contractorId || "N/A"}</p></div></div>
@@ -699,23 +699,23 @@ export default function VAManagementPage() {
                   <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">PayPal Link</p><p className="font-medium text-slate-900">{profile.paypalLink || "N/A"}</p></div></div>
                 )}
                 {profile.payoutMode === "Ewallet" && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">EWallet Name</p><p className="font-medium text-slate-900">{profile.ewalletName || "N/A"}</p></div></div>
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">EWallet Number</p><p className="font-medium text-slate-900">{profile.ewalletNumber || "N/A"}</p></div></div>
                   </div>
                 )}
                 {profile.payoutMode === "Bank Transfer" && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
-                    <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2 sm:col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
                   </div>
                 )}
                 {(!profile.payoutMode || profile.payoutMode === "Wise") && profile.payoutMode !== "Paypal" && profile.payoutMode !== "Ewallet" && profile.payoutMode !== "Bank Transfer" && profile.bankName && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Bank</p><p className="font-medium text-slate-900">{profile.bankName || "N/A"}</p></div></div>
                     <div className="flex items-start gap-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account #</p><p className="font-medium text-slate-900">{profile.bankAccountNumber || "N/A"}</p></div></div>
-                    <div className="flex items-start gap-2 col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
+                    <div className="flex items-start gap-2 sm:col-span-2"><CreditCard size={16} className="text-slate-400 mt-0.5" /><div><p className="text-slate-500">Account Name</p><p className="font-medium text-slate-900">{profile.bankAccountName || "N/A"}</p></div></div>
                   </div>
                 )}
               </div>
@@ -797,10 +797,10 @@ export default function VAManagementPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">VA ID</label><input type="text" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} className={inputClass} placeholder="Auto-generated" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Contractor ID</label><input type="text" value={form.contractorId} onChange={(e) => setForm((f) => ({ ...f, contractorId: e.target.value }))} className={inputClass} placeholder="e.g. CTR-2026-0001" /></div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-2">Position(s) *</label>
                     <PositionMultiSelect selected={form.positions} onChange={(v) => setForm((f) => ({ ...f, positions: v }))} />
                   </div>
@@ -808,32 +808,32 @@ export default function VAManagementPage() {
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={form.middleName} onChange={(e) => setForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Suffix</label><input type="text" value={form.suffix} onChange={(e) => setForm((f) => ({ ...f, suffix: e.target.value }))} className={inputClass} placeholder="Jr., Sr., III" /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Contact Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone *</label><input type="text" required value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} placeholder="(+63) 9XX XXX XXXX" /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Alt Phone</label><input type="text" value={form.altPhone} onChange={(e) => setForm((f) => ({ ...f, altPhone: e.target.value }))} className={inputClass} placeholder="N/A" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Alt Phone</label><input type="text" value={form.altPhone} onChange={(e) => setForm((f) => ({ ...f, altPhone: e.target.value }))} className={inputClass} placeholder="N/A" /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Permanent Address</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Street *</label><input type="text" required value={form.street} onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Subdivision</label><input type="text" value={form.subdivision} onChange={(e) => setForm((f) => ({ ...f, subdivision: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Barangay *</label><input type="text" required value={form.barangay} onChange={(e) => setForm((f) => ({ ...f, barangay: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">City *</label><input type="text" required value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Province *</label><input type="text" required value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Postal Code</label><input type="text" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} className={inputClass} /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Temporary Address</label><input type="text" value={form.temporaryAddress} onChange={(e) => setForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={inputClass} placeholder="Same as permanent address" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Temporary Address</label><input type="text" value={form.temporaryAddress} onChange={(e) => setForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={inputClass} placeholder="Same as permanent address" /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Employment & Emergency</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Employment Status</label><select value={form.employmentStatus} onChange={(e) => setForm((f) => ({ ...f, employmentStatus: e.target.value }))} className={inputClass}>{EMPLOYMENT_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}</select></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={form.dateHired} onChange={(e) => setForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} placeholder="e.g. October 07, 2026" /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate *</label><input type="text" required value={form.currentRate} onChange={(e) => setForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} placeholder="$X.XX / Hour" /></div>
@@ -843,10 +843,10 @@ export default function VAManagementPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Payout Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={form.payoutMode} onChange={(e) => setForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={form.payoutMode} onChange={(e) => setForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
                   {form.payoutMode === "Paypal" && (
-                    <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={form.paypalLink} onChange={(e) => setForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
+                    <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={form.paypalLink} onChange={(e) => setForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
                   )}
                   {form.payoutMode === "Ewallet" && (
                     <>
@@ -856,7 +856,7 @@ export default function VAManagementPage() {
                   )}
                   {form.payoutMode === "Bank Transfer" && (
                     <>
-                      <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                      <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={form.bankAccountNumber} onChange={(e) => setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={form.bankAccountName} onChange={(e) => setForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
                     </>
@@ -901,9 +901,9 @@ export default function VAManagementPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Personal Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Contractor ID</label><input type="text" value={editForm.contractorId} onChange={(e) => setEditForm((f) => ({ ...f, contractorId: e.target.value }))} className={inputClass} /></div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-2">Position(s) *</label>
                     <PositionMultiSelect selected={editForm.positions} onChange={(v) => setEditForm((f) => ({ ...f, positions: v }))} />
                   </div>
@@ -911,32 +911,32 @@ export default function VAManagementPage() {
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label><input type="text" value={editForm.middleName} onChange={(e) => setEditForm((f) => ({ ...f, middleName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label><input type="text" required value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Suffix</label><input type="text" value={editForm.suffix} onChange={(e) => setEditForm((f) => ({ ...f, suffix: e.target.value }))} className={inputClass} placeholder="Jr., Sr., III" /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={editForm.dateOfBirth} onChange={(e) => setEditForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label><input type="text" value={editForm.dateOfBirth} onChange={(e) => setEditForm((f) => ({ ...f, dateOfBirth: e.target.value }))} className={inputClass} placeholder="e.g. January 15, 1995" /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Contact Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone *</label><input type="text" required value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Alt Phone</label><input type="text" value={editForm.altPhone} onChange={(e) => setEditForm((f) => ({ ...f, altPhone: e.target.value }))} className={inputClass} /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Alt Phone</label><input type="text" value={editForm.altPhone} onChange={(e) => setEditForm((f) => ({ ...f, altPhone: e.target.value }))} className={inputClass} /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Permanent Address</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Street</label><input type="text" value={editForm.street} onChange={(e) => setEditForm((f) => ({ ...f, street: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Subdivision</label><input type="text" value={editForm.subdivision} onChange={(e) => setEditForm((f) => ({ ...f, subdivision: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Barangay</label><input type="text" value={editForm.barangay} onChange={(e) => setEditForm((f) => ({ ...f, barangay: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">City</label><input type="text" value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Province</label><input type="text" value={editForm.province} onChange={(e) => setEditForm((f) => ({ ...f, province: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Postal Code</label><input type="text" value={editForm.postalCode} onChange={(e) => setEditForm((f) => ({ ...f, postalCode: e.target.value }))} className={inputClass} /></div>
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Temporary Address</label><input type="text" value={editForm.temporaryAddress} onChange={(e) => setEditForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={inputClass} /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Temporary Address</label><input type="text" value={editForm.temporaryAddress} onChange={(e) => setEditForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={inputClass} /></div>
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Employment & Emergency</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Employment Status</label><select value={editForm.employmentStatus} onChange={(e) => setEditForm((f) => ({ ...f, employmentStatus: e.target.value }))} className={inputClass}><option value="">Select status</option>{EMPLOYMENT_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}</select></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Date Hired</label><input type="text" value={editForm.dateHired} onChange={(e) => setEditForm((f) => ({ ...f, dateHired: e.target.value }))} className={inputClass} /></div>
                   <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={editForm.currentRate} onChange={(e) => setEditForm((f) => ({ ...f, currentRate: e.target.value }))} className={inputClass} /></div>
@@ -946,10 +946,10 @@ export default function VAManagementPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">Payout Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={editForm.payoutMode} onChange={(e) => setEditForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Mode of Payout</label><select value={editForm.payoutMode} onChange={(e) => setEditForm((f) => ({ ...f, payoutMode: e.target.value }))} className={inputClass}><option value="">Select payout mode</option>{PAYOUT_MODE_OPTIONS.map((m) => (<option key={m} value={m}>{m}</option>))}</select></div>
                   {editForm.payoutMode === "Paypal" && (
-                    <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={editForm.paypalLink} onChange={(e) => setEditForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
+                    <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">PayPal Link</label><input type="text" value={editForm.paypalLink} onChange={(e) => setEditForm((f) => ({ ...f, paypalLink: e.target.value }))} className={inputClass} placeholder="e.g. paypal.me/username" /></div>
                   )}
                   {editForm.payoutMode === "Ewallet" && (
                     <>
@@ -959,7 +959,7 @@ export default function VAManagementPage() {
                   )}
                   {editForm.payoutMode === "Bank Transfer" && (
                     <>
-                      <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
+                      <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Bank Name</label><input type="text" value={editForm.bankName} onChange={(e) => setEditForm((f) => ({ ...f, bankName: e.target.value }))} className={inputClass} placeholder="e.g. BDO, BPI" /></div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Number</label><input type="text" value={editForm.bankAccountNumber} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={inputClass} /></div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-1">Account Name</label><input type="text" value={editForm.bankAccountName} onChange={(e) => setEditForm((f) => ({ ...f, bankAccountName: e.target.value }))} className={inputClass} /></div>
                     </>

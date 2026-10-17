@@ -39,23 +39,23 @@ export default function AdminDashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="lg:ml-64">
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-background rounded-lg">
+      <div className="min-w-0 lg:ml-64">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 sticky top-0 z-20">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open navigation" className="lg:hidden shrink-0 p-2 hover:bg-background rounded-lg">
               <Menu size={20} className="text-muted" />
             </button>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Admin Dashboard</h2>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm sm:text-lg font-semibold text-foreground">Admin Dashboard</h2>
               <p className="text-xs text-muted">Admin Portal</p>
             </div>
           </div>
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => setShowMenu((v) => !v)}
               className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity"
             >
-              <span className="hidden sm:inline text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
+              <span className="hidden sm:inline max-w-40 truncate text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
                 {displayName}
               </span>
               <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">
@@ -93,7 +93,7 @@ export default function AdminDashboardLayout({
             )}
           </div>
         </header>
-        <main className="p-4 lg:p-6">{children}</main>
+        <main className="min-w-0 p-3 sm:p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

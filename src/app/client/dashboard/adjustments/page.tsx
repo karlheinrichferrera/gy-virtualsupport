@@ -82,7 +82,7 @@ export default function ClientAdjustmentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <DollarSign size={24} />
           Salary Adjustments
@@ -96,7 +96,7 @@ export default function ClientAdjustmentsPage() {
         <select
           value={selectedVA}
           onChange={(e) => setSelectedVA(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px]"
+          className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full min-w-0 sm:w-auto sm:min-w-[220px]"
         >
           {allVAs.map((va) => (
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
@@ -174,7 +174,7 @@ export default function ClientAdjustmentsPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Effectivity Date *</label><input type="text" required value={form.effectivityDate} onChange={(e) => setForm((f) => ({ ...f, effectivityDate: e.target.value }))} className={inputClass} placeholder="e.g. October 1, 2026" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Type *</label>
                   <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputClass}>
@@ -187,7 +187,7 @@ export default function ClientAdjustmentsPage() {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Hourly Rate</label><input type="text" value={form.hourlyRate} onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.00" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Sales Commission</label><input type="text" value={form.salesCommission} onChange={(e) => setForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="e.g. 5%" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Referral Bonus</label><input type="text" value={form.referralBonus} onChange={(e) => setForm((f) => ({ ...f, referralBonus: e.target.value }))} className={inputClass} placeholder="e.g. $50" /></div>
-                <div className="col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} placeholder="Optional notes" /></div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>

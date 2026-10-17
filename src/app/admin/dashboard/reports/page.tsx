@@ -53,7 +53,7 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-4 h-[calc(100vh-7rem)]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <ClipboardList size={24} /> Weekly Reports
         </h1>
@@ -64,12 +64,12 @@ export default function AdminReportsPage() {
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="Search VA..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
-        <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px]">
+        <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full min-w-0 sm:w-auto sm:min-w-[220px]">
           <option value="">Select a VA</option>
           {filtered.map((va) => (
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>

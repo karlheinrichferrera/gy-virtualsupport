@@ -81,7 +81,7 @@ export default function AdminAdjustmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Salary Adjustments</h1>
         <button
           onClick={() => setShowAdd(true)}
@@ -92,7 +92,7 @@ export default function AdminAdjustmentsPage() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <label className="text-sm font-medium text-foreground">Select VA:</label>
         <select
           value={selectedVA}
@@ -211,7 +211,7 @@ export default function AdminAdjustmentsPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Hourly Rate</label>
                 <input type="text" required value={form.hourlyRate} onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.50 / Hour" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Sales Commission</label>
                   <input type="text" value={form.salesCommission} onChange={(e) => setForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="No Adjustment" />
@@ -272,7 +272,7 @@ export default function AdminAdjustmentsPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Hourly Rate</label>
                 <input type="text" required value={editForm.hourlyRate} onChange={(e) => setEditForm((f) => ({ ...f, hourlyRate: e.target.value }))} className={inputClass} placeholder="e.g. $5.50 / Hour" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Sales Commission</label>
                   <input type="text" value={editForm.salesCommission} onChange={(e) => setEditForm((f) => ({ ...f, salesCommission: e.target.value }))} className={inputClass} placeholder="No Adjustment" />

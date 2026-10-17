@@ -49,7 +49,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
   return (
     <>
       {open && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed left-0 top-0 h-full w-64 bg-sidebar text-sidebar-text flex flex-col z-40 transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
+      <aside className={`fixed left-0 top-0 h-dvh w-64 max-w-[calc(100vw-2rem)] bg-sidebar text-sidebar-text flex flex-col z-40 transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="GY Virtual Support" className="w-10 h-10" />
@@ -60,7 +60,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
               <p className="text-xs text-sidebar-text">VA Portal</p>
             </div>
           </div>
-          <button onClick={onClose} className="lg:hidden p-1 hover:bg-white/10 rounded-lg">
+          <button onClick={onClose} aria-label="Close navigation" className="lg:hidden p-1 hover:bg-white/10 rounded-lg">
             <X size={20} className="text-sidebar-text" />
           </button>
         </div>

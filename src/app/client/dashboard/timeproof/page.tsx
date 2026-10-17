@@ -152,7 +152,7 @@ export default function ClientTimeproofPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Fingerprint size={24} /> Timeproof
         </h1>
@@ -180,7 +180,7 @@ export default function ClientTimeproofPage() {
       ) : (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-w-[220px] bg-white text-slate-900">
+            <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 w-full min-w-0 sm:w-auto sm:min-w-[220px] bg-white text-slate-900">
               <option value="">All VAs</option>
               {uniqueVAs.map(([vaId, vaName]) => (
                 <option key={vaId} value={vaId}>{vaId} - {vaName}</option>
@@ -273,7 +273,7 @@ export default function ClientTimeproofPage() {
 
           {viewMode === "week" && (
             <>
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
                   <ChevronLeft size={18} />
                 </button>

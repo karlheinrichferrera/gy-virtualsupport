@@ -51,7 +51,7 @@ export default function ClientReportsPage() {
 
   return (
     <div className="space-y-4 h-[calc(100vh-7rem)]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <ClipboardList size={24} /> Weekly Reports
         </h1>
@@ -63,7 +63,7 @@ export default function ClientReportsPage() {
       </div>
 
       {assignments.length > 1 && (
-        <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-w-[220px]">
+        <select value={selectedVA} onChange={(e) => setSelectedVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 w-full min-w-0 sm:w-auto sm:min-w-[220px]">
           <option value="">Select a VA</option>
           {assignments.map((a) => (
             <option key={a.vaId} value={a.vaId}>{a.vaName}</option>

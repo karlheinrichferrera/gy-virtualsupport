@@ -81,11 +81,11 @@ export default function AdminRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Leave & Request Management</h1>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-card rounded-xl border border-border p-4">
           <p className="text-sm text-muted">Total Requests</p>
           <p className="text-2xl font-bold text-foreground">{allRequests.length}</p>
@@ -268,7 +268,7 @@ export default function AdminRequestsPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Request ID</p>
                   <p className="text-sm font-semibold text-slate-900">{viewing.request.id}</p>
@@ -282,7 +282,7 @@ export default function AdminRequestsPage() {
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">VA Name</p>
                   <p className="text-sm text-slate-900">{viewing.vaName}</p>
@@ -292,7 +292,7 @@ export default function AdminRequestsPage() {
                   <p className="text-sm text-slate-900">{viewing.vaId}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Date Submitted</p>
                   <p className="text-sm text-slate-900">{viewing.request.dateSubmitted}</p>
@@ -302,7 +302,7 @@ export default function AdminRequestsPage() {
                   <StatusBadge status={viewing.request.status} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Date From</p>
                   <p className="text-sm text-slate-900">{viewing.request.dateFrom}</p>
@@ -382,7 +382,7 @@ export default function AdminRequestsPage() {
                   <option value="Shift Adjustment">Shift Adjustment Request</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
                   <input

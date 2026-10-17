@@ -27,7 +27,7 @@ export default function ClientTimesheetPage() {
 
   return (
     <div className="space-y-4 h-[calc(100vh-7rem)]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Clock size={24} />
           Timesheet

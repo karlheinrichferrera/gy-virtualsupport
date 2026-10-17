@@ -219,7 +219,7 @@ export default function RegisterPage() {
                 />
                 <p className="text-xs text-slate-500 mt-1">This will be your login ID</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
                     First Name <span className="text-red-500">*</span>
@@ -243,7 +243,7 @@ export default function RegisterPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
                     Last Name <span className="text-red-500">*</span>
@@ -289,7 +289,7 @@ export default function RegisterPage() {
                   placeholder="juan.delacruz@email.com"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
                     Phone <span className="text-red-500">*</span>
@@ -330,7 +330,7 @@ export default function RegisterPage() {
                   placeholder="Blk 5 Lot 10"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Village / Subdivision</label>
                   <input
@@ -352,7 +352,7 @@ export default function RegisterPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>
                     City <span className="text-red-500">*</span>
@@ -388,7 +388,7 @@ export default function RegisterPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Emergency Contact</label>
                   <input
@@ -454,7 +454,7 @@ export default function RegisterPage() {
                   placeholder="e.g. CTR-2026-0001"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
                     Password <span className="text-red-500">*</span>
@@ -504,7 +504,7 @@ export default function RegisterPage() {
                     </div>
                   )}
                   {form.payoutMode === "Ewallet" && (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>EWallet Name</label>
                         <select value={form.ewalletName} onChange={(e) => update("ewalletName", e.target.value)} className={inputClass}>
@@ -527,7 +527,7 @@ export default function RegisterPage() {
                         <label className={labelClass}>Bank Name</label>
                         <input type="text" value={form.bankName} onChange={(e) => update("bankName", e.target.value)} className={inputClass} placeholder="e.g. BDO, BPI, Metrobank" />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className={labelClass}>Account Number</label>
                           <input type="text" value={form.bankAccountNumber} onChange={(e) => update("bankAccountNumber", e.target.value)} className={inputClass} placeholder="Account number" />

@@ -223,7 +223,7 @@ export default function AdminTimeproofPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Fingerprint size={24} /> Timeproof
         </h1>
@@ -284,13 +284,13 @@ export default function AdminTimeproofPage() {
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px] bg-white text-slate-900">
+        <select value={filterVA} onChange={(e) => setFilterVA(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full min-w-0 sm:w-auto sm:min-w-[220px] bg-white text-slate-900">
           <option value="">All VAs</option>
           {vas.map((va) => (
             <option key={va.id} value={va.id}>{va.id} - {va.firstName} {va.lastName}</option>
           ))}
         </select>
-        <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[220px] bg-white text-slate-900">
+        <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full min-w-0 sm:w-auto sm:min-w-[220px] bg-white text-slate-900">
           <option value="">All Clients</option>
           {clients.map((c) => (
             <option key={c.id} value={String(c.id)}>{c.displayName}{c.companyName ? ` (${c.companyName})` : ""}</option>
@@ -408,7 +408,7 @@ export default function AdminTimeproofPage() {
 
       {viewMode === "week" && (
         <>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronLeft size={18} />
             </button>
@@ -656,7 +656,7 @@ export default function AdminTimeproofPage() {
                   <option value="overtime">Overtime</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
                   <input type="date" value={bulkForm.dateFrom} onChange={(e) => setBulkForm((f) => ({ ...f, dateFrom: e.target.value }))} required className={inputClass} />
@@ -726,7 +726,7 @@ export default function AdminTimeproofPage() {
                 <input type="date" value={form.punchDate} onChange={(e) => setForm((f) => ({ ...f, punchDate: e.target.value }))} required className={inputClass} />
               </div>
               {(form.entryType === "time" || form.entryType === "overtime") && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Time In</label>
                     <input type="time" value={form.timeIn} onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))} required className={inputClass} />

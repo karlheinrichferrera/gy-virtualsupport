@@ -93,7 +93,7 @@ export default function RequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">
           Leave & Shift Requests
         </h1>
@@ -248,7 +248,7 @@ export default function RequestsPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Request ID</p>
                   <p className="text-sm font-semibold text-slate-900">{viewing.id}</p>
@@ -262,7 +262,7 @@ export default function RequestsPage() {
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Date Submitted</p>
                   <p className="text-sm text-slate-900">{viewing.dateSubmitted}</p>
@@ -272,7 +272,7 @@ export default function RequestsPage() {
                   <StatusBadge status={viewing.status} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Date From</p>
                   <p className="text-sm text-slate-900">{viewing.dateFrom}</p>
@@ -349,7 +349,7 @@ export default function RequestsPage() {
                   <option value="Shift Adjustment">Shift Adjustment Request</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
                   <input
@@ -448,7 +448,7 @@ export default function RequestsPage() {
                     <option value="Shift Adjustment">Shift Adjustment Request</option>
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Date From</label>
                     <input

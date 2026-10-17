@@ -81,7 +81,7 @@ export default function NotificationBell({ vaId }: { vaId: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
             <h3 className="font-semibold text-gray-900">Notifications</h3>
             <div className="flex items-center gap-2">
@@ -96,7 +96,7 @@ export default function NotificationBell({ vaId }: { vaId: string }) {
             </div>
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[min(24rem,calc(100dvh-5rem))] overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-400 text-sm">No notifications yet</div>
             ) : (
