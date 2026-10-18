@@ -172,6 +172,9 @@ export default function ProfilePage() {
                     const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
                     URL.revokeObjectURL(img.src);
                     await actions.updateProfile(profile.id, { profilePicture: dataUrl });
+                    window.dispatchEvent(new CustomEvent("va-profile-photo-updated", {
+                      detail: { vaId: profile.id, profilePicture: dataUrl },
+                    }));
                     const updated = await actions.getProfile(profile.id);
                     setProfile(updated || null);
                   }} />

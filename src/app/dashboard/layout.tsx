@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import NotificationBell from "@/components/NotificationBell";
+import VAAccountMenu from "@/components/VAAccountMenu";
 import { getProfile, autoFillScheduleTimeproof } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
@@ -15,6 +16,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [vaName, setVaName] = useState("");
   const [vaId, setVaId] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
   const [ready, setReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -32,10 +34,20 @@ export default function DashboardLayout({
       }
       setVaId(id);
       setVaName(`${profile.firstName} ${profile.lastName}`);
+      setProfilePhoto(profile.profilePicture || "");
       setReady(true);
       autoFillScheduleTimeproof(id);
     })();
   }, [router]);
+
+  useEffect(() => {
+    const handlePhoto = (event: Event) => {
+      const detail = (event as CustomEvent<{ vaId: string; profilePicture: string }>).detail;
+      if (detail?.vaId === vaId) setProfilePhoto(detail.profilePicture || "");
+    };
+    window.addEventListener("va-profile-photo-updated", handlePhoto);
+    return () => window.removeEventListener("va-profile-photo-updated", handlePhoto);
+  }, [vaId]);
 
   if (!ready) {
     return (
@@ -63,9 +75,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-4">
             <NotificationBell vaId={vaId} />
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
-              {vaName.charAt(0)}
-            </div>
+            <VAAccountMenu name={vaName} photo={profilePhoto} />
           </div>
         </header>
         <main className="min-w-0 p-3 sm:p-4 lg:p-6">{children}</main>
