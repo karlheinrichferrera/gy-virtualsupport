@@ -6,6 +6,9 @@ import type { NotificationInput } from "./notification-types";
 import { beginImageUpload, appendImageChunk } from "./notification-image-storage";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
 import { estDate, estDateLong } from "./est";
+import { clearAdminSession, createAdminSession, getAdminSession, invalidateAdminSessions, requireAdminSession } from "./admin-session";
+import { wakeEmailDelivery } from "./email-dispatch";
+import { approveVAEmail } from "./email-service";
 
 
 let tablesReady = false;
@@ -161,6 +164,7 @@ export async function addProfile(p: VAProfile): Promise<void> {
       ${JSON.stringify(p.workSchedule || DEFAULT_SCHEDULE)}
     )
   `;
+  if (await getAdminSession()) await approveVAEmail(p.id, p.email);
 }
 
 export async function updateProfile(id: string, updates: Partial<VAProfile>): Promise<void> {
@@ -208,6 +212,7 @@ export async function updateProfile(id: string, updates: Partial<VAProfile>): Pr
       work_schedule = ${JSON.stringify(merged.workSchedule || DEFAULT_SCHEDULE)}
     WHERE id = ${id}
   `;
+  if (await getAdminSession()) await approveVAEmail(id, merged.email);
 }
 
 export async function deleteProfile(id: string): Promise<void> {
@@ -426,17 +431,31 @@ export async function authenticateAdmin(username: string, password: string): Pro
   const { rows } = await sql`SELECT * FROM admin_accounts WHERE username = ${username} AND password = ${password}`;
   if (rows.length === 0) return null;
   const r = rows[0];
+  await createAdminSession(r.id as number);
   return { id: r.id as number, username: r.username as string, displayName: r.display_name as string, createdAt: r.created_at as string };
 }
 
+export async function getCurrentAdminSession() {
+  return getAdminSession();
+}
+
+export async function logoutAdmin(): Promise<void> {
+  await clearAdminSession();
+}
+
 export async function getAdminAccounts(): Promise<AdminAccount[]> {
+  await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id, username, display_name, created_at FROM admin_accounts ORDER BY id`;
   return rows.map((r) => ({ id: r.id as number, username: r.username as string, displayName: r.display_name as string, createdAt: r.created_at as string }));
 }
 
 export async function addAdminAccount(username: string, password: string, displayName: string): Promise<{ success: boolean; error?: string }> {
+  await requireAdminSession();
   await ensureTablesOnce();
+  if (!username.trim() || !displayName.trim() || password.length < 6) {
+    return { success: false, error: "Username, display name, and a password of at least 6 characters are required." };
+  }
   const { rows } = await sql`SELECT id FROM admin_accounts WHERE username = ${username}`;
   if (rows.length > 0) return { success: false, error: "Username already exists" };
   const now = estDateLong();
@@ -445,14 +464,21 @@ export async function addAdminAccount(username: string, password: string, displa
 }
 
 export async function changeAdminPassword(username: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  if (session.username !== username) return { success: false, error: "You can only change your own password." };
+  if (newPassword.length < 6) return { success: false, error: "Password must be at least 6 characters." };
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM admin_accounts WHERE username = ${username} AND password = ${currentPassword}`;
   if (rows.length === 0) return { success: false, error: "Current password is incorrect" };
   await sql`UPDATE admin_accounts SET password = ${newPassword} WHERE username = ${username}`;
+  await invalidateAdminSessions(session.id);
+  await createAdminSession(session.id);
   return { success: true };
 }
 
 export async function deleteAdminAccount(id: number): Promise<{ success: boolean; error?: string }> {
+  await requireAdminSession();
+  await ensureTablesOnce();
   const { rows } = await sql`SELECT COUNT(*) as cnt FROM admin_accounts`;
   const count = parseInt(rows[0].cnt as string) || 0;
   if (count <= 1) return { success: false, error: "Cannot delete the last admin account" };
@@ -461,7 +487,11 @@ export async function deleteAdminAccount(id: number): Promise<{ success: boolean
 }
 
 export async function resetAdminPassword(id: number): Promise<void> {
+  const session = await requireAdminSession();
+  await ensureTablesOnce();
   await sql`UPDATE admin_accounts SET password = 'gyadmin2026' WHERE id = ${id}`;
+  await invalidateAdminSessions(id);
+  if (session.id === id) await clearAdminSession();
 }
 
 // ── Client Accounts ──
@@ -513,6 +543,7 @@ export async function getClientAccountByEmail(email: string): Promise<ClientAcco
 }
 
 export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string): Promise<{ success: boolean; error?: string }> {
+  await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
@@ -522,6 +553,7 @@ export async function addClientAccount(email: string, password: string, displayN
 }
 
 export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
   if (rows.length === 0) return;
@@ -619,14 +651,18 @@ export async function getClientInvoicesByEmail(email: string): Promise<ClientInv
 }
 
 export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await sql`
-    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link)
-    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink})
+    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, email_published_at)
+    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},
+      CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END)
   `;
+  wakeEmailDelivery();
 }
 
 export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "id">): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await sql`
     UPDATE client_invoices SET
@@ -636,12 +672,16 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
       amount = ${inv.amount},
       invoice_due_date = ${inv.invoiceDueDate},
       status = ${inv.status},
-      invoice_link = ${inv.invoiceLink}
+      invoice_link = ${inv.invoiceLink},
+      email_published_at = CASE WHEN LOWER(TRIM(status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
+        THEN COALESCE(email_published_at,NOW()) ELSE email_published_at END
     WHERE id = ${id}
   `;
+  wakeEmailDelivery();
 }
 
 export async function deleteClientInvoice(id: number): Promise<void> {
+  await requireAdminSession();
   await sql`DELETE FROM client_invoices WHERE id = ${id}`;
 }
 
@@ -1228,7 +1268,9 @@ export type { Notification } from "./notification-types";
 
 export async function getNotifications(vaId: string) {
   await ensureTablesOnce();
-  return notificationService.recipientNotifications("va", vaId);
+  const notifications = await notificationService.recipientNotifications("va", vaId);
+  wakeEmailDelivery();
+  return notifications;
 }
 
 export async function getUnreadNotificationCount(vaId: string): Promise<number> {
@@ -1248,7 +1290,9 @@ export async function markAllNotificationsRead(vaId: string): Promise<void> {
 export async function getClientNotifications(email: string) {
   await ensureTablesOnce();
   const recipientId = await notificationService.clientRecipientId(email);
-  return notificationService.recipientNotifications("client", recipientId);
+  const notifications = await notificationService.recipientNotifications("client", recipientId);
+  wakeEmailDelivery();
+  return notifications;
 }
 
 export async function getClientUnreadNotificationCount(email: string): Promise<number> {
@@ -1268,33 +1312,42 @@ export async function markAllClientNotificationsRead(email: string): Promise<voi
 }
 
 export async function createNotification(data: NotificationInput): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await notificationService.saveNotification(data);
+  wakeEmailDelivery();
 }
 
 export async function beginNotificationImageUpload(data: { contentType: string; size: number }) {
+  await requireAdminSession();
   await ensureTablesOnce();
   return beginImageUpload(data);
 }
 
 export async function uploadNotificationImageChunk(id: string, index: number, data: string): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await appendImageChunk(id, index, data);
 }
 
 export async function deleteNotification(id: number): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await notificationService.removeNotification(id);
 }
 
 export async function deleteNotificationSchedule(id: number): Promise<void> {
+  await requireAdminSession();
   await ensureTablesOnce();
   await notificationService.removeNotificationSchedule(id);
 }
 
 export async function getAllNotifications() {
+  await requireAdminSession();
   await ensureTablesOnce();
-  return notificationService.adminNotifications();
+  const notifications = await notificationService.adminNotifications();
+  wakeEmailDelivery();
+  return notifications;
 }
 
 export async function processScheduledNotifications(): Promise<void> {

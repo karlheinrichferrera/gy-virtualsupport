@@ -1,5 +1,8 @@
 import { sql } from "@vercel/postgres";
 import { ensureNotificationSchema } from "./notification-schema";
+import { ensureAdminSessionSchema } from "./admin-session-schema";
+import { ensureOutlookSchema } from "./outlook-schema";
+import { ensureEmailSchema } from "./email-schema";
 
 export async function ensureTables() {
   await sql`
@@ -95,6 +98,7 @@ export async function ensureTables() {
     )
   `;
 
+  await ensureAdminSessionSchema();
   const { rows } = await sql`SELECT COUNT(*) as cnt FROM admin_accounts`;
   const count = parseInt(rows[0].cnt as string) || 0;
   if (count === 0) {
@@ -216,6 +220,8 @@ export async function ensureTables() {
     )
   `;
   await ensureNotificationSchema();
+  await ensureOutlookSchema();
+  await ensureEmailSchema();
 }
 
 export { sql };

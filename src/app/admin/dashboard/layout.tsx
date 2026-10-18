@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminSidebar from "@/components/AdminSidebar";
+import { getCurrentAdminSession, logoutAdmin } from "@/lib/actions";
 import { ChevronDown, LogOut, Settings, Menu } from "lucide-react";
 
 export default function AdminDashboardLayout({
@@ -12,33 +13,75 @@ export default function AdminDashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [displayName, setDisplayName] = useState("Administrator");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  const [sessionAttempt, setSessionAttempt] = useState(0);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth");
-    if (auth !== "true") {
-      router.push("/admin");
-      return;
+    let active = true;
+    async function verifySession() {
+      setSessionError("");
+      try {
+        const admin = await getCurrentAdminSession();
+        if (!active) return;
+        if (!admin) {
+          localStorage.removeItem("adminAuth");
+          localStorage.removeItem("adminUsername");
+          localStorage.removeItem("adminDisplayName");
+          router.replace("/admin");
+          return;
+        }
+        localStorage.setItem("adminAuth", "true");
+        localStorage.setItem("adminUsername", admin.username);
+        localStorage.setItem("adminDisplayName", admin.displayName);
+        setDisplayName(admin.displayName || "Administrator");
+        setReady(true);
+      } catch {
+        if (active) setSessionError("Unable to verify your admin session. Please try again.");
+      }
     }
-    const name = localStorage.getItem("adminDisplayName");
-    if (name) setDisplayName(name);
-    setReady(true);
-  }, [router]);
+    void verifySession();
+    return () => { active = false; };
+  }, [pathname, router, sessionAttempt]);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSessionError("");
+    try {
+      await logoutAdmin();
+      localStorage.removeItem("adminAuth");
+      localStorage.removeItem("adminUsername");
+      localStorage.removeItem("adminDisplayName");
+      router.replace("/admin");
+      router.refresh();
+    } catch {
+      setSessionError("Unable to sign out. Please try again.");
+      setSigningOut(false);
+    }
+  }
 
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted">Loading...</div>
+        {sessionError ? (
+          <div className="px-4 text-center space-y-3">
+            <p role="alert" className="text-sm text-red-600">{sessionError}</p>
+            <button type="button" onClick={() => setSessionAttempt(value => value + 1)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">Try again</button>
+          </div>
+        ) : <div className="animate-pulse text-muted">Loading...</div>}
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSignOut={handleSignOut} signingOut={signingOut} />
       <div className="min-w-0 lg:ml-64">
         <header className="h-16 bg-card border-b border-border flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 sticky top-0 z-20">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -77,23 +120,22 @@ export default function AdminDashboardLayout({
                   </Link>
                   <div className="border-t border-slate-100 my-1" />
                   <button
-                    onClick={() => {
-                      localStorage.removeItem("adminAuth");
-                      localStorage.removeItem("adminUsername");
-                      localStorage.removeItem("adminDisplayName");
-                      router.push("/admin");
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
                     <LogOut size={16} />
-                    Sign Out
+                    {signingOut ? "Signing out…" : "Sign Out"}
                   </button>
                 </div>
               </>
             )}
           </div>
         </header>
-        <main className="min-w-0 p-3 sm:p-4 lg:p-6">{children}</main>
+        <main className="min-w-0 p-3 sm:p-4 lg:p-6">
+          {sessionError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{sessionError}</p>}
+          {children}
+        </main>
       </div>
     </div>
   );

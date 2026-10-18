@@ -14,6 +14,7 @@ import {
   Building2,
   Fingerprint,
   Bell,
+  Mail,
   X,
 } from "lucide-react";
 
@@ -28,10 +29,11 @@ const navItems = [
   { href: "/admin/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/admin/dashboard/clients", label: "Client Management", icon: Building2 },
   { href: "/admin/dashboard/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/dashboard/email", label: "Email", icon: Mail },
   { href: "/admin/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export default function AdminSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+export default function AdminSidebar({ open, onClose, onSignOut, signingOut }: { open?: boolean; onClose?: () => void; onSignOut: () => void; signingOut?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -78,14 +80,15 @@ export default function AdminSidebar({ open, onClose }: { open?: boolean; onClos
         </nav>
 
         <div className="p-3 border-t border-white/10">
-          <Link
-            href="/admin"
-            onClick={() => { localStorage.removeItem("adminAuth"); localStorage.removeItem("adminUsername"); localStorage.removeItem("adminDisplayName"); }}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+          <button
+            type="button"
+            onClick={onSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50"
           >
             <LogOut size={18} />
-            Sign Out
-          </Link>
+            {signingOut ? "Signing out…" : "Sign Out"}
+          </button>
         </div>
       </aside>
     </>
