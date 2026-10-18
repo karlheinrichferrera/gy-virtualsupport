@@ -7,7 +7,19 @@ import type { VAProfile } from "@/lib/data";
 import ClientInvoicePreview from "@/components/ClientInvoicePreview";
 import { clientInvoiceFileUrl } from "@/lib/invoice-links";
 import { parseEmailAddresses } from "@/lib/email-addresses";
-import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye } from "lucide-react";
+import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye, RefreshCw } from "lucide-react";
+import type { EmailJobStatus } from "@/lib/email-types";
+
+const emailStatusLabels: Record<EmailJobStatus, string> = {
+  queued: "Queued", sending: "Sending", accepted: "Accepted by Outlook", failed: "Failed",
+  uncertain: "Needs review", skipped: "Skipped", cancelled: "Cancelled",
+};
+
+function InvoiceRecipients({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+  return <div><label htmlFor={id} className="block text-xs font-medium text-slate-600 mb-1">Additional recipients (optional)</label>
+    <textarea id={id} rows={3} value={value} onChange={event => onChange(event.target.value)} className={inputClass} placeholder="name@example.com, another@example.com" aria-describedby={`${id}-help`} />
+    <p id={`${id}-help`} className="mt-1 text-xs text-muted">CC up to 10 email addresses on this invoice only. Separate with commas or new lines.</p></div>;
+}
 
 const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
 
@@ -32,13 +44,16 @@ export default function AdminClientsPage() {
   const [adjVAFilter, setAdjVAFilter] = useState("");
   const [adjDateFilter, setAdjDateFilter] = useState("");
 
-  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "", invoiceCc: "" });
+  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
-  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "", invoiceCc: "" });
-  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
-  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
+  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
+  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "" });
+  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "", additionalRecipients: "" });
   const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [error, setError] = useState("");
+  const [invoiceError, setInvoiceError] = useState("");
+  const [savingInvoice, setSavingInvoice] = useState(false);
+  const [refreshingInvoices, setRefreshingInvoices] = useState(false);
 
   async function loadData() {
     const [c, i, vas, adjs] = await Promise.all([
@@ -53,17 +68,35 @@ export default function AdminClientsPage() {
     setClientAdjs(adjs);
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadData(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "invoices") return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void actions.getClientInvoices().then(rows => { if (active) setInvoices(rows); }).catch(() => {});
+    }, 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [tab]);
+
+  async function refreshInvoices() {
+    setRefreshingInvoices(true);setInvoiceError("");
+    try { setInvoices(await actions.getClientInvoices()); }
+    catch { setInvoiceError("Unable to refresh email status. Please try again."); }
+    finally { setRefreshingInvoices(false); }
+  }
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     try {
-    const cc = parseEmailAddresses(clientForm.invoiceCc, 19).join(", ");
-    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone, cc);
+    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone);
     if (!result.success) { setError(result.error || "Failed"); return; }
     setShowAddClient(false);
-    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "", invoiceCc: "" });
+    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
     await loadData();
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to save client."); }
   }
@@ -87,8 +120,7 @@ export default function AdminClientsPage() {
     if (!editClient) return;
     setError("");
     try {
-    const cc = parseEmailAddresses(editClientForm.invoiceCc, 19).join(", ");
-    await actions.updateClientAccount(editClient.id, { ...editClientForm, invoiceCc: cc });
+    await actions.updateClientAccount(editClient.id, editClientForm);
     setEditClient(null);
     await loadData();
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to save client."); }
@@ -107,22 +139,45 @@ export default function AdminClientsPage() {
     return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   }
 
+  function openEditInvoice(inv: ClientInvoice) {
+    const asInputDate = (value = "") => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+    };
+    const [from,to] = inv.billCoverage.split(/\s+[–—-]\s+/);
+    setInvoiceError("");setEditInv(inv);
+    setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billFrom: asInputDate(from), billTo: asInputDate(to), amount: inv.amount,
+      invoiceDueDate: asInputDate(inv.invoiceDueDate), status: inv.status, invoiceLink: inv.invoiceLink, additionalRecipients: inv.additionalRecipients || "" });
+  }
+
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
-    const payload = { ...invForm, billCoverage: fmtCoverage(invForm.billFrom, invForm.billTo), invoiceDueDate: fmtDueDate(invForm.invoiceDueDate) };
-    await actions.addClientInvoice(payload);
-    setShowAddInvoice(false);
-    setInvForm({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
-    await loadData();
+    if (savingInvoice) return;
+    setInvoiceError("");setSavingInvoice(true);
+    try {
+      const additionalRecipients = parseEmailAddresses(invForm.additionalRecipients, 10).join(", ");
+      const payload = { ...invForm, additionalRecipients, billCoverage: fmtCoverage(invForm.billFrom, invForm.billTo), invoiceDueDate: fmtDueDate(invForm.invoiceDueDate) };
+      await actions.addClientInvoice(payload);
+      setShowAddInvoice(false);
+      setInvForm({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "" });
+      await loadData();
+    } catch (error) { setInvoiceError(error instanceof Error ? error.message : "Unable to save invoice."); }
+    finally { setSavingInvoice(false); }
   }
 
   async function handleEditInvoice(e: React.FormEvent) {
     e.preventDefault();
-    if (!editInv) return;
-    const payload = { ...editInvForm, billCoverage: fmtCoverage(editInvForm.billFrom, editInvForm.billTo), invoiceDueDate: fmtDueDate(editInvForm.invoiceDueDate) };
-    await actions.updateClientInvoice(editInv.id, payload);
-    setEditInv(null);
-    await loadData();
+    if (!editInv || savingInvoice) return;
+    setInvoiceError("");setSavingInvoice(true);
+    try {
+      const additionalRecipients = parseEmailAddresses(editInvForm.additionalRecipients, 10).join(", ");
+      const payload = { ...editInvForm, additionalRecipients, billCoverage: fmtCoverage(editInvForm.billFrom, editInvForm.billTo), invoiceDueDate: fmtDueDate(editInvForm.invoiceDueDate) };
+      await actions.updateClientInvoice(editInv.id, payload);
+      setEditInv(null);
+      await loadData();
+    } catch (error) { setInvoiceError(error instanceof Error ? error.message : "Unable to save invoice."); }
+    finally { setSavingInvoice(false); }
   }
 
   async function handleDeleteInvoice() {
@@ -234,7 +289,7 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 text-foreground text-xs">{c.createdAt}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "", invoiceCc: c.invoiceCc || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setResetTarget(c.id)} className="p-1.5 hover:bg-amber-50 rounded-lg" title="Reset Password">
@@ -256,11 +311,15 @@ export default function AdminClientsPage() {
 
       {tab === "invoices" && (
         <>
-          <div className="flex justify-end">
-            <button onClick={() => setShowAddInvoice(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={refreshingInvoices} onClick={() => { void refreshInvoices(); }} className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground disabled:opacity-50"><RefreshCw size={16} /> {refreshingInvoices ? "Refreshing..." : "Refresh email status"}</button>
+            <button onClick={() => { setInvoiceError("");setShowAddInvoice(true); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
               <Plus size={16} /> Add Invoice
             </button>
           </div>
+
+          <p className="text-xs text-muted">Email status refreshes every 15 seconds. Accepted by Outlook confirms the send request, not delivery to the recipient’s inbox. <a href="/admin/dashboard/email" className="text-indigo-600 underline">View email history</a></p>
+          {invoiceError && !showAddInvoice && !editInv && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
 
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
@@ -273,6 +332,7 @@ export default function AdminClientsPage() {
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Amount</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Due Date</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Email status</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Invoice Link</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Actions</th>
                   </tr>
@@ -296,6 +356,10 @@ export default function AdminClientsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs">
+                        <a href="/admin/dashboard/email" aria-label={`Email status for ${inv.invoiceNumber}: ${inv.emailStatus ? emailStatusLabels[inv.emailStatus] : "Not sent"}`} className={`inline-flex whitespace-nowrap rounded px-2 py-1 font-medium underline ${inv.emailStatus === "accepted" ? "bg-emerald-100 text-emerald-700" : inv.emailStatus === "failed" || inv.emailStatus === "uncertain" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>{inv.emailStatus ? emailStatusLabels[inv.emailStatus] : "Not sent"}</a>
+                        {inv.emailError && <p className="mt-1 max-w-56 break-words text-red-600">{inv.emailError}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
                         {clientInvoiceFileUrl(inv.invoiceLink) ? <a href={clientInvoiceFileUrl(inv.invoiceLink)!} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline break-all">Open invoice file</a> : <span className="text-slate-400">No file attached</span>}
                       </td>
                       <td className="px-4 py-3">
@@ -303,7 +367,7 @@ export default function AdminClientsPage() {
                           <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50" title="View Invoice">
                             <Eye size={16} aria-hidden="true" /> <span className="text-xs font-medium">View</span>
                           </button>
-                          <button onClick={() => { setEditInv(inv); setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billFrom: "", billTo: "", amount: inv.amount, invoiceDueDate: "", status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => openEditInvoice(inv)} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setDeleteInvTarget(inv.id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete">
@@ -314,7 +378,7 @@ export default function AdminClientsPage() {
                     </tr>
                   ))}
                   {invoices.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">No client invoices yet.</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No client invoices yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -518,7 +582,6 @@ export default function AdminClientsPage() {
             <form onSubmit={handleAddClient} className="p-6 space-y-4">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={clientForm.displayName} onChange={(e) => setClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} placeholder="e.g. Devin Rubin" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={clientForm.email} onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="e.g. client@company.com" /></div>
-              <div><label htmlFor="client-invoice-cc" className="block text-xs font-medium text-slate-600 mb-1">Invoice email CC</label><textarea id="client-invoice-cc" rows={2} value={clientForm.invoiceCc} onChange={e => setClientForm(f => ({ ...f, invoiceCc: e.target.value }))} className={inputClass} placeholder="Separate staff email addresses with commas" /><p className="mt-1 text-xs text-muted">These contacts receive copies of this client’s invoice emails.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Password</label><input type="text" value={clientForm.password} onChange={(e) => setClientForm((f) => ({ ...f, password: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={clientForm.companyName} onChange={(e) => setClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} placeholder="e.g. Acme Corp" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={clientForm.address} onChange={(e) => setClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} placeholder="e.g. 123 Main St, City" /></div>
@@ -545,7 +608,6 @@ export default function AdminClientsPage() {
               {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={editClientForm.displayName} onChange={(e) => setEditClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editClientForm.email} onChange={(e) => setEditClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
-              <div><label htmlFor="edit-client-invoice-cc" className="block text-xs font-medium text-slate-600 mb-1">Invoice email CC</label><textarea id="edit-client-invoice-cc" rows={3} value={editClientForm.invoiceCc} onChange={e => setEditClientForm(f => ({ ...f, invoiceCc: e.target.value }))} className={inputClass} /><p className="mt-1 text-xs text-muted">Separate staff email addresses with commas. They receive this client’s invoice email, including portal access instructions.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={editClientForm.companyName} onChange={(e) => setEditClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>
@@ -563,14 +625,14 @@ export default function AdminClientsPage() {
       {/* Add Invoice Modal */}
       {showAddInvoice && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText size={20} className="text-indigo-600" /> Add Client Invoice</h2>
-              <button onClick={() => setShowAddInvoice(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+              <button disabled={savingInvoice} onClick={() => setShowAddInvoice(false)} className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-50"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleAddInvoice} className="p-6 space-y-4">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
-                <select required value={invForm.clientId || ""} onChange={(e) => setInvForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                <select required value={invForm.clientId || ""} onChange={(e) => setInvForm((f) => ({ ...f, clientId: parseInt(e.target.value), additionalRecipients: "" }))} className={inputClass}>
                   <option value="">Select a client</option>
                   {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
                 </select>
@@ -591,9 +653,11 @@ export default function AdminClientsPage() {
                 </div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={invForm.invoiceLink} onChange={(e) => setInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} placeholder="https://drive.google.com/..." /></div>
               </div>
+              <InvoiceRecipients id="invoice-additional-recipients" value={invForm.additionalRecipients} onChange={value => setInvForm(form => ({ ...form, additionalRecipients: value }))} />
+              {invoiceError && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowAddInvoice(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
-                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Plus size={16} /> Add Invoice</button>
+                <button type="button" disabled={savingInvoice} onClick={() => setShowAddInvoice(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={savingInvoice} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"><Plus size={16} /> {savingInvoice ? "Saving..." : "Add Invoice"}</button>
               </div>
             </form>
           </div>
@@ -603,14 +667,14 @@ export default function AdminClientsPage() {
       {/* Edit Invoice Modal */}
       {editInv && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Pencil size={20} className="text-emerald-600" /> Edit Invoice</h2>
-              <button onClick={() => setEditInv(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
+              <button disabled={savingInvoice} onClick={() => setEditInv(null)} className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-50"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleEditInvoice} className="p-6 space-y-4">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
-                <select required value={editInvForm.clientId || ""} onChange={(e) => setEditInvForm((f) => ({ ...f, clientId: parseInt(e.target.value) }))} className={inputClass}>
+                <select required value={editInvForm.clientId || ""} onChange={(e) => setEditInvForm((f) => ({ ...f, clientId: parseInt(e.target.value), additionalRecipients: "" }))} className={inputClass}>
                   <option value="">Select a client</option>
                   {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
                 </select>
@@ -631,9 +695,12 @@ export default function AdminClientsPage() {
                 </div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={editInvForm.invoiceLink} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} /></div>
               </div>
+              <InvoiceRecipients id="edit-invoice-additional-recipients" value={editInvForm.additionalRecipients} onChange={value => setEditInvForm(form => ({ ...form, additionalRecipients: value }))} />
+              {editInv.emailStatus && <p className="text-xs text-muted">Recipients are fixed when an email is queued. Changes here do not update or resend an existing email.</p>}
+              {invoiceError && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setEditInv(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50">Cancel</button>
-                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"><Save size={16} /> Save Changes</button>
+                <button type="button" disabled={savingInvoice} onClick={() => setEditInv(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={savingInvoice} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"><Save size={16} /> {savingInvoice ? "Saving..." : "Save Changes"}</button>
               </div>
             </form>
           </div>

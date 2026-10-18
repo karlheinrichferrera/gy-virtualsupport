@@ -16,7 +16,8 @@ export async function ensureEmailSchema() {
   )`;
   await sql`ALTER TABLE client_invoices ADD COLUMN IF NOT EXISTS email_published_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS email_queued_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS portal_notified_at TIMESTAMPTZ`;
+    ADD COLUMN IF NOT EXISTS portal_notified_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS additional_recipients TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS email_queued_at TIMESTAMPTZ`;
   await sql`CREATE TABLE IF NOT EXISTS email_jobs (
     id SERIAL PRIMARY KEY,
@@ -44,10 +45,4 @@ export async function ensureEmailSchema() {
     ADD COLUMN IF NOT EXISTS body_html TEXT,
     ADD COLUMN IF NOT EXISTS template_data JSONB,
     ADD COLUMN IF NOT EXISTS image_token UUID`;
-  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS invoice_cc TEXT NOT NULL DEFAULT ''`;
-  await sql`CREATE TABLE IF NOT EXISTS email_migrations (name TEXT PRIMARY KEY)`;
-  await sql`WITH migration AS (
-    INSERT INTO email_migrations(name) VALUES ('devin-invoice-cc-v1') ON CONFLICT DO NOTHING RETURNING name
-  ) UPDATE client_accounts SET invoice_cc='daisy@goldenyearsdesign.com, zanyette@goldenyearsdesign.com, bridget@goldenyearsdesign.com, karl@goldenyearsdesign.com'
-    WHERE LOWER(email)='devin@goldenyearsdesign.com' AND invoice_cc='' AND EXISTS (SELECT 1 FROM migration)`;
 }

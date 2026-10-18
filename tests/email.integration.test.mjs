@@ -322,16 +322,21 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       await invoices.submitVAInvoice('va-2',{...invoice,invoiceNumber:'VA-EMAIL-OFF'},randomUUID());await service.queueAutomaticEmails();await service.processEmailQueue();
       assert.equal(sent.length,2);assert.equal((await sql`SELECT id FROM notifications WHERE va_id='va-2'`).rows.length,1);
     });
-    await t.test('invoice CC recipients, custom payment links, and the HTML template survive durable queue processing', async () => {
+    await t.test('invoice recipients are independent even for the same client and ignore legacy client-wide CC defaults', async () => {
       await reset();
+      await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS invoice_cc TEXT NOT NULL DEFAULT ''`;
       await sql`UPDATE client_accounts SET invoice_cc='staff@example.invalid, manager@example.invalid' WHERE id=1`;
       await service.setEmailAutomation(true, false);
-      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at,invoice_link) VALUES (1,'HTML-1',NOW(),'https://payments.example/invoice/1')`;
+      const recipients=Array.from({length:10},(_,i)=>`staff${i}@example.invalid`);
+      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at,invoice_link,additional_recipients) VALUES (1,'HTML-1',NOW(),'https://payments.example/invoice/1',${recipients.join(', ')})`;
+      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (1,'SAME-CLIENT-NO-CC',NOW())`;
       await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (2,'OTHER-CLIENT',NOW())`;
-      await service.queueAutomaticEmails(); await service.processEmailQueue();
-      assert.equal(sent.length,2);
-      const configured=sent.find(message=>message.to[0]==='one@example.invalid'),other=sent.find(message=>message.to[0]==='two@example.invalid');
-      assert.deepEqual(configured.cc,['staff@example.invalid','manager@example.invalid']);assert.deepEqual(other.cc,[]);
+      await service.queueAutomaticEmails();
+      await sql`UPDATE client_invoices SET additional_recipients='changed-after-queue@example.invalid' WHERE invoice_number='HTML-1'`;
+      await service.processEmailQueue();
+      assert.equal(sent.length,3);
+      const configured=sent.find(message=>message.body.includes('HTML-1')),same=sent.find(message=>message.body.includes('SAME-CLIENT-NO-CC')),other=sent.find(message=>message.to[0]==='two@example.invalid');
+      assert.deepEqual(configured.cc,recipients);assert.deepEqual(same.cc,[]);assert.deepEqual(other.cc,[]);
       assert.equal(configured.fromEmail,'hello.graveyardcrewph@outlook.com');
       assert.equal(configured.fromName,'GY Virtual Support Team');
       assert.ok(configured.html.includes('https://payments.example/invoice/1'));

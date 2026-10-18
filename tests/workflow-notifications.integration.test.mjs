@@ -51,16 +51,41 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     await load('email-schema').ensureEmailSchema();
     const actions=load('actions'),notices=async()=> (await sql`SELECT * FROM notifications ORDER BY id`).rows;
     const request={id:'LR-1',type:'Leave',dateSubmitted:'October 18, 2026',dateFrom:'2026-10-20',dateTo:'2026-10-21',reason:'Test leave',status:'Pending',remarks:''};
-    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices RESTART IDENTITY CASCADE`;admin=identity;va='va-1';wakes=0;};
+    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices,email_jobs RESTART IDENTITY CASCADE`;admin=identity;va='va-1';wakes=0;};
 
-    await t.test('Devin receives the four configured invoice CC contacts once; clearing them is respected',async()=>{
-      const first=await actions.getClientAccountByEmail('devin@goldenyearsdesign.com');
-      assert.equal(first.invoiceCc,'daisy@goldenyearsdesign.com, zanyette@goldenyearsdesign.com, bridget@goldenyearsdesign.com, karl@goldenyearsdesign.com');
-      assert.ok((await actions.getClientAccounts()).filter(client=>client.id!==3).every(client=>client.invoiceCc===''));
-      await actions.updateClientAccount(3,{invoiceCc:''});await load('email-schema').ensureEmailSchema();
-      assert.equal((await actions.getClientAccountByEmail('devin@goldenyearsdesign.com')).invoiceCc,'');
-      await assert.rejects(actions.updateClientAccount(3,{invoiceCc:'invalid-address'}),/valid email/);
-      admin=null;await assert.rejects(actions.updateClientAccount(3,{invoiceCc:'staff@example.invalid'}),/sign-in/);admin=identity;
+    await t.test('additional recipients are optional per invoice, normalized, admin-only and limited to ten',async()=>{
+      await reset();
+      const invoice={clientId:3,invoiceNumber:'RECIPIENTS',billCoverage:'October 1–15',amount:'$100',invoiceDueDate:'2026-10-25',status:'Draft',invoiceLink:''};
+      const ten=Array.from({length:10},(_,i)=>`Staff${i}@Example.invalid`);
+      await actions.addClientInvoice({...invoice,additionalRecipients:ten.join(';\n')});
+      await actions.addClientInvoice({...invoice,invoiceNumber:'SAME-CLIENT-NO-CC'});
+      let all=await actions.getClientInvoices();const id=all.find(row=>row.invoiceNumber==='RECIPIENTS').id;
+      assert.equal(all.find(row=>row.id===id).additionalRecipients,ten.map(email=>email.toLowerCase()).join(', '));
+      assert.equal(all.find(row=>row.invoiceNumber==='SAME-CLIENT-NO-CC').additionalRecipients,'');
+      assert.ok(!Object.hasOwn(await actions.getClientAccountByEmail('devin@goldenyearsdesign.com'),'invoiceCc'));
+      await assert.rejects(actions.addClientInvoice({...invoice,additionalRecipients:[...ten,'extra@example.invalid'].join(',')}),/up to 10/);
+      await assert.rejects(actions.addClientInvoice({...invoice,additionalRecipients:'invalid-address'}),/valid email/);
+      await assert.rejects(actions.updateClientInvoice(id,{...invoice,additionalRecipients:[...ten,'extra@example.invalid'].join(',')}),/up to 10/);
+      await actions.updateClientInvoice(id,{...invoice,additionalRecipients:' NEW@Example.invalid, new@example.invalid '});
+      await load('email-schema').ensureEmailSchema();await load('email-schema').ensureEmailSchema();
+      all=await actions.getClientInvoices();assert.equal(all.find(row=>row.id===id).additionalRecipients,'new@example.invalid');
+      await actions.updateClientInvoice(id,invoice);assert.equal((await actions.getClientInvoices()).find(row=>row.id===id).additionalRecipients,'new@example.invalid');
+      await actions.updateClientInvoice(id,{...invoice,clientId:2});assert.equal((await actions.getClientInvoices()).find(row=>row.id===id).additionalRecipients,'');
+      admin=null;await assert.rejects(actions.addClientInvoice(invoice),/sign-in/);await assert.rejects(actions.updateClientInvoice(id,invoice),/sign-in/);await assert.rejects(actions.getClientInvoices(),/sign-in/);admin=identity;
+    });
+    await t.test('invoice list shows the actual queue status and failure reason without inventing delivery confirmation',async()=>{
+      await reset();const statuses=['queued','sending','accepted','failed','uncertain','skipped','cancelled'];
+      const invoice={clientId:1,invoiceNumber:'NO-MAIL',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''};
+      await actions.addClientInvoice(invoice);
+      for(const status of statuses){
+        await actions.addClientInvoice({...invoice,invoiceNumber:status});
+        const row=(await sql`SELECT id FROM client_invoices WHERE invoice_number=${status}`).rows[0];
+        await sql`INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source,source_id,status,last_error)
+          VALUES (${'invoice:'+row.id},${randomUUID()}::uuid,'["client-one@example.invalid"]'::jsonb,'Invoice','Body','invoice',${row.id},${status},${status==='failed'?'Outlook rejected the message.':null})`;
+      }
+      const all=await actions.getClientInvoices();assert.equal(all.find(row=>row.invoiceNumber==='NO-MAIL').emailStatus,null);
+      for(const status of statuses)assert.equal(all.find(row=>row.invoiceNumber===status).emailStatus,status);
+      assert.equal(all.find(row=>row.invoiceNumber==='failed').emailError,'Outlook rejected the message.');
     });
     await t.test('leave and shift receipts are private and retried submissions do not duplicate them',async()=>{
       await reset();admin=null;

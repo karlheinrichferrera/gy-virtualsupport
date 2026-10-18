@@ -79,7 +79,7 @@ export async function queueAutomaticEmails() {
     )
     INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id)
     SELECT 'invoice:' || i.id,${connection}::uuid,jsonb_build_array(TRIM(c.email)),
-      to_jsonb(string_to_array(REPLACE(c.invoice_cc,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
+      to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
         'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'defaultPassword',c.password='gyclient2026'),

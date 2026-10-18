@@ -13,6 +13,7 @@ import { parseEmailAddresses } from "./email-addresses";
 import { getVASession, requireVAOrAdmin, createVASession, clearVASession, invalidateVASessions } from "./va-session";
 import { submitWorkflowRequest, setWorkflowRequestStatus, recordSalaryAdjustment, submitOvertime, setOvertimeStatus } from "./workflow-notifications";
 import { submitVAInvoice, saveVAInvoice } from "./va-invoices";
+import type { EmailJobStatus } from "./email-types";
 
 
 let tablesReady = false;
@@ -536,7 +537,6 @@ export type ClientAccount = {
   phone: string;
   timesheetUrl: string;
   timesheetViewUrl: string;
-  invoiceCc: string;
   createdAt: string;
 };
 
@@ -550,7 +550,6 @@ function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
     phone: (r.phone as string) || "",
     timesheetUrl: (r.timesheet_url as string) || "",
     timesheetViewUrl: (r.timesheet_view_url as string) || "",
-    invoiceCc: (r.invoice_cc as string) || "",
     createdAt: r.created_at as string,
   };
 }
@@ -575,24 +574,22 @@ export async function getClientAccountByEmail(email: string): Promise<ClientAcco
   return rowToClientAccount(rows[0]);
 }
 
-export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string, invoiceCc = ""): Promise<{ success: boolean; error?: string }> {
+export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string): Promise<{ success: boolean; error?: string }> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
   const now = estDateLong();
-  const cc = parseEmailAddresses(invoiceCc, 19).join(", ");
-  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at, invoice_cc) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now},${cc})`;
+  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now})`;
   return { success: true };
 }
 
-export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string; invoiceCc?: string }): Promise<void> {
+export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
   if (rows.length === 0) return;
   const current = rowToClientAccount(rows[0]);
-  const cc = updates.invoiceCc === undefined ? current.invoiceCc : parseEmailAddresses(updates.invoiceCc, 19).join(", ");
   await sql`
     UPDATE client_accounts SET
       display_name = ${updates.displayName ?? current.displayName},
@@ -601,8 +598,7 @@ export async function updateClientAccount(id: number, updates: { displayName?: s
       phone = ${updates.phone ?? current.phone},
       email = ${updates.email ?? current.email},
       timesheet_url = ${updates.timesheetUrl ?? current.timesheetUrl},
-      timesheet_view_url = ${updates.timesheetViewUrl ?? current.timesheetViewUrl},
-      invoice_cc = ${cc}
+      timesheet_view_url = ${updates.timesheetViewUrl ?? current.timesheetViewUrl}
     WHERE id = ${id}
   `;
 }
@@ -649,6 +645,9 @@ export type ClientInvoice = {
   invoiceDueDate: string;
   status: string;
   invoiceLink: string;
+  additionalRecipients?: string;
+  emailStatus?: EmailJobStatus | null;
+  emailError?: string | null;
 };
 
 function rowToClientInvoice(r: Record<string, unknown>): ClientInvoice {
@@ -661,12 +660,18 @@ function rowToClientInvoice(r: Record<string, unknown>): ClientInvoice {
     invoiceDueDate: r.invoice_due_date as string,
     status: r.status as string,
     invoiceLink: r.invoice_link as string,
+    additionalRecipients: String(r.additional_recipients || ""),
+    emailStatus: r.email_status as EmailJobStatus | null | undefined,
+    emailError: r.email_error == null ? null : String(r.email_error),
   };
 }
 
 export async function getClientInvoices(): Promise<ClientInvoice[]> {
+  await requireAdminSession();
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT * FROM client_invoices ORDER BY id DESC`;
+  const { rows } = await sql`SELECT i.*,j.status AS email_status,j.last_error AS email_error
+    FROM client_invoices i LEFT JOIN email_jobs j ON j.idempotency_key='invoice:' || i.id AND j.source='invoice'
+    ORDER BY i.id DESC`;
   return rows.map(rowToClientInvoice);
 }
 
@@ -689,10 +694,11 @@ export async function getClientInvoicesByEmail(email: string): Promise<ClientInv
 export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<void> {
   await requireAdminSession();
   await ensureTablesOnce();
+  const recipients = parseEmailAddresses(inv.additionalRecipients ?? "", 10).join(", ");
   await sql`
     WITH published AS (
-    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, email_published_at,portal_notified_at)
-    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},
+    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, additional_recipients, email_published_at,portal_notified_at)
+    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},${recipients},
       CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END,
       CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END) RETURNING *
     ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to)
@@ -706,6 +712,7 @@ export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<
 export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "id">): Promise<void> {
   await requireAdminSession();
   await ensureTablesOnce();
+  const recipients = inv.additionalRecipients === undefined ? null : parseEmailAddresses(inv.additionalRecipients, 10).join(", ");
   await sql`
     WITH previous AS MATERIALIZED (SELECT * FROM client_invoices WHERE id=${id} FOR UPDATE), changed AS (
     UPDATE client_invoices i SET
@@ -716,6 +723,8 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
       invoice_due_date = ${inv.invoiceDueDate},
       status = ${inv.status},
       invoice_link = ${inv.invoiceLink},
+      additional_recipients = CASE WHEN previous.client_id!=${inv.clientId} THEN COALESCE(${recipients},'')
+        ELSE COALESCE(${recipients},previous.additional_recipients) END,
       email_published_at = CASE WHEN LOWER(TRIM(previous.status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
         THEN COALESCE(previous.email_published_at,NOW()) ELSE previous.email_published_at END,
       portal_notified_at = CASE WHEN LOWER(TRIM(previous.status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
