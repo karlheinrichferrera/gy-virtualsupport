@@ -73,7 +73,8 @@ export async function prepareImageReference(id: string) {
 export async function removeAbandonedImages() {
   await sql`DELETE FROM notification_image_assets a WHERE a.created_at <= NOW() - INTERVAL '24 hours'
     AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.image_url = ${PREFIX} || a.id::text)
-    AND NOT EXISTS (SELECT 1 FROM notification_schedules s WHERE s.image_url = ${PREFIX} || a.id::text)`;
+    AND NOT EXISTS (SELECT 1 FROM notification_schedules s WHERE s.image_url = ${PREFIX} || a.id::text)
+    AND NOT EXISTS (SELECT 1 FROM notification_email_images e WHERE e.image_reference = ${PREFIX} || a.id::text)`;
 }
 
 export async function storedImage(reference: string) {
@@ -96,5 +97,5 @@ export async function storedImage(reference: string) {
       }
     }
   }
-  return { contentType: String(rows[0].content_type), chunks: chunks() };
+  return { contentType: String(rows[0].content_type), byteSize: Number(rows[0].byte_size), chunks: chunks() };
 }

@@ -6,6 +6,7 @@ import type { ClientAccount, ClientInvoice, ClientSalaryAdjustment } from "@/lib
 import type { VAProfile } from "@/lib/data";
 import ClientInvoicePreview from "@/components/ClientInvoicePreview";
 import { clientInvoiceFileUrl } from "@/lib/invoice-links";
+import { parseEmailAddresses } from "@/lib/email-addresses";
 import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye } from "lucide-react";
 
 const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
@@ -31,9 +32,9 @@ export default function AdminClientsPage() {
   const [adjVAFilter, setAdjVAFilter] = useState("");
   const [adjDateFilter, setAdjDateFilter] = useState("");
 
-  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
+  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "", invoiceCc: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
-  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
+  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "", invoiceCc: "" });
   const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "" });
   const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "" });
   const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
@@ -57,11 +58,14 @@ export default function AdminClientsPage() {
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone);
+    try {
+    const cc = parseEmailAddresses(clientForm.invoiceCc, 19).join(", ");
+    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone, cc);
     if (!result.success) { setError(result.error || "Failed"); return; }
     setShowAddClient(false);
-    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
+    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "", invoiceCc: "" });
     await loadData();
+    } catch (error) { setError(error instanceof Error ? error.message : "Unable to save client."); }
   }
 
   async function handleDeleteClient() {
@@ -81,9 +85,13 @@ export default function AdminClientsPage() {
   async function handleEditClient(e: React.FormEvent) {
     e.preventDefault();
     if (!editClient) return;
-    await actions.updateClientAccount(editClient.id, editClientForm);
+    setError("");
+    try {
+    const cc = parseEmailAddresses(editClientForm.invoiceCc, 19).join(", ");
+    await actions.updateClientAccount(editClient.id, { ...editClientForm, invoiceCc: cc });
     setEditClient(null);
     await loadData();
+    } catch (error) { setError(error instanceof Error ? error.message : "Unable to save client."); }
   }
 
   function fmtCoverage(from: string, to: string): string {
@@ -226,7 +234,7 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 text-foreground text-xs">{c.createdAt}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "", invoiceCc: c.invoiceCc || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setResetTarget(c.id)} className="p-1.5 hover:bg-amber-50 rounded-lg" title="Reset Password">
@@ -510,6 +518,7 @@ export default function AdminClientsPage() {
             <form onSubmit={handleAddClient} className="p-6 space-y-4">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={clientForm.displayName} onChange={(e) => setClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} placeholder="e.g. Devin Rubin" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={clientForm.email} onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="e.g. client@company.com" /></div>
+              <div><label htmlFor="client-invoice-cc" className="block text-xs font-medium text-slate-600 mb-1">Invoice email CC</label><textarea id="client-invoice-cc" rows={2} value={clientForm.invoiceCc} onChange={e => setClientForm(f => ({ ...f, invoiceCc: e.target.value }))} className={inputClass} placeholder="Separate staff email addresses with commas" /><p className="mt-1 text-xs text-muted">These contacts receive copies of this client’s invoice emails.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Password</label><input type="text" value={clientForm.password} onChange={(e) => setClientForm((f) => ({ ...f, password: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={clientForm.companyName} onChange={(e) => setClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} placeholder="e.g. Acme Corp" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={clientForm.address} onChange={(e) => setClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} placeholder="e.g. 123 Main St, City" /></div>
@@ -533,8 +542,10 @@ export default function AdminClientsPage() {
               <button onClick={() => setEditClient(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
             </div>
             <form onSubmit={handleEditClient} className="p-6 space-y-4">
+              {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={editClientForm.displayName} onChange={(e) => setEditClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editClientForm.email} onChange={(e) => setEditClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
+              <div><label htmlFor="edit-client-invoice-cc" className="block text-xs font-medium text-slate-600 mb-1">Invoice email CC</label><textarea id="edit-client-invoice-cc" rows={3} value={editClientForm.invoiceCc} onChange={e => setEditClientForm(f => ({ ...f, invoiceCc: e.target.value }))} className={inputClass} /><p className="mt-1 text-xs text-muted">Separate staff email addresses with commas. They receive this client’s invoice email, including portal access instructions.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={editClientForm.companyName} onChange={(e) => setEditClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>

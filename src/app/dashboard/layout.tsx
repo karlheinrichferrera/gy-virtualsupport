@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import VAAccountMenu from "@/components/VAAccountMenu";
-import { getProfile, autoFillScheduleTimeproof } from "@/lib/actions";
+import { getProfile, getCurrentVASession, autoFillScheduleTimeproof } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
 export default function DashboardLayout({
@@ -19,14 +19,15 @@ export default function DashboardLayout({
   const [profilePhoto, setProfilePhoto] = useState("");
   const [ready, setReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
-    const id = localStorage.getItem("vaId");
-    if (!id) {
-      router.push("/");
-      return;
-    }
     (async () => {
+      try {
+      const session = await getCurrentVASession();
+      if (!session) { localStorage.removeItem("vaId"); router.replace("/"); return; }
+      const id = session.id;
+      localStorage.setItem("vaId", id);
       const profile = await getProfile(id);
       if (!profile) {
         router.push("/");
@@ -37,6 +38,7 @@ export default function DashboardLayout({
       setProfilePhoto(profile.profilePicture || "");
       setReady(true);
       autoFillScheduleTimeproof(id);
+      } catch { setSessionError("Unable to verify your session. Please refresh the page to try again."); }
     })();
   }, [router]);
 
@@ -52,7 +54,7 @@ export default function DashboardLayout({
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted">Loading...</div>
+        {sessionError ? <p role="alert" className="px-4 text-center text-red-600">{sessionError} <button className="underline" onClick={() => window.location.reload()}>Refresh</button></p> : <div className="animate-pulse text-muted">Loading...</div>}
       </div>
     );
   }

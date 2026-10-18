@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, X, Check, CheckCheck, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Bell, X, Check, CheckCheck, ChevronDown, ExternalLink } from "lucide-react";
+import NotificationDetail from "./NotificationDetail";
 import {
   getNotifications,
   markNotificationRead,
@@ -22,6 +23,8 @@ const typeColors: Record<string, string> = {
   reminder: "bg-amber-100 text-amber-700",
   admin: "bg-blue-100 text-blue-700",
   general: "bg-gray-100 text-gray-700",
+  request: "bg-indigo-100 text-indigo-700",
+  salary: "bg-emerald-100 text-emerald-700",
 };
 
 export default function NotificationBell({ vaId, clientEmail }: NotificationBellProps) {
@@ -29,7 +32,7 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Notification | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +69,7 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
     // Cancel the first fetch if React immediately remounts this effect.
     const initialLoad = window.setTimeout(() => {
       setNotifications([]);
-      setExpandedId(null);
+      setSelected(null);
       setLoading(true);
       void load();
     }, 0);
@@ -110,7 +113,17 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
     setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, isRead: true } : item));
   };
 
-  const handleNotification = async (notification: Notification, expand: boolean) => {
+  const closeDetails = useCallback(() => { setSelected(null); triggerRef.current?.focus(); }, []);
+  const portalPath = (notification: Notification) => {
+    const portal = isClient ? "/client/dashboard" : "/dashboard";
+    try {
+      const path = notification.redirectTo;
+      if (!path || /[\\\u0000-\u0020]/.test(path)) return null;
+      const url = new URL(path, "https://portal.invalid");
+      return url.origin === "https://portal.invalid" && (url.pathname === portal || url.pathname.startsWith(`${portal}/`)) ? `${url.pathname}${url.search}${url.hash}` : null;
+    } catch { return null; }
+  };
+  const handleNotification = async (notification: Notification, expand: boolean, details = false) => {
     if (pending) return;
     setPending(true);
     setError("");
@@ -118,15 +131,13 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
       await markRead(notification);
       if (!active.current) return;
       if (expand) {
-        const path = notification.redirectTo;
-        // Only navigate to paths within this recipient's portal.
-        const portal = isClient ? "/client/dashboard" : "/dashboard";
-        if (path && !/[\\\u0000-\u001f]/.test(path)
-          && (path === portal || path.startsWith(`${portal}/`) || path.startsWith(`${portal}?`) || path.startsWith(`${portal}#`))) {
+        const path = portalPath(notification);
+        if (path && !details) {
           setOpen(false);
           router.push(path);
         } else {
-          setExpandedId((id) => id === notification.id ? null : notification.id);
+          setOpen(false);
+          setSelected(notification);
         }
       }
     } catch {
@@ -202,32 +213,30 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
             ) : (
               <ul>
                 {notifications.map((notification) => {
-                  const isExpanded = expandedId === notification.id;
                   return (
                     <li key={notification.id} className={`flex items-start border-b border-gray-100 last:border-0 ${notification.isRead ? "bg-white" : "bg-blue-50"}`}>
-                      <button type="button" disabled={pending} aria-expanded={notification.redirectTo ? undefined : isExpanded} onClick={() => { void handleNotification(notification, true); }} className="min-w-0 flex-1 px-4 py-3 text-left transition-colors hover:bg-gray-50 disabled:opacity-60">
+                      <div className="min-w-0 flex-1">
+                      <button type="button" disabled={pending} onClick={() => { void handleNotification(notification, true); }} className="block w-full min-w-0 px-4 pt-3 text-left transition-colors hover:bg-gray-50 disabled:opacity-60">
                         <span className="mb-1 flex items-center gap-2">
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${typeColors[notification.type] || typeColors.general}`}>
-                            {notification.type === "reminder" ? "REMINDER" : notification.type === "admin" ? "ADMIN" : "GENERAL"}
+                            {notification.type === "request" ? "REQUEST" : notification.type === "salary" ? "SALARY" : notification.type === "reminder" ? "REMINDER" : notification.type === "admin" ? "ADMIN" : "GENERAL"}
                           </span>
                           {!notification.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500"><span className="sr-only">Unread</span></span>}
                         </span>
                         <span className="block break-words text-sm font-medium text-gray-900">{notification.title}</span>
                         {notification.imageUrl && (
-                          <Image src={notification.imageUrl} alt={`Image for ${notification.title}`} width={640} height={320} unoptimized className={`mt-2 w-full rounded-lg object-contain ${isExpanded ? "max-h-64" : "max-h-32"}`} />
+                          <Image src={notification.imageUrl} alt={`Image for ${notification.title}`} width={640} height={320} unoptimized className="mt-2 max-h-32 w-full rounded-lg object-contain" />
                         )}
-                        <span className={`mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-600 ${isExpanded ? "block" : "line-clamp-2"}`}>{notification.message}</span>
-                        <span className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
-                          <span className="text-[10px] text-gray-400">{notification.createdAt}</span>
-                          {notification.redirectTo ? (
-                            <span className="flex items-center gap-0.5 text-[10px] text-blue-600">Open page <ExternalLink size={10} aria-hidden="true" /></span>
-                          ) : (
-                            <span className="flex items-center gap-0.5 text-[10px] text-blue-600">
-                              {isExpanded ? <><ChevronUp size={10} aria-hidden="true" /> Less</> : <><ChevronDown size={10} aria-hidden="true" /> More</>}
-                            </span>
-                          )}
-                        </span>
+                        <span className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-xs text-gray-600">{notification.message}</span>
                       </button>
+                        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
+                          <span className="text-[10px] text-gray-400">{notification.createdAt}</span>
+                          <div className="flex items-center gap-3">
+                            {portalPath(notification) && <button type="button" disabled={pending} onClick={() => { void handleNotification(notification, true); }} className="flex items-center gap-0.5 text-[10px] text-blue-600">Open page <ExternalLink size={10} aria-hidden="true" /></button>}
+                            <button type="button" disabled={pending} onClick={() => { void handleNotification(notification, true, true); }} aria-label={`More about ${notification.title}`} className="flex items-center gap-0.5 text-[10px] text-blue-600"><ChevronDown size={10} aria-hidden="true" /> More</button>
+                          </div>
+                        </div>
+                      </div>
                       {!notification.isRead && (
                         <button type="button" disabled={pending} onClick={() => { void handleNotification(notification, false); }} className="mt-3 mr-3 shrink-0 rounded p-1 hover:bg-gray-200 disabled:opacity-50" aria-label={`Mark ${notification.title} as read`} title="Mark as read">
                           <Check size={14} className="text-gray-500" aria-hidden="true" />
@@ -242,6 +251,7 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
           <p className="shrink-0 border-t border-gray-100 px-4 py-2 text-[10px] text-gray-500">Read notifications are automatically removed after 24 hours.</p>
         </div>
       )}
+      {selected && <NotificationDetail notification={selected} onClose={closeDetails} onOpenPage={portalPath(selected) ? () => { const path = portalPath(selected); closeDetails(); if (path) router.push(path); } : undefined} />}
     </div>
   );
 }

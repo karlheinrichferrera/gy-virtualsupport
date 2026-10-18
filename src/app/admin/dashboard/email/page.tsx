@@ -12,6 +12,8 @@ import {
   retryEmail,
 } from "@/lib/email-actions";
 import type { EmailSettings, EmailJob, EmailJobStatus } from "@/lib/email-types";
+import { EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS } from "@/lib/email-templates";
+import { emailRecipients, parseEmailAddresses } from "@/lib/email-addresses";
 
 const inputClass = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-60";
 const primaryButton = "inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50";
@@ -65,6 +67,10 @@ export default function AdminEmailPage() {
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [to, setTo] = useState("");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [fromName, setFromName] = useState(EMAIL_FROM_NAME);
+  const [fromEmail, setFromEmail] = useState(EMAIL_FROM_ADDRESS);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [formError, setFormError] = useState("");
@@ -85,6 +91,7 @@ export default function AdminEmailPage() {
       const [account, recent] = await Promise.all([getEmailSettings(), getEmailHistory()]);
       setSettings(account);
       setHistory(recent);
+      if (!preserveAutomation) setFromEmail(account.senderEmail || EMAIL_FROM_ADDRESS);
       if (!preserveAutomation) {
         setAutoInvoices(account.autoInvoices);
         setAutoNotifications(account.autoNotifications);
@@ -119,6 +126,8 @@ export default function AdminEmailPage() {
 
   const clearDraft = () => {
     setTo("");
+    setCc("");
+    setBcc("");
     setSubject("");
     setBody("");
     markDraftChanged();
@@ -129,24 +138,15 @@ export default function AdminEmailPage() {
     if (sending || submitted || !settings?.connected) return;
     setFormError("");
     setSendNotice("");
-    const recipients = [...new Set(to.split(/[,\n]+/).map(address => address.trim().toLowerCase()).filter(Boolean))];
-    if (!recipients.length || !subject.trim() || !body.trim()) {
+    if (!to.trim() || !subject.trim() || !body.trim()) {
       setFormError("Enter at least one recipient, a subject, and a message.");
-      return;
-    }
-    if (recipients.length > 20) {
-      setFormError("Send to up to 20 email addresses at a time.");
-      return;
-    }
-    const invalidAddress = recipients.find(address => address.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address));
-    if (invalidAddress) {
-      setFormError(`Check this email address: ${invalidAddress}. Separate addresses with commas or new lines.`);
       return;
     }
     setSending(true);
     try {
+      const recipients = emailRecipients(parseEmailAddresses(to), parseEmailAddresses(cc), parseEmailAddresses(bcc));
       requestId.current ||= crypto.randomUUID();
-      const result = await sendManualEmail({ to: recipients, subject: subject.trim(), body: body.trim(), requestId: requestId.current });
+      const result = await sendManualEmail({ ...recipients, fromName: fromName.trim(), fromEmail: fromEmail.trim(), subject: subject.trim(), body: body.trim(), requestId: requestId.current });
       setSendNotice(submissionMessage(result.status));
       setSubmitted(true);
       await load(true);
@@ -276,15 +276,24 @@ export default function AdminEmailPage() {
           </section>
 
           <section aria-labelledby="compose-heading" className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-6">
-            <div><h2 id="compose-heading" className="text-lg font-semibold text-foreground">Compose email</h2><p className="mt-1 text-sm text-muted">{connected ? "Send a plain text message from your connected Outlook account." : "Connect Outlook above to send emails."}</p></div>
+            <div><h2 id="compose-heading" className="text-lg font-semibold text-foreground">Compose email</h2><p className="mt-1 text-sm text-muted">{connected ? "Send a personalized email from your connected Outlook account." : "Connect Outlook above to send emails."}</p></div>
             {formError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>}
             {sendNotice && <p role="status" className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">{sendNotice}</p>}
             <form onSubmit={handleSend}>
               <fieldset disabled={!connected || sending || disconnecting} className="min-w-0 space-y-4 disabled:opacity-60">
                 <legend className="sr-only">Email message</legend>
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                  <div><label htmlFor="email-from-name" className="mb-1 block text-sm font-medium text-foreground">From Name</label><input id="email-from-name" required maxLength={100} value={fromName} onChange={event => { setFromName(event.target.value); markDraftChanged(); }} className={inputClass} /></div>
+                  <div><label htmlFor="email-from-address" className="mb-1 block text-sm font-medium text-foreground">From Email</label><input id="email-from-address" type="email" required value={fromEmail} onChange={event => { setFromEmail(event.target.value); markDraftChanged(); }} className={inputClass} aria-describedby="email-from-help" /><p id="email-from-help" className="mt-1 text-xs text-muted">Use the connected Outlook account’s email address.</p></div>
+                </div>
                 <div><label htmlFor="email-to" className="mb-1 block text-sm font-medium text-foreground">To</label><textarea id="email-to" required rows={2} value={to} onChange={event => { setTo(event.target.value); markDraftChanged(); }} placeholder="client@example.com, assistant@example.com" spellCheck={false} autoComplete="off" className={`${inputClass} resize-y`} aria-describedby="email-to-help" /><p id="email-to-help" className="mt-1 text-xs text-muted">Add up to 20 addresses, separated with commas or new lines.</p></div>
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                  <div><label htmlFor="email-cc" className="mb-1 block text-sm font-medium text-foreground">CC</label><textarea id="email-cc" rows={2} value={cc} onChange={event => { setCc(event.target.value); markDraftChanged(); }} className={`${inputClass} resize-y`} placeholder="Optional" /></div>
+                  <div><label htmlFor="email-bcc" className="mb-1 block text-sm font-medium text-foreground">BCC</label><textarea id="email-bcc" rows={2} value={bcc} onChange={event => { setBcc(event.target.value); markDraftChanged(); }} className={`${inputClass} resize-y`} placeholder="Optional" /><p className="mt-1 text-xs text-muted">BCC addresses are hidden from the other recipients.</p></div>
+                </div>
                 <div><label htmlFor="email-subject" className="mb-1 block text-sm font-medium text-foreground">Subject</label><input id="email-subject" required maxLength={200} value={subject} onChange={event => { setSubject(event.target.value); markDraftChanged(); }} className={inputClass} /></div>
                 <div><label htmlFor="email-body" className="mb-1 block text-sm font-medium text-foreground">Message</label><textarea id="email-body" required maxLength={50000} rows={6} value={body} onChange={event => { setBody(event.target.value); markDraftChanged(); }} className={`${inputClass} resize-y`} /></div>
+                <p className="text-xs text-muted">Your email includes the GY Virtual Support Team signature.</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <button type="submit" disabled={sending || submitted || !to.trim() || !subject.trim() || !body.trim()} className={primaryButton}><Send size={15} aria-hidden="true" />{sending ? "Sending..." : submitted ? "Submitted" : "Send email"}</button>
                   <button type="button" onClick={clearDraft} disabled={sending} className="rounded-lg px-3 py-2 text-sm text-muted hover:text-foreground">New message</button>
@@ -311,6 +320,9 @@ export default function AdminEmailPage() {
               {history.map(job => <article key={job.id} className="space-y-3 px-4 py-4 sm:px-6">
                 <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium text-foreground">{job.subject}</p><p className="mt-1 text-xs text-muted">{sourceLabels[job.source]} · {dateLabel(job.createdAt)}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[job.status]}`}>{statusLabels[job.status]}</span></div>
                 <div className="flex min-w-0 items-start gap-2 text-xs text-muted"><span className="shrink-0">To:</span><ul className="min-w-0 space-y-1">{job.to.map(address => <li key={address} className="break-all">{address || "No email address"}</li>)}</ul></div>
+                {job.fromEmail && <p className="break-all text-xs text-muted">From: {job.fromName} &lt;{job.fromEmail}&gt;</p>}
+                {!!job.cc?.length && <p className="break-all text-xs text-muted">CC: {job.cc.join(", ")}</p>}
+                {!!job.bcc?.length && <p className="break-all text-xs text-muted">BCC: {job.bcc.join(", ")}</p>}
                 {job.lastError && <p className="break-words text-xs text-red-700">{job.lastError}</p>}
                 {job.status === "uncertain" && <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"><AlertTriangle size={15} className="shrink-0" aria-hidden="true" /><span>The send result is unknown. Check Outlook Sent Items before retrying so the recipient does not receive a duplicate.</span></p>}
                 {(job.status === "failed" || job.status === "uncertain") && <button type="button" onClick={() => void handleRetry(job)} disabled={!connected || retrying !== null || disconnecting} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-background disabled:opacity-50" aria-label={`${job.status === "uncertain" ? "Review and retry" : "Retry"} ${job.subject}`}><RefreshCw size={13} aria-hidden="true" />{retrying === job.id ? "Retrying..." : job.status === "uncertain" ? "Review and retry" : "Retry"}</button>}

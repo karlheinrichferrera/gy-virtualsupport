@@ -15,7 +15,7 @@ export default function ClientDashboardPage() {
     (async () => {
       const email = localStorage.getItem("clientEmail") || "";
       const [invoices, requests, myVAs, activeIds] = await Promise.all([
-        actions.getClientInvoices(),
+        actions.getClientInvoicesByEmail(email),
         actions.getAllRequestsFlat(),
         actions.getVAsByClientEmail(email),
         actions.getActiveVAIdsByClientEmail(email),

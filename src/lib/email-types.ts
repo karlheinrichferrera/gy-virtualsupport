@@ -17,6 +17,10 @@ export interface EmailSettings {
 export interface EmailJob {
   id: number;
   to: string[];
+  cc: string[];
+  bcc: string[];
+  fromName: string;
+  fromEmail: string;
   subject: string;
   source: EmailSource;
   status: EmailJobStatus;
@@ -27,6 +31,10 @@ export interface EmailJob {
 
 export interface ManualEmailInput {
   to: string[];
+  cc?: string[];
+  bcc?: string[];
+  fromName?: string;
+  fromEmail?: string;
   subject: string;
   body: string;
   requestId: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -30,6 +30,19 @@ const navItems = [
 ];
 
 export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await actions.logoutVA();
+      localStorage.removeItem("vaId");
+      router.replace("/");
+      router.refresh();
+    } catch { setLogoutError("Could not sign out. Please try again."); setSigningOut(false); }
+  }
   const pathname = usePathname();
   const [vaId, setVaId] = useState("");
   const [isWorking, setIsWorking] = useState(false);
@@ -97,13 +110,14 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
         </nav>
 
         <div className="p-3 border-t border-white/10">
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-text hover:bg-white/5 hover:text-white transition-colors"
+          {logoutError && <p role="alert" className="px-3 text-xs text-red-300">{logoutError}</p>}
+          <button
+            type="button" onClick={() => { void signOut(); }} disabled={signingOut}
+            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-text hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50"
           >
             <LogOut size={18} />
-            Sign Out
-          </Link>
+            {signingOut ? "Signing out..." : "Sign Out"}
+          </button>
         </div>
       </aside>
     </>

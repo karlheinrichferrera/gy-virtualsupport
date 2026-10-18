@@ -1,12 +1,12 @@
 import { sql } from "@vercel/postgres";
 import { getOutlookConnection, OutlookSendError, sendOutlookMessage } from "./outlook";
 import type { EmailJob, ManualEmailInput } from "./email-types";
+import { validEmailAddress, emailRecipients } from "./email-addresses";
+import { EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, invoiceEmail, notificationEmail, manualEmail, type EmailTemplateData } from "./email-templates";
+import { prepareEmailImage } from "./email-images";
+export { validEmailAddress } from "./email-addresses";
 
 type Row = Record<string, unknown>;
-const addressPattern = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
-export function validEmailAddress(value: string) {
-  return typeof value === "string" && value.length <= 254 && addressPattern.test(value);
-}
 
 export function emailPortalOrigin() {
   const url = new URL(process.env.PORTAL_APP_URL || "https://gy-virtualsupport-safq.vercel.app");
@@ -20,6 +20,8 @@ export function emailJob(row: Row): EmailJob {
   return { id: Number(row.id), to: Array.isArray(row.to_emails) ? row.to_emails.map(value => typeof value === "string" ? value : "") : [], subject: String(row.subject),
     source: row.source as EmailJob["source"], status: row.status as EmailJob["status"],
     createdAt: new Date(row.created_at as string).toISOString(),
+    cc: (row.cc_emails || []) as string[], bcc: (row.bcc_emails || []) as string[],
+    fromName: String(row.from_name || EMAIL_FROM_NAME), fromEmail: String(row.from_email || ""),
     lastError: row.last_error == null ? null : String(row.last_error), attempts: Number(row.attempts) };
 }
 
@@ -36,19 +38,27 @@ export async function queueManualEmail(input: ManualEmailInput, adminId: number)
     input.to.some(to => typeof to !== "string" || !validEmailAddress(to.trim()))) {
     throw new Error("Enter 1 to 20 valid email addresses.");
   }
-  const to = [...new Set(input.to.map(to => to.trim().toLowerCase()))];
+  const { to, cc, bcc } = emailRecipients(input.to, input.cc, input.bcc);
   const subject = input.subject?.trim(), body = input.body?.trim();
   if (!subject || subject.length > 200 || /[\r\n]/.test(subject)) throw new Error("Enter a subject up to 200 characters.");
   if (!body || body.length > 50000) throw new Error("Enter a message up to 50,000 characters.");
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.requestId || "")) throw new Error("Refresh the page and try again.");
   const connection = await connectionId();
+  const account = await getOutlookConnection();
+  const fromEmail = input.fromEmail?.trim().toLowerCase() || account.senderEmail?.toLowerCase() || "";
+  const fromName = input.fromName?.trim() || EMAIL_FROM_NAME;
+  if (fromEmail !== account.senderEmail?.toLowerCase()) throw new Error("From email must match your connected Outlook account.");
+  if (fromName.length > 100 || /[\r\n]/.test(fromName)) throw new Error("Enter a From name up to 100 characters.");
+  const rendered = manualEmail(body);
   const key = `manual:${adminId}:${input.requestId}`;
-  const { rows } = await sql`INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source)
-    VALUES (${key},${connection},${JSON.stringify(to)}::jsonb,${subject},${body},'manual')
+  const { rows } = await sql`INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,bcc_emails,from_name,from_email,subject,body,body_html,source)
+    VALUES (${key},${connection},${JSON.stringify(to)}::jsonb,${JSON.stringify(cc)}::jsonb,${JSON.stringify(bcc)}::jsonb,
+      ${fromName},${fromEmail},${subject},${rendered.body},${rendered.html},'manual')
     ON CONFLICT (idempotency_key) DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
     RETURNING *`;
   const row = rows[0];
-  if (row.subject !== subject || row.body !== body || JSON.stringify(row.to_emails) !== JSON.stringify(to)) {
+  if (row.subject !== subject || row.body !== rendered.body || row.from_name !== fromName || row.from_email !== fromEmail ||
+    JSON.stringify(row.to_emails) !== JSON.stringify(to) || JSON.stringify(row.cc_emails) !== JSON.stringify(cc) || JSON.stringify(row.bcc_emails) !== JSON.stringify(bcc)) {
     throw new Error("This request was already used for another message. Start a new email.");
   }
   return emailJob(row);
@@ -57,7 +67,6 @@ export async function queueManualEmail(input: ManualEmailInput, adminId: number)
 /** Claim each publication and snapshot its recipients atomically with its outbox rows. */
 export async function queueAutomaticEmails() {
   if (!(await getOutlookConnection()).connected) return;
-  const origin = emailPortalOrigin();
   const connection = await connectionId();
   await sql`
     WITH publications AS (
@@ -68,13 +77,12 @@ export async function queueAutomaticEmails() {
         AND i.email_queued_at IS NULL AND LOWER(TRIM(i.status)) != 'draft'
       RETURNING i.*
     )
-    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source,source_id)
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id)
     SELECT 'invoice:' || i.id,${connection}::uuid,jsonb_build_array(TRIM(c.email)),
-      'Invoice ' || i.invoice_number || ' is available',
-      'Hello ' || c.display_name || E',\n\nYour invoice is available in the Client Portal.' ||
-      E'\nInvoice: ' || i.invoice_number || E'\nCoverage: ' || i.bill_coverage ||
-      E'\nAmount: ' || i.amount || E'\nDue date: ' || i.invoice_due_date ||
-      E'\n\nView your invoice: ' || ${origin + "/client/dashboard/invoices"} || E'\n\nGY Virtual Support',
+      to_jsonb(string_to_array(REPLACE(c.invoice_cc,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
+      'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
+      jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
+        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'defaultPassword',c.password='gyclient2026'),
       'invoice',i.id
     FROM publications i JOIN client_accounts c ON c.id = i.client_id
     ON CONFLICT (idempotency_key) DO NOTHING
@@ -85,7 +93,7 @@ export async function queueAutomaticEmails() {
       FROM email_settings s
       WHERE s.singleton = true AND s.auto_notifications_since IS NOT NULL
         AND n.published_at >= s.auto_notifications_since AND n.published_at <= NOW()
-        AND n.email_queued_at IS NULL AND (n.expires_at IS NULL OR n.expires_at > NOW())
+        AND n.email_queued_at IS NULL AND n.type != 'invoice' AND (n.expires_at IS NULL OR n.expires_at > NOW())
       RETURNING n.*
     ), recipients AS (
       SELECT n.*,v.id AS recipient_id,approved.email AS email FROM publications n JOIN va_profiles v
@@ -95,13 +103,17 @@ export async function queueAutomaticEmails() {
       SELECT n.*,c.id::text AS recipient_id,c.email AS email FROM publications n JOIN client_accounts c
         ON n.audience = 'client' AND (n.client_id IS NULL OR n.client_id = c.id)
     )
-    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source,source_id,expires_at)
+    , jobs AS (
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,from_name,from_email,subject,body,template_data,image_token,source,source_id,expires_at)
     SELECT 'notification:' || id || ':' || audience || ':' || recipient_id,
-      ${connection}::uuid,jsonb_build_array(TRIM(email)),title,
-      message || E'\n\nOpen your portal: ' || ${origin} ||
-      CASE WHEN redirect_to != '' THEN redirect_to WHEN audience = 'va' THEN '/dashboard' ELSE '/client/dashboard' END ||
-      E'\n\nGY Virtual Support','notification',id,expires_at
+      ${connection}::uuid,jsonb_build_array(TRIM(email)),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},title,message,
+      jsonb_build_object('kind','notification','title',title,'message',message,'redirectTo',redirect_to,'audience',audience),
+      CASE WHEN image_url != '' THEN gen_random_uuid() ELSE NULL END,'notification',id,expires_at
     FROM recipients ON CONFLICT (idempotency_key) DO NOTHING
+    RETURNING image_token,source_id
+    ) INSERT INTO notification_email_images(token,image_reference)
+    SELECT j.image_token,n.image_url FROM jobs j JOIN notifications n ON n.id=j.source_id
+    WHERE j.image_token IS NOT NULL ON CONFLICT DO NOTHING
   `;
   await sql`UPDATE email_jobs SET status='skipped',last_error='Recipient needs a valid, admin-approved email address.'
     WHERE status='queued' AND source != 'manual'
@@ -141,7 +153,20 @@ export async function processEmailQueue(limit = 5) {
       } else {
         // A refresh/reconnection may happen between claims; never send another account's backlog.
         if (await connectionId() !== row.connection_id) throw new OutlookSendError("rejected", "The connected Outlook account changed. Create a new email.");
-        await sendOutlookMessage({ to, subject: String(row.subject), body: String(row.body), expectedConnectionId: String(row.connection_id) });
+        let recipients;
+        try { recipients = emailRecipients(to, ((row.cc_emails || []) as string[]).filter(Boolean), (row.bcc_emails || []) as string[]); }
+        catch { throw new OutlookSendError("rejected", "Check the email's To, CC, and BCC addresses before retrying."); }
+        const template = row.template_data as EmailTemplateData | null;
+        let image: Awaited<ReturnType<typeof prepareEmailImage>> = { imageSrc: undefined, attachments: undefined };
+        try { if (template?.kind === "notification") image = await prepareEmailImage(row.image_token as string | null, emailPortalOrigin()); }
+        catch { throw new OutlookSendError("rejected", "The notification image is unavailable. Restore it before retrying this email."); }
+        const rendered = template?.kind === "invoice" ? invoiceEmail(template, emailPortalOrigin())
+          : template?.kind === "notification" ? notificationEmail(template, emailPortalOrigin(), image.imageSrc)
+          : { subject: String(row.subject), body: String(row.body), html: row.body_html ? String(row.body_html) : undefined };
+        await sql`UPDATE email_jobs SET subject=${rendered.subject},body=${rendered.body},body_html=${rendered.html || null} WHERE id=${row.id as number} AND status='sending'`;
+        await sendOutlookMessage({ ...recipients, subject: rendered.subject, body: rendered.body, html: rendered.html,
+          attachments: image.attachments, fromName: String(row.from_name || EMAIL_FROM_NAME),
+          fromEmail: String(row.from_email || "") || undefined, expectedConnectionId: String(row.connection_id) });
         await sql`UPDATE email_jobs SET status='accepted',last_error=NULL WHERE id=${row.id as number} AND status='sending'`;
       }
     } catch (error) {

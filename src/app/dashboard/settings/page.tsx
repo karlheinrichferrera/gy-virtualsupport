@@ -22,11 +22,6 @@ export default function VASettingsPage() {
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
-    const stored = profile.password || "gyva2026";
-    if (pwForm.current !== stored) {
-      setPwMsg({ text: "Current password is incorrect.", ok: false });
-      return;
-    }
     if (pwForm.newPw.length < 6) {
       setPwMsg({ text: "New password must be at least 6 characters.", ok: false });
       return;
@@ -35,7 +30,8 @@ export default function VASettingsPage() {
       setPwMsg({ text: "New passwords do not match.", ok: false });
       return;
     }
-    await actions.updateProfile(profile.id, { password: pwForm.newPw });
+    const result = await actions.changeVAPassword(profile.id, pwForm.current, pwForm.newPw);
+    if (!result.success) { setPwMsg({ text: result.error || "Unable to change password.", ok: false }); return; }
     const updated = await actions.getProfile(profile.id);
     setProfile(updated || null);
     setPwMsg({ text: "Password changed successfully!", ok: true });

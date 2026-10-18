@@ -143,8 +143,28 @@ test('Outlook OAuth, encryption, and Graph sending use mocked providers only', a
     });
     await t.test('Graph receives a text message and saves accepted messages in Sent Items', async () => {
       const { service } = harness(); await connect(service); calls.length = 0;
-      responder = (url, init) => { assert.equal(url, 'https://graph.microsoft.com/v1.0/me/sendMail'); const payload = JSON.parse(init.body); assert.deepEqual(payload, { message: { subject: 'Test subject', body: { contentType: 'Text', content: '<b>Text remains text</b>' }, toRecipients: [{ emailAddress: { address: 'recipient@example.invalid' } }] }, saveToSentItems: true }); return new Response(null, { status: 202 }); };
+      responder = (url, init) => { assert.equal(url, 'https://graph.microsoft.com/v1.0/me/sendMail'); const payload = JSON.parse(init.body); assert.deepEqual(payload, { message: { subject: 'Test subject', body: { contentType: 'Text', content: '<b>Text remains text</b>' }, toRecipients: [{ emailAddress: { address: 'recipient@example.invalid' } }], ccRecipients: [], bccRecipients: [] }, saveToSentItems: true }); return new Response(null, { status: 202 }); };
       await service.sendOutlookMessage({ to: ['recipient@example.invalid', 'recipient@example.invalid'], subject: ' Test subject ', body: '<b>Text remains text</b>' }); assert.equal(calls.length, 1);
+    });
+    await t.test('HTML mail preserves From, CC, private BCC, and inline greeting attachments', async () => {
+      const { service } = harness(); await connect(service); calls.length = 0;
+      responder = (_url, init) => {
+        const { message } = JSON.parse(init.body);
+        assert.equal(message.from.emailAddress.address, 'outlook@example.com');
+        assert.equal(message.from.emailAddress.name, 'GY Virtual Support Team');
+        assert.equal(message.body.contentType, 'HTML');
+        assert.deepEqual(message.ccRecipients, [{ emailAddress: { address: 'staff@example.invalid' } }]);
+        assert.deepEqual(message.bccRecipients, [{ emailAddress: { address: 'private@example.invalid' } }]);
+        assert.ok(!message.body.content.includes('private@example.invalid'));
+        assert.equal(message.attachments[0]['@odata.type'], '#microsoft.graph.fileAttachment');
+        assert.equal(message.attachments[0].isInline, true);
+        return new Response(null, { status: 202 });
+      };
+      await service.sendOutlookMessage({ to: ['recipient@example.invalid'], cc: ['staff@example.invalid'], bcc: ['private@example.invalid'], fromName: 'GY Virtual Support Team',fromEmail:'outlook@example.com',subject:'Greeting',body:'Happy birthday',html:'<p>Happy birthday</p><img src="cid:greeting">',attachments:[{name:'greeting.png',contentType:'image/png',contentBytes:'aGVsbG8=',contentId:'greeting',isInline:true}] });
+      assert.equal(calls.length, 1);
+      calls.length = 0;
+      await assert.rejects(service.sendOutlookMessage({ to: ['recipient@example.invalid'],subject:'Spoofed',body:'Message',fromEmail:'other@example.com' }), error => error.kind === 'rejected');
+      assert.equal(calls.length, 0);
     });
     await t.test('401 refreshes once, stores rotated encrypted credentials, and retries only the rejected request', async () => {
       const { service, db } = harness(); await connect(service); calls.length = 0; const previous = db.row.encrypted_tokens; let sends = 0;

@@ -9,6 +9,9 @@ import { estDate, estDateLong } from "./est";
 import { clearAdminSession, createAdminSession, getAdminSession, invalidateAdminSessions, requireAdminSession } from "./admin-session";
 import { wakeEmailDelivery } from "./email-dispatch";
 import { approveVAEmail } from "./email-service";
+import { parseEmailAddresses } from "./email-addresses";
+import { getVASession, requireVAOrAdmin, createVASession, clearVASession, invalidateVASessions } from "./va-session";
+import { submitWorkflowRequest, setWorkflowRequestStatus, recordSalaryAdjustment, submitOvertime, setOvertimeStatus } from "./workflow-notifications";
 
 
 let tablesReady = false;
@@ -54,7 +57,7 @@ function rowToProfile(r: Record<string, unknown>): VAProfile {
     currentRate: r.current_rate as string,
     emergencyContact: r.emergency_contact as string,
     emergencyPhone: r.emergency_phone as string,
-    password: r.password as string,
+    password: "",
     contractorId: r.contractor_id as string,
     payoutMode: r.payout_mode as string,
     paypalLink: r.paypal_link as string,
@@ -168,8 +171,12 @@ export async function addProfile(p: VAProfile): Promise<void> {
 }
 
 export async function updateProfile(id: string, updates: Partial<VAProfile>): Promise<void> {
-  const current = await getProfile(id);
-  if (!current) return;
+  const admin = await requireVAOrAdmin(id);
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM va_profiles WHERE id=${id}`;
+  if (!rows.length) return;
+  if (updates.password !== undefined && !admin) throw new Error("Use Change Password in Settings to change your password.");
+  const current = { ...rowToProfile(rows[0]), password: String(rows[0].password) };
   const merged = { ...current, ...updates };
   const addr = updates.permanentAddress
     ? { ...current.permanentAddress, ...updates.permanentAddress }
@@ -212,15 +219,38 @@ export async function updateProfile(id: string, updates: Partial<VAProfile>): Pr
       work_schedule = ${JSON.stringify(merged.workSchedule || DEFAULT_SCHEDULE)}
     WHERE id = ${id}
   `;
-  if (await getAdminSession()) await approveVAEmail(id, merged.email);
+  if (admin) await approveVAEmail(id, merged.email);
+  if (updates.password !== undefined) await invalidateVASessions(id);
 }
 
 export async function deleteProfile(id: string): Promise<void> {
+  await requireAdminSession();
   await sql`DELETE FROM va_profiles WHERE id = ${id}`;
 }
 
 export async function resetPassword(id: string): Promise<void> {
+  await requireAdminSession();
   await sql`UPDATE va_profiles SET password = 'gyva2026' WHERE id = ${id}`;
+  await invalidateVASessions(id);
+}
+
+export async function authenticateVA(vaId: string, password: string) {
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT id FROM va_profiles WHERE id=${vaId} AND password=${password}`;
+  if (!rows.length) return null;
+  await createVASession(String(rows[0].id));
+  return { id: String(rows[0].id) };
+}
+export async function getCurrentVASession() { return getVASession(); }
+export async function logoutVA() { await clearVASession(); }
+export async function changeVAPassword(vaId: string, currentPassword: string, newPassword: string) {
+  await requireVAOrAdmin(vaId);
+  if (newPassword.length < 6) return { success: false, error: "New password must be at least 6 characters." };
+  const { rows } = await sql`UPDATE va_profiles SET password=${newPassword} WHERE id=${vaId} AND password=${currentPassword} RETURNING id`;
+  if (!rows.length) return { success: false, error: "Current password is incorrect." };
+  await invalidateVASessions(vaId);
+  await createVASession(vaId);
+  return { success: true };
 }
 
 // ── Salary Adjustments ──
@@ -253,13 +283,14 @@ export async function getAllAdjustments(): Promise<Record<string, (SalaryAdjustm
 }
 
 export async function addAdjustment(vaId: string, adj: SalaryAdjustment): Promise<void> {
-  await sql`
-    INSERT INTO salary_adjustments (va_id, effectivity_date, type, hourly_rate, sales_commission, referral_bonus, notes)
-    VALUES (${vaId}, ${adj.effectivityDate}, ${adj.type}, ${adj.hourlyRate}, ${adj.salesCommission}, ${adj.referralBonus}, ${adj.notes})
-  `;
+  const admin = await requireAdminSession();
+  await ensureTablesOnce();
+  await recordSalaryAdjustment(vaId, adj, admin.username);
+  wakeEmailDelivery();
 }
 
 export async function updateAdjustment(adjId: number, vaId: string, adj: SalaryAdjustment): Promise<void> {
+  await requireAdminSession();
   await sql`
     UPDATE salary_adjustments
     SET va_id = ${vaId}, effectivity_date = ${adj.effectivityDate}, type = ${adj.type},
@@ -270,6 +301,7 @@ export async function updateAdjustment(adjId: number, vaId: string, adj: SalaryA
 }
 
 export async function deleteAdjustment(adjId: number): Promise<void> {
+  await requireAdminSession();
   await sql`DELETE FROM salary_adjustments WHERE id = ${adjId}`;
 }
 
@@ -365,42 +397,40 @@ export async function getAllRequestsFlat(): Promise<{ vaId: string; vaName: stri
 }
 
 export async function addRequest(vaId: string, req: LeaveRequest): Promise<void> {
-  await sql`
-    INSERT INTO leave_requests (request_id, va_id, type, date_submitted, date_from, date_to, reason, status, remarks)
-    VALUES (${req.id}, ${vaId}, ${req.type}, ${req.dateSubmitted}, ${req.dateFrom}, ${req.dateTo}, ${req.reason}, ${req.status}, ${req.remarks})
-  `;
+  await requireVAOrAdmin(vaId);
+  await ensureTablesOnce();
+  await submitWorkflowRequest(vaId, req);
+  wakeEmailDelivery();
 }
 
 export async function updateRequestStatus(id: string, status: LeaveRequest["status"], remarks?: string): Promise<void> {
-  if (remarks !== undefined) {
-    await sql`UPDATE leave_requests SET status = ${status}, remarks = ${remarks} WHERE request_id = ${id}`;
-  } else {
-    await sql`UPDATE leave_requests SET status = ${status} WHERE request_id = ${id}`;
-  }
+  const admin = await requireAdminSession();
+  await ensureTablesOnce();
+  await setWorkflowRequestStatus(id, status, remarks, admin.username);
+  wakeEmailDelivery();
 }
 
 export async function updateRequestDetails(
   id: string,
   updates: { type?: LeaveRequest["type"]; dateFrom?: string; dateTo?: string; reason?: string }
 ): Promise<void> {
-  const sets: string[] = [];
-  const vals: string[] = [];
-  if (updates.type !== undefined) { sets.push("type"); vals.push(updates.type); }
-  if (updates.dateFrom !== undefined) { sets.push("date_from"); vals.push(updates.dateFrom); }
-  if (updates.dateTo !== undefined) { sets.push("date_to"); vals.push(updates.dateTo); }
-  if (updates.reason !== undefined) { sets.push("reason"); vals.push(updates.reason); }
-  if (sets.length === 0) return;
-  await sql.query(
-    `UPDATE leave_requests SET ${sets.map((s, i) => `${s} = $${i + 1}`).join(", ")} WHERE request_id = $${sets.length + 1}`,
-    [...vals, id]
-  );
+  const { rows } = await sql`SELECT va_id FROM leave_requests WHERE request_id=${id}`;
+  if (!rows.length) return;
+  const admin = await requireVAOrAdmin(String(rows[0].va_id));
+  if (updates.type !== undefined && !["Leave", "Shift Adjustment"].includes(updates.type)) throw new Error("Invalid request type.");
+  const changed = await sql`UPDATE leave_requests SET type=COALESCE(${updates.type ?? null},type),
+    date_from=COALESCE(${updates.dateFrom ?? null},date_from),date_to=COALESCE(${updates.dateTo ?? null},date_to),reason=COALESCE(${updates.reason ?? null},reason)
+    WHERE request_id=${id} AND (${Boolean(admin)} OR status='Pending') RETURNING request_id`;
+  if (!changed.rows.length) throw new Error("Only pending requests can be edited. Refresh your request list.");
 }
 
 export async function updateRequestRemarks(id: string, remarks: string): Promise<void> {
+  await requireAdminSession();
   await sql`UPDATE leave_requests SET remarks = ${remarks} WHERE request_id = ${id}`;
 }
 
 export async function deleteRequest(id: string): Promise<void> {
+  await requireAdminSession();
   await sql`DELETE FROM leave_requests WHERE request_id = ${id}`;
 }
 
@@ -505,6 +535,7 @@ export type ClientAccount = {
   phone: string;
   timesheetUrl: string;
   timesheetViewUrl: string;
+  invoiceCc: string;
   createdAt: string;
 };
 
@@ -518,6 +549,7 @@ function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
     phone: (r.phone as string) || "",
     timesheetUrl: (r.timesheet_url as string) || "",
     timesheetViewUrl: (r.timesheet_view_url as string) || "",
+    invoiceCc: (r.invoice_cc as string) || "",
     createdAt: r.created_at as string,
   };
 }
@@ -542,22 +574,24 @@ export async function getClientAccountByEmail(email: string): Promise<ClientAcco
   return rowToClientAccount(rows[0]);
 }
 
-export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string): Promise<{ success: boolean; error?: string }> {
+export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string, invoiceCc = ""): Promise<{ success: boolean; error?: string }> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
   const now = estDateLong();
-  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now})`;
+  const cc = parseEmailAddresses(invoiceCc, 19).join(", ");
+  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at, invoice_cc) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now},${cc})`;
   return { success: true };
 }
 
-export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
+export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string; invoiceCc?: string }): Promise<void> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
   if (rows.length === 0) return;
   const current = rowToClientAccount(rows[0]);
+  const cc = updates.invoiceCc === undefined ? current.invoiceCc : parseEmailAddresses(updates.invoiceCc, 19).join(", ");
   await sql`
     UPDATE client_accounts SET
       display_name = ${updates.displayName ?? current.displayName},
@@ -566,7 +600,8 @@ export async function updateClientAccount(id: number, updates: { displayName?: s
       phone = ${updates.phone ?? current.phone},
       email = ${updates.email ?? current.email},
       timesheet_url = ${updates.timesheetUrl ?? current.timesheetUrl},
-      timesheet_view_url = ${updates.timesheetViewUrl ?? current.timesheetViewUrl}
+      timesheet_view_url = ${updates.timesheetViewUrl ?? current.timesheetViewUrl},
+      invoice_cc = ${cc}
     WHERE id = ${id}
   `;
 }
@@ -638,7 +673,7 @@ export async function getClientInvoicesByClientId(clientId: number, excludeDraft
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_invoices WHERE client_id = ${clientId} ORDER BY id DESC`;
   const all = rows.map(rowToClientInvoice);
-  if (excludeDraft) return all.filter((inv) => inv.status.toLowerCase() !== "draft");
+  if (excludeDraft) return all.filter((inv) => inv.status.trim().toLowerCase() !== "draft");
   return all;
 }
 
@@ -654,9 +689,15 @@ export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<
   await requireAdminSession();
   await ensureTablesOnce();
   await sql`
-    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, email_published_at)
+    WITH published AS (
+    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, email_published_at,portal_notified_at)
     VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},
-      CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END)
+      CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END,
+      CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END) RETURNING *
+    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to)
+      SELECT 'client',client_id,'New invoice available','Your invoice ' || invoice_number || ' is now available.' ||
+        E'\nBilling period: ' || bill_coverage || E'\nTotal amount due: ' || amount || E'\nPayment due date: ' || invoice_due_date,
+        'invoice','system',${new Date().toISOString()},'/client/dashboard/invoices' FROM published WHERE portal_notified_at IS NOT NULL
   `;
   wakeEmailDelivery();
 }
@@ -665,7 +706,8 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
   await requireAdminSession();
   await ensureTablesOnce();
   await sql`
-    UPDATE client_invoices SET
+    WITH previous AS MATERIALIZED (SELECT * FROM client_invoices WHERE id=${id} FOR UPDATE), changed AS (
+    UPDATE client_invoices i SET
       client_id = ${inv.clientId},
       invoice_number = ${inv.invoiceNumber},
       bill_coverage = ${inv.billCoverage},
@@ -673,9 +715,18 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
       invoice_due_date = ${inv.invoiceDueDate},
       status = ${inv.status},
       invoice_link = ${inv.invoiceLink},
-      email_published_at = CASE WHEN LOWER(TRIM(status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
-        THEN COALESCE(email_published_at,NOW()) ELSE email_published_at END
-    WHERE id = ${id}
+      email_published_at = CASE WHEN LOWER(TRIM(previous.status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
+        THEN COALESCE(previous.email_published_at,NOW()) ELSE previous.email_published_at END,
+      portal_notified_at = CASE WHEN LOWER(TRIM(previous.status)) = 'draft' AND LOWER(TRIM(${inv.status})) != 'draft'
+        THEN COALESCE(previous.portal_notified_at,NOW()) ELSE previous.portal_notified_at END
+    FROM previous WHERE i.id=previous.id
+    RETURNING i.*
+    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to)
+      SELECT 'client',c.client_id,'New invoice available','Your invoice ' || c.invoice_number || ' is now available.' ||
+        E'\nBilling period: ' || c.bill_coverage || E'\nTotal amount due: ' || c.amount || E'\nPayment due date: ' || c.invoice_due_date,
+        'invoice','system',${new Date().toISOString()},'/client/dashboard/invoices'
+      FROM changed c JOIN previous p ON p.id=c.id
+      WHERE LOWER(TRIM(p.status))='draft' AND LOWER(TRIM(c.status))!='draft' AND p.portal_notified_at IS NULL
   `;
   wakeEmailDelivery();
 }
@@ -916,10 +967,17 @@ function roundTime30(t: string): string {
   return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
 }
 
-export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Promise<void> {
+export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id"> & { submissionKey?: string }): Promise<void> {
   await ensureTablesOnce();
   const timeIn = roundTime30(entry.timeIn);
   const timeOut = roundTime30(entry.timeOut);
+  if (entry.entryType === "overtime") {
+    const admin = await requireVAOrAdmin(entry.vaId);
+    if (!admin && entry.status !== "pending") throw new Error("Overtime requests must be submitted for approval.");
+    await submitOvertime({ ...entry, timeIn, timeOut });
+    wakeEmailDelivery();
+    return;
+  }
   await sql`
     INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
     VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${timeIn}, ${timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
@@ -929,12 +987,7 @@ export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id">): Prom
 export async function addBulkTimeproofEntries(entries: Omit<TimeproofEntry, "id">[]): Promise<void> {
   await ensureTablesOnce();
   for (const entry of entries) {
-    const timeIn = roundTime30(entry.timeIn);
-    const timeOut = roundTime30(entry.timeOut);
-    await sql`
-      INSERT INTO timeproof_entries (va_id, client_id, punch_date, time_in, time_out, notes, created_at, entry_type, status)
-      VALUES (${entry.vaId}, ${entry.clientId}, ${entry.punchDate}, ${timeIn}, ${timeOut}, ${entry.notes}, ${entry.createdAt}, ${entry.entryType || "time"}, ${entry.status || "approved"})
-    `;
+    await addTimeproofEntry(entry);
   }
 }
 
@@ -943,6 +996,10 @@ export async function updateTimeproofEntry(id: number, updates: { timeIn?: strin
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
   if (rows.length === 0) return;
   const current = rowToTimeproofEntry(rows[0]);
+  if (current.entryType === "overtime" || updates.entryType === "overtime") {
+    const admin = await requireVAOrAdmin(current.vaId);
+    if (!admin && (current.status !== "pending" || current.entryType !== "overtime")) throw new Error("Use Request Overtime to submit an overtime request. Approved overtime can only be changed by an administrator.");
+  }
   const timeIn = roundTime30(updates.timeIn ?? current.timeIn);
   const timeOut = roundTime30(updates.timeOut ?? current.timeOut);
   await sql`
@@ -978,8 +1035,10 @@ export async function deleteTimeproofEntry(id: number): Promise<void> {
 }
 
 export async function updateTimeproofEntryStatus(id: number, status: string): Promise<void> {
+  const admin = await requireAdminSession();
   await ensureTablesOnce();
-  await sql`UPDATE timeproof_entries SET status = ${status} WHERE id = ${id}`;
+  await setOvertimeStatus(id, status, admin.username);
+  wakeEmailDelivery();
 }
 
 export async function getPendingOvertimeRequests(): Promise<(TimeproofEntry & { vaName: string; clientName: string })[]> {
@@ -1267,6 +1326,7 @@ export async function getWorkingVAs(): Promise<{ id: string; firstName: string; 
 export type { Notification } from "./notification-types";
 
 export async function getNotifications(vaId: string) {
+  await requireVAOrAdmin(vaId);
   await ensureTablesOnce();
   const notifications = await notificationService.recipientNotifications("va", vaId);
   wakeEmailDelivery();
@@ -1278,11 +1338,13 @@ export async function getUnreadNotificationCount(vaId: string): Promise<number> 
 }
 
 export async function markNotificationRead(notificationId: number, vaId: string): Promise<void> {
+  await requireVAOrAdmin(vaId);
   await ensureTablesOnce();
   await notificationService.readRecipientNotifications("va", vaId, notificationId);
 }
 
 export async function markAllNotificationsRead(vaId: string): Promise<void> {
+  await requireVAOrAdmin(vaId);
   await ensureTablesOnce();
   await notificationService.readRecipientNotifications("va", vaId);
 }

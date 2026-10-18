@@ -291,8 +291,16 @@ function validEmail(value: unknown): value is string {
 }
 
 /** Graph 202 means accepted, not delivered. Uncertain results must never be blindly retried. */
-export async function sendOutlookMessage({ to, subject, body, expectedConnectionId }: { to: string[]; subject: string; body: string; expectedConnectionId?: string }): Promise<void> {
-  if (!Array.isArray(to) || to.length < 1 || to.length > 50 || !to.every(validEmail) || typeof subject !== "string" || !subject.trim() || subject.length > 255 || /[\r\n]/.test(subject) || typeof body !== "string" || !body.trim() || body.length > 100_000) {
+export async function sendOutlookMessage({ to, cc = [], bcc = [], fromName, fromEmail, html, attachments, subject, body, expectedConnectionId }: {
+  to: string[]; cc?: string[]; bcc?: string[]; fromName?: string; fromEmail?: string; html?: string;
+  attachments?: { name: string; contentType: string; contentBytes: string; contentId: string; isInline: true }[];
+  subject: string; body: string; expectedConnectionId?: string;
+}): Promise<void> {
+  if (![to, cc, bcc].every(list => Array.isArray(list) && list.every(validEmail)) || to.length < 1 || to.length + cc.length + bcc.length > 50 ||
+    (fromEmail !== undefined && !validEmail(fromEmail)) || (fromName !== undefined && (typeof fromName !== "string" || fromName.length > 100 || /[\r\n]/.test(fromName))) ||
+    (html !== undefined && (typeof html !== "string" || html.length > 200000)) ||
+    (attachments && (attachments.length > 1 || attachments.some(attachment => !/^image\/(png|jpeg|gif|webp)$/.test(attachment.contentType) || attachment.contentBytes.length > 2800000))) ||
+    typeof subject !== "string" || !subject.trim() || subject.length > 255 || /[\r\n]/.test(subject) || typeof body !== "string" || !body.trim() || body.length > 100_000) {
     throw new OutlookSendError("rejected", "Enter valid email recipients, a subject, and a message.");
   }
   await ensureOutlookSchema();
@@ -303,11 +311,19 @@ export async function sendOutlookMessage({ to, subject, body, expectedConnection
     initialConnectionId = credentials.connectionId;
     const current = await readConnection();
     if (current?.connection_id !== credentials.connectionId || !current.encrypted_tokens || current.last_error) throw new OutlookSendError("reconnect", RECONNECT_MESSAGE);
+    if (fromEmail && fromEmail.toLowerCase() !== current.sender_email?.toLowerCase()) {
+      throw new OutlookSendError("rejected", "The From email must match the connected Outlook account. Connect that account before sending.");
+    }
+    const recipients = (list: string[]) => [...new Set(list)].map(address => ({ emailAddress: { address } }));
     let response: Response;
     try {
       response = await microsoftFetch("https://graph.microsoft.com/v1.0/me/sendMail", {
         method: "POST", headers: { Authorization: `Bearer ${credentials.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: { subject: subject.trim(), body: { contentType: "Text", content: body }, toRecipients: [...new Set(to)].map(address => ({ emailAddress: { address } })) }, saveToSentItems: true }),
+        body: JSON.stringify({ message: { subject: subject.trim(), body: { contentType: html ? "HTML" : "Text", content: html || body },
+          toRecipients: recipients(to), ccRecipients: recipients(cc), bccRecipients: recipients(bcc),
+          ...(fromName || fromEmail ? { from: { emailAddress: { address: fromEmail || current.sender_email, name: fromName || current.sender_name } } } : {}),
+          ...(attachments ? { attachments: attachments.map(attachment => ({ "@odata.type": "#microsoft.graph.fileAttachment", ...attachment })) } : {}),
+        }, saveToSentItems: true }),
       });
     } catch { throw new OutlookSendError("uncertain", "Outlook did not confirm acceptance. Check Sent Items before sending this message again."); }
     if (response.status === 202) return;

@@ -14,14 +14,9 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const profile = await actions.getProfile(vaId);
+      const profile = await actions.authenticateVA(vaId, password);
       if (!profile) {
-        setError("VA ID not found. Please check and try again.");
-        return;
-      }
-      const storedPassword = profile.password || "gyva2026";
-      if (password !== storedPassword) {
-        setError("Invalid password.");
+        setError("Invalid VA ID or password. Please check and try again.");
         return;
       }
       localStorage.setItem("vaId", vaId);
@@ -48,10 +43,11 @@ export default function LoginPage() {
           className="bg-white rounded-2xl shadow-2xl p-8 space-y-5"
         >
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="va-login-id" className="block text-sm font-medium text-slate-700 mb-1.5">
               VA ID
             </label>
             <input
+              id="va-login-id" autoComplete="username"
               type="text"
               value={vaId}
               onChange={(e) => {
@@ -63,10 +59,11 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="va-login-password" className="block text-sm font-medium text-slate-700 mb-1.5">
               Password
             </label>
             <input
+              id="va-login-password" autoComplete="current-password"
               type="password"
               value={password}
               onChange={(e) => {

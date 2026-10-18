@@ -27,7 +27,13 @@ Sign in to the Admin Portal again, open **Email**, choose **Connect Outlook**, a
 
 ## Automatic and scheduled emails
 
-Enable client invoices and/or portal notifications in Admin > Email. Existing invoices and notifications are excluded. A new non-draft invoice, or a draft first published after enabling automation, creates one email to the client. Each published notification creates a separate email for each of its recipients; addresses are not shared with other recipients. Notification images remain in the portal rather than becoming email attachments.
+Enable client invoices and/or portal notifications in Admin > Email. Existing invoices and notifications are excluded. A new non-draft invoice, or a draft first published after enabling automation, creates one invoice email to the client and its configured invoice CC contacts. Edit those contacts under Client Management; Devin's initial list contains the four supplied staff addresses. Invoice publication creates a client portal notification independently of email settings. Drafts are excluded from client invoice lists and dashboard counts. Invoice portal pushes are excluded from generic notification emails to avoid sending two emails for the same invoice.
+
+Invoice emails use the requested billing summary, payment link, portal access instructions, and generic signature. The invoice link falls back to the client's portal invoices page if no valid link is saved. Only the supplied default password is included when it is still the client's default; changed passwords are never copied into emails. Notifications and manually composed emails use the same generic signature. Manual compose includes From Name, From Email, To, CC, BCC, Subject, and Message. From Email must match the connected mailbox; Microsoft can use the mailbox profile's display name when displaying the sender.
+
+Each ordinary portal notification creates a separate email for each recipient, preserving private recipient lists. A notification email has a portal link only when Redirect To is provided. Greeting images up to 2 MB are included inline; larger images up to the existing 10 MB limit use a persistent image URL to stay within Microsoft Graph's send limits. Some mail clients require readers to allow remote images. Stored email image references survive portal notification deletion, including the 24-hour read retention rule.
+
+New leave/shift requests and overtime requests create acknowledgement notifications; admin approvals and new salary adjustments create notifications for the affected VA. Their email copies follow the Portal notifications email switch. Repeated saves of an already-approved request do not duplicate approval notices. VAs sign in again after this upgrade so requests and inbox reads can use a server-verified session; passwords are no longer returned to the browser. Clicking More opens full notification details in a popup with keyboard support.
 
 Enabling notification email approves the current VA email contact list. New public registrations and changes made to a VA's email outside the Admin Portal need admin review before receiving automated email: save the VA's record in Admin > Virtual Assistants to approve its current email address. Until then, its email is marked Skipped in history; portal notifications still work normally. Client email destinations can only be created or changed by a signed-in admin.
 
@@ -44,8 +50,8 @@ Disconnecting removes stored credentials, disables automation, and cancels queue
 The repository tests mock all Microsoft HTTP calls; they never send real email. Database integration tests create and remove isolated schemas rather than touching application data:
 
 ```sh
-node --test tests/admin-session.test.mjs tests/outlook.test.mjs
-node --use-env-proxy --test tests/email.integration.test.mjs
+node --test tests/admin-session.test.mjs tests/va-session.test.mjs tests/outlook.test.mjs tests/email-templates.test.mjs
+node --use-env-proxy --test tests/email.integration.test.mjs tests/workflow-notifications.integration.test.mjs
 npm run build
 ```
 

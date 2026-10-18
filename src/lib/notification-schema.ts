@@ -1,7 +1,9 @@
 import { sql } from "@vercel/postgres";
+import { ensureEmailImageSchema } from "./email-image-schema";
 
 /** Additive migration: preserve existing announcements and per-VA read state. */
 export async function ensureNotificationSchema() {
+  await ensureEmailImageSchema();
   await sql`
     CREATE TABLE IF NOT EXISTS notification_image_assets (
       id UUID PRIMARY KEY,

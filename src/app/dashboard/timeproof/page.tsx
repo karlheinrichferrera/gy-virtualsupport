@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, Clock } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { TimeproofEntry, ClientAccount } from "@/lib/actions";
@@ -39,6 +39,8 @@ export default function TimeproofPage() {
   const [showOTForm, setShowOTForm] = useState(false);
   const [otForm, setOTForm] = useState({ punchDate: "", timeIn: "", timeOut: "", notes: "" });
   const [otSaving, setOTSaving] = useState(false);
+  const [otError, setOTError] = useState("");
+  const otSubmission = useRef<string | null>(null);
 
   const vaId = typeof window !== "undefined" ? localStorage.getItem("vaId") || "" : "";
 
@@ -109,13 +111,18 @@ export default function TimeproofPage() {
 
   async function handleOTSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedClient || !vaId) return;
+    if (!selectedClient || !vaId || otSaving) return;
     setOTSaving(true);
+    setOTError("");
+    try {
     const now = estDateLong();
-    await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: otForm.punchDate, timeIn: otForm.timeIn, timeOut: otForm.timeOut, notes: otForm.notes, createdAt: now, entryType: "overtime", status: "pending" });
-    setOTSaving(false);
+    otSubmission.current ||= crypto.randomUUID();
+    await actions.addTimeproofEntry({ vaId, clientId: selectedClient, punchDate: otForm.punchDate, timeIn: otForm.timeIn, timeOut: otForm.timeOut, notes: otForm.notes, createdAt: now, entryType: "overtime", status: "pending", submissionKey: otSubmission.current });
     setShowOTForm(false);
+    otSubmission.current = null;
     await reload();
+    } catch (error) { setOTError(error instanceof Error ? error.message : "Unable to submit overtime. Please try again."); }
+    finally { setOTSaving(false); }
   }
 
   const filtered = entries.filter((e) => {
@@ -318,7 +325,7 @@ export default function TimeproofPage() {
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Clock size={20} className="text-red-600" /> Request Overtime
               </h2>
-              <button onClick={() => setShowOTForm(false)} className="p-1 hover:bg-slate-100 rounded-lg">
+              <button onClick={() => { setShowOTForm(false); otSubmission.current = null; setOTError(""); }} className="p-1 hover:bg-slate-100 rounded-lg">
                 <X size={20} className="text-slate-500" />
               </button>
             </div>
@@ -344,6 +351,7 @@ export default function TimeproofPage() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
                 Your overtime request will be sent to admin for approval.
               </div>
+              {otError && <p role="alert" className="text-sm text-red-600">{otError}</p>}
               <button type="submit" disabled={otSaving} className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                 <Clock size={16} /> {otSaving ? "Submitting..." : "Submit Request"}
               </button>

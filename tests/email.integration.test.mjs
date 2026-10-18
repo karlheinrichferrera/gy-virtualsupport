@@ -60,28 +60,30 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
   }
   await connection(`CREATE SCHEMA ${schema}`);
   try {
-    await sql`CREATE TABLE client_accounts (id INTEGER PRIMARY KEY, email TEXT, display_name TEXT NOT NULL)`;
+    await sql`CREATE TABLE client_accounts (id INTEGER PRIMARY KEY, email TEXT, display_name TEXT NOT NULL,password TEXT NOT NULL DEFAULT 'gyclient2026')`;
     await sql`CREATE TABLE va_profiles (id TEXT PRIMARY KEY, email TEXT)`;
     await sql`CREATE TABLE client_invoices (
       id SERIAL PRIMARY KEY, client_id INTEGER NOT NULL, invoice_number TEXT NOT NULL,
       bill_coverage TEXT NOT NULL DEFAULT 'October', amount TEXT NOT NULL DEFAULT '100.00',
-      invoice_due_date TEXT NOT NULL DEFAULT '2026-10-31', status TEXT NOT NULL DEFAULT 'Unpaid')`;
+      invoice_due_date TEXT NOT NULL DEFAULT '2026-10-31', status TEXT NOT NULL DEFAULT 'Unpaid',invoice_link TEXT NOT NULL DEFAULT '')`;
     await sql`CREATE TABLE notifications (
       id SERIAL PRIMARY KEY, audience TEXT NOT NULL DEFAULT 'va', va_id TEXT NOT NULL DEFAULT '',
-      client_id INTEGER, title TEXT NOT NULL, message TEXT NOT NULL DEFAULT 'Portal update',
-      redirect_to TEXT NOT NULL DEFAULT '', published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ)`;
+      client_id INTEGER, title TEXT NOT NULL, message TEXT NOT NULL DEFAULT 'Portal update',is_read BOOLEAN NOT NULL DEFAULT false,created_at TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL DEFAULT '',
+      redirect_to TEXT NOT NULL DEFAULT '', type TEXT NOT NULL DEFAULT 'general',image_url TEXT NOT NULL DEFAULT '', published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ)`;
+    await sql`CREATE TABLE notification_reads(notification_id INTEGER REFERENCES notifications(id) ON DELETE CASCADE,va_id TEXT NOT NULL)`;
     await sql`CREATE TABLE outlook_connection (
       singleton BOOLEAN PRIMARY KEY DEFAULT true, connection_id UUID NOT NULL,
       encrypted_tokens TEXT, sender_email TEXT)`;
     await sql`INSERT INTO client_accounts VALUES (1,'one@example.invalid','Client One'),(2,'two@example.invalid','Client Two')`;
     await sql`INSERT INTO va_profiles VALUES ('va-1','va-one@example.invalid'),('va-2','va-two@example.invalid')`;
-    await sql`INSERT INTO outlook_connection VALUES (true,${randomUUID()}::uuid,'mock-tokens','admin@example.invalid')`;
+    await sql`INSERT INTO outlook_connection VALUES (true,${randomUUID()}::uuid,'mock-tokens','hello.graveyardcrewph@outlook.com')`;
     const { ensureEmailSchema } = loadTs('email-schema.ts');
+    await loadTs('notification-schema.ts').ensureNotificationSchema();
     await ensureEmailSchema();
     const service = loadTs('email-service.ts');
     const reset = async () => {
       sent.length = 0; sendHook = async () => {}; afterStatement = async () => {};
-      await sql`TRUNCATE email_jobs,client_invoices,notifications,email_va_contacts RESTART IDENTITY`;
+      await sql`TRUNCATE email_jobs,client_invoices,notifications,email_va_contacts,notification_email_images,notification_image_assets RESTART IDENTITY CASCADE`;
       await sql`DELETE FROM va_profiles WHERE id NOT IN ('va-1','va-2')`;
       await sql`UPDATE va_profiles SET email=CASE WHEN id='va-1' THEN 'va-one@example.invalid' ELSE 'va-two@example.invalid' END`;
       await sql`DELETE FROM client_accounts WHERE id NOT IN (1,2)`;
@@ -113,13 +115,13 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
         ('Expired notice','client',1,NOW(),NOW()-INTERVAL '1 second')`;
       await service.queueAutomaticEmails();
       const queued = await jobs();
-      assert.deepEqual(queued.map(row => row.subject).sort(), ['Invoice PUBLISHED is available','New notice']);
+      assert.deepEqual(queued.map(row => row.subject).sort(), ['INVOICE - October : GY Virtual Support Team','New notice']);
       assert.ok(queued.every(row => row.status === 'queued'));
-      assert.ok(queued[0].body.includes('/client/dashboard/invoices'));
+      assert.equal(queued[0].template_data.invoiceNumber, 'PUBLISHED');
       assert.equal(sent.length, 0, 'Scanning only writes the durable outbox');
       await sql`UPDATE client_invoices SET status='Unpaid',email_published_at=NOW() WHERE invoice_number='DRAFT'`;
       await service.queueAutomaticEmails();
-      assert.equal((await jobs()).filter(row => row.subject === 'Invoice DRAFT is available').length, 1);
+      assert.equal((await jobs()).filter(row => row.template_data?.invoiceNumber === 'DRAFT').length, 1);
     });
 
     await t.test('broadcasts snapshot one private recipient per email and concurrent scanners never duplicate', async () => {
@@ -303,6 +305,72 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.equal(sent.length, 0);
     });
 
+    await t.test('invoice CC recipients, custom payment links, and the HTML template survive durable queue processing', async () => {
+      await reset();
+      await sql`UPDATE client_accounts SET invoice_cc='staff@example.invalid, manager@example.invalid' WHERE id=1`;
+      await service.setEmailAutomation(true, false);
+      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at,invoice_link) VALUES (1,'HTML-1',NOW(),'https://payments.example/invoice/1')`;
+      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (2,'OTHER-CLIENT',NOW())`;
+      await service.queueAutomaticEmails(); await service.processEmailQueue();
+      assert.equal(sent.length,2);
+      const configured=sent.find(message=>message.to[0]==='one@example.invalid'),other=sent.find(message=>message.to[0]==='two@example.invalid');
+      assert.deepEqual(configured.cc,['staff@example.invalid','manager@example.invalid']);assert.deepEqual(other.cc,[]);
+      assert.equal(configured.fromEmail,'hello.graveyardcrewph@outlook.com');
+      assert.equal(configured.fromName,'GY Virtual Support Team');
+      assert.ok(configured.html.includes('https://payments.example/invoice/1'));
+      assert.ok(configured.html.includes('Invoice Summary'));
+      assert.ok(configured.body.includes('inclusive of PayPal transaction fees'));
+      await sql`UPDATE client_accounts SET invoice_cc='' WHERE id=1`;
+    });
+    await t.test('manual CC/BCC are private in the payload and changed recipient fields cannot reuse a request ID', async () => {
+      await reset();const input=manual({cc:['staff@example.invalid'],bcc:['private@example.invalid'],fromName:'Custom Team'});
+      const job=await service.queueManualEmail(input,1);
+      await assert.rejects(service.queueManualEmail({...input,bcc:['different@example.invalid']},1),/already used/);
+      await assert.rejects(service.queueManualEmail(manual({fromEmail:'other@example.invalid'}),1),/connected Outlook/);
+      await service.processEmailQueue();assert.equal(sent.length,1);
+      assert.deepEqual(sent[0].cc,['staff@example.invalid']);assert.deepEqual(sent[0].bcc,['private@example.invalid']);
+      assert.ok(!sent[0].html.includes('private@example.invalid'));
+      assert.deepEqual((await jobs()).find(row=>row.id===job.id).bcc_emails,['private@example.invalid']);
+    });
+    await t.test('greeting images are included inline and stay available after their portal notice is deleted', async () => {
+      await reset();await service.setEmailAutomation(false,true);
+      const storage=loadTs('notification-image-storage.ts'),images=loadTs('email-images.ts');
+      const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+      const asset=await storage.beginImageUpload({contentType:'image/png',size:png.length});
+      await storage.appendImageChunk(asset.id,0,png.toString('base64'));
+      const reference=await storage.prepareImageReference(asset.id);
+      await sql`INSERT INTO notifications(title,audience,client_id,image_url) VALUES ('Birthday image','client',1,${reference})`;
+      await service.queueAutomaticEmails();await service.processEmailQueue();
+      assert.equal(sent.length,1);assert.ok(sent[0].html.includes('cid:notification-image'));
+      assert.equal(sent[0].attachments[0].contentBytes,png.toString('base64'));
+      assert.ok(!sent[0].body.includes('Open your portal:'));
+      const token=(await jobs())[0].image_token;
+      await sql`DELETE FROM notifications`;
+      await sql`UPDATE notification_image_assets SET created_at=NOW()-INTERVAL '25 hours'`;
+      await storage.removeAbandonedImages();
+      const stored=await images.emailImage(token),parts=[];for await(const bytes of stored.chunks)parts.push(bytes);
+      assert.deepEqual(Buffer.concat(parts),png);
+    });
+    await t.test('10 MB greetings use a durable image URL and do not exceed Graph attachment limits', async () => {
+      await reset();await service.setEmailAutomation(false,true);
+      const storage=loadTs('notification-image-storage.ts'),images=loadTs('email-images.ts');
+      const source=Buffer.alloc(10*1024*1024,42);Buffer.from([137,80,78,71,13,10,26,10]).copy(source);
+      const asset=await storage.beginImageUpload({contentType:'image/png',size:source.length});
+      const chunkSize=393216;
+      for(let offset=0,index=0;offset<source.length;offset+=chunkSize,index++)await storage.appendImageChunk(asset.id,index,source.subarray(offset,offset+chunkSize).toString('base64'));
+      const reference=await storage.prepareImageReference(asset.id);
+      await sql`INSERT INTO notifications(title,audience,client_id,image_url) VALUES ('Large greeting','client',1,${reference})`;
+      await service.queueAutomaticEmails();await service.processEmailQueue();assert.equal(sent.length,1);
+      const token=(await jobs())[0].image_token;
+      assert.ok(sent[0].html.includes(`/api/email/images/${token}`));assert.equal(sent[0].attachments,undefined);
+      const stored=await images.emailImage(token),parts=[];for await(const bytes of stored.chunks)parts.push(bytes);
+      assert.deepEqual(Buffer.concat(parts),source);
+    });
+    await t.test('invoice portal pushes do not generate a second generic notification email',async()=>{
+      await reset();await service.setEmailAutomation(false,true);
+      await sql`INSERT INTO notifications(title,audience,client_id,type) VALUES ('New invoice available','client',1,'invoice')`;
+      await service.queueAutomaticEmails();assert.equal((await jobs()).length,0);
+    });
     await t.test('disconnect disables automations and cancels queued mail while retaining accepted history', async () => {
       await reset();
       await service.setEmailAutomation(true, true);

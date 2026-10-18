@@ -3,6 +3,7 @@ import { ensureNotificationSchema } from "./notification-schema";
 import { ensureAdminSessionSchema } from "./admin-session-schema";
 import { ensureOutlookSchema } from "./outlook-schema";
 import { ensureEmailSchema } from "./email-schema";
+import { ensureVASessionSchema } from "./va-session-schema";
 
 export async function ensureTables() {
   await sql`
@@ -42,6 +43,7 @@ export async function ensureTables() {
     )
   `;
 
+  await ensureVASessionSchema();
   await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS weekly_report_link TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS profile_picture TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE va_profiles ADD COLUMN IF NOT EXISTS work_schedule TEXT NOT NULL DEFAULT ''`;
@@ -160,6 +162,7 @@ export async function ensureTables() {
 
   await sql`ALTER TABLE timeproof_entries ADD COLUMN IF NOT EXISTS entry_type TEXT NOT NULL DEFAULT 'time'`;
   await sql`ALTER TABLE timeproof_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'`;
+  await sql`ALTER TABLE timeproof_entries ADD COLUMN IF NOT EXISTS submission_key UUID UNIQUE`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS client_salary_adjustments (
