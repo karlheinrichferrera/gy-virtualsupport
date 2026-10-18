@@ -100,8 +100,12 @@ export async function queueAutomaticEmails() {
         ON n.audience = 'va' AND (n.va_id = '' OR n.va_id = v.id)
       LEFT JOIN email_va_contacts approved ON approved.va_id=v.id AND LOWER(TRIM(approved.email))=LOWER(TRIM(v.email))
       UNION ALL
-      SELECT n.*,c.id::text AS recipient_id,c.email AS email FROM publications n JOIN client_accounts c
+      SELECT n.*,c.id::text || CASE WHEN routing.delegates IS NOT NULL THEN ':' || LOWER(TRIM(target.email)) ELSE '' END AS recipient_id,
+        target.email AS email FROM publications n JOIN client_accounts c
         ON n.audience = 'client' AND (n.client_id IS NULL OR n.client_id = c.id)
+      CROSS JOIN LATERAL (SELECT CASE WHEN n.type='request' AND n.client_id=c.id
+        THEN NULLIF(TRIM(c.request_notification_recipients),'') ELSE NULL END AS delegates) routing
+      CROSS JOIN LATERAL unnest(COALESCE(string_to_array(routing.delegates,','),ARRAY[c.email])) target(email)
     )
     , jobs AS (
     INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,from_name,from_email,subject,body,template_data,image_token,source,source_id,expires_at)

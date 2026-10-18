@@ -256,6 +256,38 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await load('notifications').recipientNotifications('client','1')).length,1,'The new selected client is notified after a material edit');
       assert.equal((await sql`SELECT status FROM leave_requests WHERE request_id=${request.id}`).rows[0].status,'Pending');
     });
+    await t.test('Devin request emails go only to Zanyette and Karl while other client and invoice routing stays intact',async()=>{
+      await reset();await sql`INSERT INTO va_client_assignments VALUES ('va-1',3)`;
+      await load('email-schema').ensureEmailSchema();
+      const service=load('email-service');await service.setEmailAutomation(true,true);
+      await Promise.all([actions.addRequest('va-1',{...request,id:'DEVIN-LEAVE',clientId:3}),actions.addRequest('va-1',{...request,id:'DEVIN-LEAVE',clientId:3})]);
+      await actions.addRequest('va-1',{...request,id:'DEVIN-SHIFT',type:'Shift Adjustment',clientId:3});
+      const entry={vaId:'va-1',clientId:3,punchDate:'2026-10-18',timeIn:'15:00',timeOut:'17:00',notes:'Client review',createdAt:'Today',entryType:'overtime',status:'pending',submissionKey:randomUUID()};
+      await Promise.all([actions.addTimeproofEntry(entry),actions.addTimeproofEntry(entry)]);
+      const inbox=await load('notifications').recipientNotifications('client','3');assert.equal(inbox.length,3,'Portal notifications remain attached to the selected client account');
+      await service.queueAutomaticEmails();await service.queueAutomaticEmails();
+      const jobs=async()=> (await sql`SELECT j.* FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.audience='client' AND n.type='request' AND n.client_id=3 ORDER BY j.id`).rows;
+      const mail=await jobs();assert.equal(mail.length,6);
+      const addresses=['karl@goldenyearsdesign.com','zanyette@goldenyearsdesign.com'];
+      for(const notification of inbox){
+        const copies=mail.filter(j=>j.source_id===notification.id);
+        assert.deepEqual(copies.flatMap(j=>j.to_emails).sort(),addresses);
+        assert.ok(copies.every(j=>j.to_emails.length===1&&j.cc_emails.length===0&&j.bcc_emails.length===0));
+      }
+      assert.ok(mail.every(j=>!j.to_emails.includes('devin@goldenyearsdesign.com')));
+      await actions.updateRequestDetails('DEVIN-LEAVE',{reason:'Updated client request',clientId:3});
+      await actions.addRequest('va-1',{...request,id:'OTHER-CLIENT',clientId:1});
+      await sql`INSERT INTO notifications(audience,client_id,title,message,type,published_at) VALUES ('client',3,'General client notice','Normal notification','admin',NOW())`;
+      await actions.addClientInvoice({clientId:3,invoiceNumber:'DEVIN-INVOICE',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''});
+      await service.queueAutomaticEmails();await service.queueAutomaticEmails();
+      assert.equal((await jobs()).length,8,'An edited request also routes one copy to each delegate');
+      const other=(await sql`SELECT j.to_emails FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.audience='client' AND n.client_id=1 AND n.type='request'`).rows;
+      assert.deepEqual(other.map(j=>j.to_emails),[['client-one@example.invalid']]);
+      const general=(await sql`SELECT j.to_emails FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.title='General client notice'`).rows;
+      assert.deepEqual(general.map(j=>j.to_emails),[['devin@goldenyearsdesign.com']]);
+      const invoices=(await sql`SELECT to_emails FROM email_jobs WHERE source='invoice'`).rows;
+      assert.deepEqual(invoices.map(j=>j.to_emails),[['devin@goldenyearsdesign.com']]);
+    });
     await t.test('approval migration preserves completed history, upgrades pending rows and is repeatable',async()=>{
       await reset();await sql`INSERT INTO leave_requests(request_id,va_id,type,status,remarks) VALUES ('OLD-DONE','va-1','Leave','Approved','Prior approval'),('OLD-PENDING','va-1','Leave','Pending','')`;
       await load('request-approval-schema').ensureRequestApprovalSchema();await load('request-approval-schema').ensureRequestApprovalSchema();

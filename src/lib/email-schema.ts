@@ -9,6 +9,10 @@ export async function ensureEmailSchema() {
     auto_notifications_since TIMESTAMPTZ
   )`;
   await sql`INSERT INTO email_settings(singleton) VALUES (true) ON CONFLICT DO NOTHING`;
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS request_notification_recipients TEXT`;
+  // Set this account's initial request-email routing once; retain it if its login email changes.
+  await sql`UPDATE client_accounts SET request_notification_recipients='zanyette@goldenyearsdesign.com,karl@goldenyearsdesign.com'
+    WHERE LOWER(TRIM(email))='devin@goldenyearsdesign.com' AND request_notification_recipients IS NULL`;
   await sql`CREATE TABLE IF NOT EXISTS email_va_contacts (
     va_id TEXT PRIMARY KEY REFERENCES va_profiles(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
