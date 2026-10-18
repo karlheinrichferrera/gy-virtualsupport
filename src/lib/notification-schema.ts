@@ -3,6 +3,24 @@ import { sql } from "@vercel/postgres";
 /** Additive migration: preserve existing announcements and per-VA read state. */
 export async function ensureNotificationSchema() {
   await sql`
+    CREATE TABLE IF NOT EXISTS notification_image_assets (
+      id UUID PRIMARY KEY,
+      content_type TEXT NOT NULL,
+      byte_size INTEGER NOT NULL CHECK (byte_size > 0 AND byte_size <= 10485760),
+      completed BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS notification_image_chunks (
+      asset_id UUID NOT NULL REFERENCES notification_image_assets(id) ON DELETE CASCADE,
+      part_index INTEGER NOT NULL CHECK (part_index >= 0 AND part_index < 27),
+      data TEXT NOT NULL,
+      byte_size INTEGER NOT NULL CHECK (byte_size > 0 AND byte_size <= 393216),
+      PRIMARY KEY(asset_id, part_index)
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS notification_schedules (
       id SERIAL PRIMARY KEY,
       audience TEXT NOT NULL DEFAULT 'va',

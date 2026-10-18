@@ -3,6 +3,7 @@
 import { sql } from "@vercel/postgres";
 import * as notificationService from "./notifications";
 import type { NotificationInput } from "./notification-types";
+import { beginImageUpload, appendImageChunk } from "./notification-image-storage";
 import type { VAProfile, SalaryAdjustment, Invoice, LeaveRequest } from "./data";
 import { estDate, estDateLong } from "./est";
 
@@ -1269,6 +1270,16 @@ export async function markAllClientNotificationsRead(email: string): Promise<voi
 export async function createNotification(data: NotificationInput): Promise<void> {
   await ensureTablesOnce();
   await notificationService.saveNotification(data);
+}
+
+export async function beginNotificationImageUpload(data: { contentType: string; size: number }) {
+  await ensureTablesOnce();
+  return beginImageUpload(data);
+}
+
+export async function uploadNotificationImageChunk(id: string, index: number, data: string): Promise<void> {
+  await ensureTablesOnce();
+  await appendImageChunk(id, index, data);
 }
 
 export async function deleteNotification(id: number): Promise<void> {

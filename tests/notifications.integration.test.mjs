@@ -139,6 +139,57 @@ test('notification storage, delivery, and per-person retention', { skip: !proces
       await assert.rejects(create({expiresAt:new Date(Date.now()-3600000).toISOString()}));
       await assert.rejects(create({clientId:999,audience:'client'}));
     });
+    await t.test('10 MB images upload in bounded immutable chunks and stream byte for byte', async () => {
+      const storage=loadTs('notification-image-storage.ts');
+      const {NOTIFICATION_IMAGE_MAX_BYTES: max,NOTIFICATION_IMAGE_CHUNK_BYTES: chunkSize}=loadTs('notification-image.ts');
+      await assert.rejects(storage.beginImageUpload({contentType:'image/png',size:max+1}));
+      await assert.rejects(storage.beginImageUpload({contentType:'image/svg+xml',size:100}));
+      const source=Buffer.alloc(max,42);
+      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64').copy(source);
+      const {id}=await storage.beginImageUpload({contentType:'image/png',size:source.length});
+      await assert.rejects(storage.prepareImageReference(id));
+      await assert.rejects(storage.appendImageChunk(id,0,Buffer.alloc(chunkSize,0).toString('base64')));
+      for(let offset=0,index=0;offset<source.length;offset+=chunkSize,index++) {
+        const part=source.subarray(offset,offset+chunkSize).toString('base64');
+        assert.ok(JSON.stringify([id,index,part]).length<1024*1024);
+        await storage.appendImageChunk(id,index,part);
+      }
+      const first=source.subarray(0,chunkSize).toString('base64');
+      await storage.appendImageChunk(id,0,first); // Safe network retry.
+      const changed=Buffer.from(source.subarray(0,chunkSize)); changed[200]^=255;
+      await assert.rejects(storage.appendImageChunk(id,0,changed.toString('base64')));
+      await create({title:'Large greeting',imageUploadId:id});
+      const greeting=(await service.recipientNotifications('va','test-va-1')).find(n=>n.title==='Large greeting');
+      const image=await service.notificationImage(greeting.id);
+      assert.equal(image.contentType,'image/png');
+      const received=[];for await(const bytes of image.chunks)received.push(Buffer.from(bytes));
+      assert.deepEqual(Buffer.concat(received),source);
+      const admin=await service.adminNotifications();
+      assert.ok(JSON.stringify(admin).length<100000,'Inbox metadata must not contain image bytes');
+      await sql`UPDATE notification_image_assets SET created_at=NOW()-INTERVAL '25 hours' WHERE id=${id}`;
+      await storage.removeAbandonedImages();
+      assert.ok(await service.notificationImage(greeting.id),'Referenced assets must survive cleanup');
+      await service.removeNotification(greeting.id);
+      await storage.removeAbandonedImages();
+      const orphan=await sql`SELECT id FROM notification_image_assets WHERE id=${id}`;
+      const parts=await sql`SELECT asset_id FROM notification_image_chunks WHERE asset_id=${id}`;
+      assert.equal(orphan.rows.length,0);assert.equal(parts.rows.length,0);
+    });
+    await t.test('GIF bytes and scheduled image references survive without transcoding', async () => {
+      const storage=loadTs('notification-image-storage.ts');
+      const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64');
+      const {id}=await storage.beginImageUpload({contentType:'image/gif',size:gif.length});
+      await storage.appendImageChunk(id,0,gif.toString('base64'));
+      await create({title:'Scheduled image',imageUploadId:id,startsAt:new Date(Date.now()+3600000).toISOString()});
+      const notification=(await service.adminNotifications()).find(n=>n.title==='Scheduled image');
+      const image=await service.notificationImage(notification.id);
+      assert.equal(image.contentType,'image/gif');
+      const chunks=[];for await(const chunk of image.chunks)chunks.push(Buffer.from(chunk));
+      assert.deepEqual(Buffer.concat(chunks),gif);
+      await sql`UPDATE notification_image_assets SET created_at=NOW()-INTERVAL '25 hours' WHERE id=${id}`;
+      await storage.removeAbandonedImages();
+      assert.ok(await storage.storedImage(`notification-image:${id}`));
+    });
     await t.test('admin listing retains schedule controls and schedule deletion cascades', async () => {
       const all=await service.adminNotifications();const future=all.find(n=>n.title==='Future');
       assert.ok(future.scheduleId);assert.equal(future.status,'active');

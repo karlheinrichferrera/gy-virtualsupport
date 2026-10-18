@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { deriveNotificationRun, notificationTimeZoneValid } from "./notification-schedule";
+import { prepareImageReference, removeAbandonedImages, storedImage } from "./notification-image-storage";
 import type { Notification, NotificationAudience, NotificationInput, NotificationRecurrence } from "./notification-types";
 
 type Row = Record<string, unknown>;
@@ -52,14 +53,18 @@ function validateInput(data: NotificationInput) {
   }
   const imageUrl = data.imageUrl || "";
   if (imageUrl) {
+    // Retain small inline images from older clients; the form uploads files up
+    // to 10 MB separately so Server Action requests remain below their limit.
     const match = /^data:image\/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(imageUrl);
-    if (!match || imageUrl.length > 690000) throw new Error("Upload a PNG, JPEG, GIF, or WebP image up to 500 KB.");
+    if (!match) throw new Error("Choose a PNG, JPEG, GIF, or WebP image.");
+    if (imageUrl.length > 690000) throw new Error("Use the notification form to upload images up to 10 MB.");
     const image = Buffer.from(match[2], "base64");
     const valid = match[1] === "png" ? image.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
       : match[1] === "jpeg" ? image[0] === 255 && image[1] === 216 && image[2] === 255
       : match[1] === "gif" ? /^GIF8[79]a$/.test(image.subarray(0, 6).toString())
       : image.subarray(0, 4).toString() === "RIFF" && image.subarray(8, 12).toString() === "WEBP";
-    if (!valid || image.length > 500 * 1024) throw new Error("Invalid image or file larger than 500 KB.");
+    if (!valid) throw new Error("Invalid image content.");
+    if (image.length > 500 * 1024) throw new Error("Use the notification form to upload images up to 10 MB.");
   }
   const clientId = data.audience === "client" ? data.clientId ?? null : null;
   if (clientId != null && (!Number.isSafeInteger(clientId) || clientId < 1)) throw new Error("Invalid client recipient.");
@@ -71,6 +76,7 @@ function validateInput(data: NotificationInput) {
 export async function processNotificationMaintenance() {
   await sql`DELETE FROM notification_schedules WHERE expires_at <= NOW()`;
   await sql`DELETE FROM notifications WHERE expires_at <= NOW()`;
+  await removeAbandonedImages();
   // Personal deliveries can be deleted physically. Broadcast receipts stay as
   // tombstones so clearing one inbox never resurfaces a shared announcement.
   await sql`
@@ -140,6 +146,10 @@ export async function readRecipientNotifications(audience: NotificationAudience,
 
 export async function saveNotification(input: NotificationInput) {
   const data = validateInput(input);
+  if (input.imageUploadId) {
+    if (input.imageUrl) throw new Error("Choose one notification image.");
+    data.imageUrl = await prepareImageReference(input.imageUploadId);
+  }
   if (data.vaId) {
     const result = await sql`SELECT id FROM va_profiles WHERE id = ${data.vaId}`;
     if (!result.rows.length) throw new Error("VA recipient no longer exists.");
@@ -201,6 +211,7 @@ export async function notificationImage(id: number) {
     ? await sql`SELECT image_url FROM notification_schedules WHERE id = ${-id} AND (expires_at IS NULL OR expires_at > NOW())`
     : await sql`SELECT image_url FROM notifications WHERE id = ${id} AND published_at <= NOW() AND (expires_at IS NULL OR expires_at > NOW())`;
   const image = result.rows[0]?.image_url as string | undefined;
+  if (image?.startsWith("notification-image:")) return storedImage(image);
   const match = image && /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(image);
   return match ? { contentType: match[1], bytes: Buffer.from(match[2], "base64") } : null;
 }

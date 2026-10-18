@@ -30,6 +30,7 @@ export type NotificationInput = {
   type?: string;
   createdBy?: string;
   imageUrl?: string;
+  imageUploadId?: string | null;
   redirectTo?: string;
   startsAt?: string | null;
   expiresAt?: string | null;

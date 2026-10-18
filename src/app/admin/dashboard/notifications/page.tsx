@@ -10,8 +10,11 @@ import {
   deleteNotificationSchedule,
   getProfiles,
   getClientAccounts,
+  beginNotificationImageUpload,
+  uploadNotificationImageChunk,
 } from "@/lib/actions";
 import type { Notification, NotificationInput } from "@/lib/notification-types";
+import { NOTIFICATION_IMAGE_MAX_BYTES, NOTIFICATION_IMAGE_CHUNK_BASE64_LENGTH } from "@/lib/notification-image";
 
 type VA = { id: string; firstName: string; lastName: string };
 type Client = { id: number; displayName: string; companyName: string; email: string };
@@ -58,10 +61,12 @@ export default function AdminNotificationsPage() {
   const [redirectTo, setRedirectTo] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState<{ completed: number; total: number } | null>(null);
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const imageReadVersion = useRef(0);
+  const uploadedImage = useRef<{ imageUrl: string; id: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -88,8 +93,10 @@ export default function AdminNotificationsPage() {
 
   const clearImage = () => {
     imageReadVersion.current += 1;
+    uploadedImage.current = null;
     setImageUrl("");
     setImageLoading(false);
+    setImageUploadProgress(null);
     if (imageInput.current) imageInput.current.value = "";
   };
 
@@ -111,14 +118,15 @@ export default function AdminNotificationsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     const readVersion = ++imageReadVersion.current;
+    uploadedImage.current = null;
     setFormError("");
     if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
       setFormError("Choose a PNG, JPEG, GIF, or WebP image.");
       clearImage();
       return;
     }
-    if (file.size > 500 * 1024) {
-      setFormError("The image must be 500 KB or smaller. Resize it and try again.");
+    if (file.size > NOTIFICATION_IMAGE_MAX_BYTES) {
+      setFormError("The image must be 10 MB or smaller. Resize it and try again.");
       clearImage();
       return;
     }
@@ -177,6 +185,29 @@ export default function AdminNotificationsPage() {
     }
     setSending(true);
     try {
+      let imageUploadId: string | null = null;
+      if (imageUrl) {
+        if (uploadedImage.current?.imageUrl === imageUrl) {
+          imageUploadId = uploadedImage.current.id;
+        } else {
+          const commaIndex = imageUrl.indexOf(",");
+          const contentType = imageUrl.slice(5, imageUrl.indexOf(";"));
+          const base64 = imageUrl.slice(commaIndex + 1);
+          const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+          const size = base64.length * 3 / 4 - padding;
+          const total = Math.ceil(base64.length / NOTIFICATION_IMAGE_CHUNK_BASE64_LENGTH);
+          setImageUploadProgress({ completed: 0, total });
+          const upload = await beginNotificationImageUpload({ contentType, size });
+          for (let index = 0; index < total; index += 1) {
+            const start = index * NOTIFICATION_IMAGE_CHUNK_BASE64_LENGTH;
+            await uploadNotificationImageChunk(upload.id, index, base64.slice(start, start + NOTIFICATION_IMAGE_CHUNK_BASE64_LENGTH));
+            setImageUploadProgress({ completed: index + 1, total });
+          }
+          imageUploadId = upload.id;
+          uploadedImage.current = { imageUrl, id: upload.id };
+          setImageUploadProgress(null);
+        }
+      }
       const adminName = localStorage.getItem("adminDisplayName") || localStorage.getItem("adminUsername") || "admin";
       await createNotification({
         audience,
@@ -184,7 +215,8 @@ export default function AdminNotificationsPage() {
         clientId: audience === "client" && target ? Number(target) : null,
         title: title.trim(),
         message: message.trim(),
-        imageUrl,
+        imageUrl: "",
+        imageUploadId,
         redirectTo: destination,
         startsAt: delivery === "now" ? null : firstDelivery.toISOString(),
         expiresAt: expiration?.toISOString() || null,
@@ -201,6 +233,7 @@ export default function AdminNotificationsPage() {
     } catch (error) {
       setFormError(errorMessage(error, "Could not save this notification. Please try again."));
     } finally {
+      setImageUploadProgress(null);
       setSending(false);
     }
   };
@@ -339,8 +372,9 @@ export default function AdminNotificationsPage() {
             <div className="space-y-2">
               <label htmlFor="notification-image" className="flex items-center gap-2 text-sm font-medium text-foreground"><ImagePlus size={16} aria-hidden="true" /> Image <span className="font-normal text-muted">(optional)</span></label>
               <input id="notification-image" ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={handleImage} className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-indigo-50 file:px-2 file:py-1 file:text-indigo-700`} aria-describedby="notification-image-help" />
-              <p id="notification-image-help" className="text-xs text-muted">PNG, JPEG, GIF, or WebP up to 500 KB. Great for birthday and anniversary greetings.</p>
+              <p id="notification-image-help" className="text-xs text-muted">PNG, JPEG, GIF, or WebP up to 10 MB. Great for birthday and anniversary greetings.</p>
               {imageLoading && <p role="status" className="text-xs text-muted">Reading image...</p>}
+              {imageUploadProgress && <p role="status" className="text-xs text-muted">Uploading image: {Math.round(imageUploadProgress.completed / imageUploadProgress.total * 100)}%</p>}
               {imageUrl && (
                 <div className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-3">
                   {/* Uploaded image data is displayed directly without an external image service. */}
@@ -353,7 +387,7 @@ export default function AdminNotificationsPage() {
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <button type="submit" disabled={loading || Boolean(loadError) || sending || imageLoading || !title.trim() || !message.trim()} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50">
                 {delivery === "now" ? <Send size={14} aria-hidden="true" /> : <CalendarClock size={14} aria-hidden="true" />}
-                {sending ? "Saving..." : delivery === "now" ? "Send Notification" : "Schedule Notification"}
+                {sending ? imageUploadProgress ? `Uploading ${Math.round(imageUploadProgress.completed / imageUploadProgress.total * 100)}%...` : "Saving..." : delivery === "now" ? "Send Notification" : "Schedule Notification"}
               </button>
               <button type="button" onClick={() => { resetForm(); setShowForm(false); }} className="rounded-lg px-4 py-2 text-sm text-muted transition-colors hover:text-foreground">Cancel</button>
             </div>
