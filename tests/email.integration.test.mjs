@@ -62,6 +62,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
   try {
     await sql`CREATE TABLE client_accounts (id INTEGER PRIMARY KEY, email TEXT, display_name TEXT NOT NULL,password TEXT NOT NULL DEFAULT 'gyclient2026')`;
     await sql`CREATE TABLE va_profiles (id TEXT PRIMARY KEY, email TEXT)`;
+    await sql`CREATE TABLE invoices(id SERIAL PRIMARY KEY,va_id TEXT REFERENCES va_profiles(id),client_id INTEGER,invoice_number TEXT,date_covered TEXT,amount TEXT,transaction_fee TEXT,amount_disbursed TEXT,invoice_copy TEXT,status TEXT,submission_key UUID UNIQUE)`;
     await sql`CREATE TABLE client_invoices (
       id SERIAL PRIMARY KEY, client_id INTEGER NOT NULL, invoice_number TEXT NOT NULL,
       bill_coverage TEXT NOT NULL DEFAULT 'October', amount TEXT NOT NULL DEFAULT '100.00',
@@ -83,7 +84,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
     const service = loadTs('email-service.ts');
     const reset = async () => {
       sent.length = 0; sendHook = async () => {}; afterStatement = async () => {};
-      await sql`TRUNCATE email_jobs,client_invoices,notifications,email_va_contacts,notification_email_images,notification_image_assets RESTART IDENTITY CASCADE`;
+      await sql`TRUNCATE email_jobs,client_invoices,invoices,notifications,email_va_contacts,notification_email_images,notification_image_assets RESTART IDENTITY CASCADE`;
       await sql`DELETE FROM va_profiles WHERE id NOT IN ('va-1','va-2')`;
       await sql`UPDATE va_profiles SET email=CASE WHEN id='va-1' THEN 'va-one@example.invalid' ELSE 'va-two@example.invalid' END`;
       await sql`DELETE FROM client_accounts WHERE id NOT IN (1,2)`;
@@ -305,6 +306,22 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.equal(sent.length, 0);
     });
 
+    await t.test('VA invoice acknowledgement and Paid notices each send one private email through notification automation',async()=>{
+      await reset();await service.setEmailAutomation(false,true);
+      const invoices=loadTs('va-invoices.ts');
+      const invoice={invoiceNumber:'VA-1001',clientId:1,dateCovered:'October 1–15, 2026',amount:'$100.00',transactionFee:'$1.00',amountDisbursed:'$99.00',invoiceCopy:'',status:'Pending'};
+      await invoices.submitVAInvoice('va-1',invoice,randomUUID());
+      await invoices.saveVAInvoice(invoice.invoiceNumber,{status:'Paid'},{id:1,username:'admin',displayName:'Admin'});
+      await Promise.all([service.queueAutomaticEmails(),service.queueAutomaticEmails()]);await service.processEmailQueue();
+      assert.equal(sent.length,2);assert.deepEqual(sent.map(message=>message.subject).sort(),['VA Invoice - Acknowledgement','VA Invoice - Paid']);
+      assert.ok(sent.every(message=>JSON.stringify(message.to)==='["va-one@example.invalid"]'&&message.cc.length===0&&message.bcc.length===0));
+      assert.ok(sent.every(message=>message.body.includes('VA-1001')&&message.body.includes('October 1–15, 2026')&&message.body.includes('https://gy-virtualsupport-safq.vercel.app/dashboard/invoices')&&message.html.includes('Best regards,')));
+      assert.ok(sent.find(message=>message.subject==='VA Invoice - Paid').body.includes('Amount disbursed: $99.00'));
+      await service.queueAutomaticEmails();await service.processEmailQueue();assert.equal(sent.length,2);
+      await service.setEmailAutomation(false,false);
+      await invoices.submitVAInvoice('va-2',{...invoice,invoiceNumber:'VA-EMAIL-OFF'},randomUUID());await service.queueAutomaticEmails();await service.processEmailQueue();
+      assert.equal(sent.length,2);assert.equal((await sql`SELECT id FROM notifications WHERE va_id='va-2'`).rows.length,1);
+    });
     await t.test('invoice CC recipients, custom payment links, and the HTML template survive durable queue processing', async () => {
       await reset();
       await sql`UPDATE client_accounts SET invoice_cc='staff@example.invalid, manager@example.invalid' WHERE id=1`;

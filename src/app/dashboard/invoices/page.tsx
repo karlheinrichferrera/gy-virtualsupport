@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { Invoice, VAProfile } from "@/lib/data";
 import type { ClientAccount } from "@/lib/actions";
@@ -60,6 +60,9 @@ export default function InvoicesPage() {
     clientId: 0,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const submission = useRef<{ fingerprint: string; invoice: Invoice; key: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -72,28 +75,39 @@ export default function InvoicesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const id = localStorage.getItem("vaId") || "";
-    const hours = parseFloat(form.hours) || 0;
-    const rate = parseFloat(form.rate) || 0;
-    const bonus = parseFloat(form.bonusAmount) || 0;
-    const amount = hours * rate + bonus;
-    const fee = amount * 0.01;
+    if (submitting) return;
+    setSubmitting(true);
+    setCreateError("");
+    try {
+      const id = localStorage.getItem("vaId") || "";
+      const hours = parseFloat(form.hours) || 0;
+      const rate = parseFloat(form.rate) || 0;
+      const bonus = parseFloat(form.bonusAmount) || 0;
+      const amount = hours * rate + bonus;
+      const fee = amount * 0.01;
 
-    const invoiceNumber = await actions.generateNextInvoiceNumber(id);
-    const newInvoice: Invoice = {
-      invoiceNumber,
-      dateCovered: `${form.dateFrom} - ${form.dateTo}`,
-      amount: `$${amount.toFixed(2)}`,
-      transactionFee: `$${fee.toFixed(2)}`,
-      amountDisbursed: `$${(amount - fee).toFixed(2)}`,
-      invoiceCopy: "",
-      status: "Pending",
-      clientId: parseInt(String(form.clientId)) || 0,
-    };
-    await actions.addInvoice(id, newInvoice);
-    const updated = await actions.getInvoicesFor(id);
-    setInvoiceList(updated);
-    setSubmitted(true);
+      const fingerprint = JSON.stringify(form);
+      if (!submission.current || submission.current.fingerprint !== fingerprint) {
+        const invoiceNumber = await actions.generateNextInvoiceNumber(id);
+        const newInvoice: Invoice = {
+          invoiceNumber,
+          dateCovered: `${form.dateFrom} - ${form.dateTo}`,
+          amount: `$${amount.toFixed(2)}`,
+          transactionFee: `$${fee.toFixed(2)}`,
+          amountDisbursed: `$${(amount - fee).toFixed(2)}`,
+          invoiceCopy: "",
+          status: "Pending",
+          clientId: parseInt(String(form.clientId)) || 0,
+        };
+        submission.current = { fingerprint, invoice: newInvoice, key: crypto.randomUUID() };
+      }
+      await actions.addInvoice(id, submission.current.invoice, submission.current.key);
+      const updated = await actions.getInvoicesFor(id);
+      setInvoiceList(updated);
+      setSubmitted(true);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Unable to submit your invoice. Please try again.");
+    } finally { setSubmitting(false); }
   }
 
   function openEdit(inv: Invoice) {
@@ -134,6 +148,8 @@ export default function InvoicesPage() {
           onClick={() => {
             setShowCreate(true);
             setSubmitted(false);
+            setCreateError("");
+            submission.current = null;
             setForm({
               dateFrom: "",
               dateTo: "",
@@ -331,7 +347,7 @@ export default function InvoicesPage() {
                 <FileText size={20} className="text-blue-600" />
                 {submitted ? "Invoice Created" : "Create New Invoice"}
               </h2>
-              <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-100 rounded-lg">
+              <button disabled={submitting} onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-50">
                 <X size={20} className="text-slate-500" />
               </button>
             </div>
@@ -411,11 +427,12 @@ export default function InvoicesPage() {
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
-                  <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
-                    <Send size={16} /> Create & Send
+                  <button type="button" disabled={submitting} onClick={() => setShowCreate(false)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                    <Send size={16} /> {submitting ? "Submitting..." : "Create & Send"}
                   </button>
                 </div>
+                {createError && <p role="alert" className="text-sm text-red-600">{createError}</p>}
               </form>
             )}
           </div>

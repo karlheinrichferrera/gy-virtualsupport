@@ -25,6 +25,7 @@ const typeColors: Record<string, string> = {
   general: "bg-gray-100 text-gray-700",
   request: "bg-indigo-100 text-indigo-700",
   salary: "bg-emerald-100 text-emerald-700",
+  payment: "bg-emerald-100 text-emerald-700",
 };
 
 export default function NotificationBell({ vaId, clientEmail }: NotificationBellProps) {
@@ -219,7 +220,7 @@ export default function NotificationBell({ vaId, clientEmail }: NotificationBell
                       <button type="button" disabled={pending} onClick={() => { void handleNotification(notification, true); }} className="block w-full min-w-0 px-4 pt-3 text-left transition-colors hover:bg-gray-50 disabled:opacity-60">
                         <span className="mb-1 flex items-center gap-2">
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${typeColors[notification.type] || typeColors.general}`}>
-                            {notification.type === "request" ? "REQUEST" : notification.type === "salary" ? "SALARY" : notification.type === "reminder" ? "REMINDER" : notification.type === "admin" ? "ADMIN" : "GENERAL"}
+                            {notification.type === "payment" ? "INVOICE" : notification.type === "request" ? "REQUEST" : notification.type === "salary" ? "SALARY" : notification.type === "reminder" ? "REMINDER" : notification.type === "admin" ? "ADMIN" : "GENERAL"}
                           </span>
                           {!notification.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500"><span className="sr-only">Unread</span></span>}
                         </span>

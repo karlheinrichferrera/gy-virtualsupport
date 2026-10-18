@@ -44,13 +44,14 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     await sql`CREATE TABLE salary_adjustments(id SERIAL PRIMARY KEY,va_id TEXT REFERENCES va_profiles(id),effectivity_date TEXT,type TEXT,hourly_rate TEXT,sales_commission TEXT,referral_bonus TEXT,notes TEXT)`;
     await sql`CREATE TABLE timeproof_entries(id SERIAL PRIMARY KEY,va_id TEXT REFERENCES va_profiles(id),client_id INTEGER,punch_date TEXT,time_in TEXT,time_out TEXT,notes TEXT,created_at TEXT,entry_type TEXT,status TEXT,submission_key UUID UNIQUE)`;
     await sql`CREATE TABLE client_invoices(id SERIAL PRIMARY KEY,client_id INTEGER,invoice_number TEXT,bill_coverage TEXT,amount TEXT,invoice_due_date TEXT,status TEXT,invoice_link TEXT)`;
+    await sql`CREATE TABLE invoices(id SERIAL PRIMARY KEY,va_id TEXT REFERENCES va_profiles(id),client_id INTEGER,invoice_number TEXT,date_covered TEXT,amount TEXT,transaction_fee TEXT,amount_disbursed TEXT,invoice_copy TEXT,status TEXT,submission_key UUID UNIQUE)`;
     await sql`INSERT INTO va_profiles(id,email) VALUES ('va-1','one@example.invalid'),('va-2','two@example.invalid')`;
     await sql`INSERT INTO client_accounts(id,email) VALUES (1,'client-one@example.invalid'),(2,'client-two@example.invalid'),(3,'devin@goldenyearsdesign.com')`;
     await load('notification-schema').ensureNotificationSchema();
     await load('email-schema').ensureEmailSchema();
     const actions=load('actions'),notices=async()=> (await sql`SELECT * FROM notifications ORDER BY id`).rows;
     const request={id:'LR-1',type:'Leave',dateSubmitted:'October 18, 2026',dateFrom:'2026-10-20',dateTo:'2026-10-21',reason:'Test leave',status:'Pending',remarks:''};
-    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices RESTART IDENTITY CASCADE`;admin=identity;va='va-1';wakes=0;};
+    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices RESTART IDENTITY CASCADE`;admin=identity;va='va-1';wakes=0;};
 
     await t.test('Devin receives the four configured invoice CC contacts once; clearing them is respected',async()=>{
       const first=await actions.getClientAccountByEmail('devin@goldenyearsdesign.com');
@@ -130,6 +131,45 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await actions.getClientInvoicesByEmail('client-two@example.invalid')).length,1);
       await actions.updateClientInvoice(id,{...invoice,status:'Draft'});await actions.updateClientInvoice(id,{...invoice,status:'Pending'});
       assert.equal((await notices()).filter(n=>n.client_id===1).length,1);
+    });
+    const invoice={invoiceNumber:'VA-1001',clientId:1,dateCovered:'October 1–15, 2026',amount:'$100.00',transactionFee:'$1.00',amountDisbursed:'$99.00',invoiceCopy:'',status:'Pending'};
+    await t.test('VA invoice acknowledgements are private, atomic and idempotent on submission retries',async()=>{
+      await reset();admin=null;const key=randomUUID();
+      await Promise.all([actions.addInvoice('va-1',invoice,key),actions.addInvoice('va-1',invoice,key)]);
+      assert.equal((await sql`SELECT * FROM invoices`).rows.length,1);
+      const rows=await notices();assert.equal(rows.length,1);assert.equal(rows[0].title,'VA Invoice - Acknowledgement');
+      assert.equal(rows[0].va_id,'va-1');assert.equal(rows[0].audience,'va');assert.equal(rows[0].type,'payment');assert.equal(rows[0].redirect_to,'/dashboard/invoices');
+      assert.ok(rows[0].message.includes('VA-1001'));assert.ok(rows[0].message.includes('$100.00'));
+      await assert.rejects(actions.addInvoice('va-2',invoice,randomUUID()),/sign-in/);
+      await assert.rejects(actions.addInvoice('va-1',{...invoice,status:'Paid'},randomUUID()),/Pending or Draft/);
+      await assert.rejects(actions.addInvoice('va-1',{...invoice,amount:'$500.00'},key),/already used/);
+      await assert.rejects(actions.getInvoicesFor('va-2'),/sign-in/);
+      await actions.updateInvoice(invoice.invoiceNumber,{amount:'$101.00'});assert.equal((await notices()).length,1);
+      await actions.addInvoice('va-1',{...invoice,invoiceNumber:'VA-DRAFT',status:'Draft'},randomUUID());assert.equal((await notices()).length,1);
+    });
+    await t.test('both admin payment paths notify the owning VA once despite concurrent and repeated Paid saves',async()=>{
+      await reset();admin=null;await actions.addInvoice('va-1',invoice,randomUUID());
+      await assert.rejects(actions.updateInvoiceStatus(invoice.invoiceNumber,'Paid'),/sign-in/);
+      await assert.rejects(actions.updateInvoice(invoice.invoiceNumber,{status:'Paid'}),/administrator/);
+      va='va-2';await assert.rejects(actions.updateInvoice(invoice.invoiceNumber,{amount:'$1.00'}),/sign-in/);
+      admin=identity;await Promise.all([actions.updateInvoiceStatus(invoice.invoiceNumber,'Paid'),actions.updateInvoice(invoice.invoiceNumber,{status:'Paid'}),actions.updateInvoiceStatus(invoice.invoiceNumber,'Paid')]);
+      await actions.updateInvoice(invoice.invoiceNumber,{amountDisbursed:'$98.00',status:'Paid'});
+      const paid=(await notices()).filter(n=>n.title==='VA Invoice - Paid');assert.equal(paid.length,1);assert.equal(paid[0].va_id,'va-1');assert.ok(paid[0].message.includes('$99.00'));
+      assert.equal((await load('notifications').recipientNotifications('va','va-2')).length,0);
+      admin=null;va='va-1';await assert.rejects(actions.updateInvoice(invoice.invoiceNumber,{amount:'$1.00'}),/Paid invoices/);
+      admin=identity;await actions.addInvoice('va-1',{...invoice,invoiceNumber:'VA-EDIT-PATH'},randomUUID());
+      await actions.updateInvoice('VA-EDIT-PATH',{status:'Paid',amountDisbursed:'$97.00'});
+      assert.ok((await notices()).find(n=>n.title==='VA Invoice - Paid'&&n.message.includes('VA-EDIT-PATH')).message.includes('$97.00'));
+    });
+    await t.test('failed invoice notices roll back the submission or Paid status rather than silently losing a notice',async()=>{
+      await reset();await actions.addInvoice('va-1',invoice,randomUUID());
+      await sql`CREATE TRIGGER reject_notices BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION reject_notices()`;
+      try{
+        await assert.rejects(actions.addInvoice('va-1',{...invoice,invoiceNumber:'VA-FAIL'},randomUUID()),/test notice failure/);
+        assert.equal((await sql`SELECT * FROM invoices WHERE invoice_number='VA-FAIL'`).rows.length,0);
+        await assert.rejects(actions.updateInvoiceStatus(invoice.invoiceNumber,'Paid'),/test notice failure/);
+        assert.equal((await sql`SELECT status FROM invoices WHERE invoice_number=${invoice.invoiceNumber}`).rows[0].status,'Pending');
+      }finally{await sql`DROP TRIGGER reject_notices ON notifications`;}
     });
     await t.test('profile reads never expose stored passwords and VA authentication is checked on the server',async()=>{
       const profile=await actions.getProfile('va-1');assert.equal(profile.password,'');

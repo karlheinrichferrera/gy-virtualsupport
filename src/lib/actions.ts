@@ -12,6 +12,7 @@ import { approveVAEmail } from "./email-service";
 import { parseEmailAddresses } from "./email-addresses";
 import { getVASession, requireVAOrAdmin, createVASession, clearVASession, invalidateVASessions } from "./va-session";
 import { submitWorkflowRequest, setWorkflowRequestStatus, recordSalaryAdjustment, submitOvertime, setOvertimeStatus } from "./workflow-notifications";
+import { submitVAInvoice, saveVAInvoice } from "./va-invoices";
 
 
 let tablesReady = false;
@@ -308,11 +309,15 @@ export async function deleteAdjustment(adjId: number): Promise<void> {
 // ── Invoices ──
 
 export async function getInvoicesFor(vaId: string): Promise<Invoice[]> {
+  await requireVAOrAdmin(vaId);
+  await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM invoices WHERE va_id = ${vaId} ORDER BY id`;
   return rows.map(rowToInvoice);
 }
 
 export async function getAllInvoicesFlat(): Promise<{ vaId: string; vaName: string; clientName: string; invoice: Invoice }[]> {
+  await requireAdminSession();
+  await ensureTablesOnce();
   const { rows } = await sql`
     SELECT i.*, p.first_name, p.last_name, c.display_name as client_name
     FROM invoices i
@@ -329,40 +334,36 @@ export async function getAllInvoicesFlat(): Promise<{ vaId: string; vaName: stri
   }));
 }
 
-export async function addInvoice(vaId: string, inv: Invoice): Promise<void> {
-  await sql`
-    INSERT INTO invoices (va_id, client_id, invoice_number, date_covered, amount, transaction_fee, amount_disbursed, invoice_copy, status)
-    VALUES (${vaId}, ${inv.clientId || 0}, ${inv.invoiceNumber}, ${inv.dateCovered}, ${inv.amount}, ${inv.transactionFee}, ${inv.amountDisbursed}, ${inv.invoiceCopy}, ${inv.status})
-  `;
+export async function addInvoice(vaId: string, inv: Invoice, submissionKey?: string): Promise<void> {
+  await requireVAOrAdmin(vaId);
+  await ensureTablesOnce();
+  await submitVAInvoice(vaId, inv, submissionKey);
+  wakeEmailDelivery();
 }
 
 export async function updateInvoice(invoiceNumber: string, updates: Partial<Invoice>): Promise<void> {
-  const { rows } = await sql`SELECT * FROM invoices WHERE invoice_number = ${invoiceNumber}`;
-  if (rows.length === 0) return;
-  const current = rowToInvoice(rows[0]);
-  const merged = { ...current, ...updates };
-  await sql`
-    UPDATE invoices SET
-      client_id = ${merged.clientId || 0},
-      date_covered = ${merged.dateCovered},
-      amount = ${merged.amount},
-      transaction_fee = ${merged.transactionFee},
-      amount_disbursed = ${merged.amountDisbursed},
-      invoice_copy = ${merged.invoiceCopy},
-      status = ${merged.status}
-    WHERE invoice_number = ${invoiceNumber}
-  `;
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT va_id FROM invoices WHERE invoice_number=${invoiceNumber} LIMIT 2`;
+  if (rows.length !== 1) throw new Error("Invoice not found or its number is duplicated. Contact an administrator.");
+  const admin = await requireVAOrAdmin(String(rows[0].va_id));
+  await saveVAInvoice(invoiceNumber, updates, admin);
+  wakeEmailDelivery();
 }
 
 export async function updateInvoiceStatus(invoiceNumber: string, status: Invoice["status"]): Promise<void> {
-  await sql`UPDATE invoices SET status = ${status} WHERE invoice_number = ${invoiceNumber}`;
+  const admin = await requireAdminSession();
+  await ensureTablesOnce();
+  await saveVAInvoice(invoiceNumber, { status }, admin);
+  wakeEmailDelivery();
 }
 
 export async function deleteInvoice(invoiceNumber: string): Promise<void> {
+  await requireAdminSession();
   await sql`DELETE FROM invoices WHERE invoice_number = ${invoiceNumber}`;
 }
 
 export async function generateNextInvoiceNumber(vaId: string): Promise<string> {
+  await requireVAOrAdmin(vaId);
   const { rows } = await sql`
     SELECT invoice_number FROM invoices WHERE va_id = ${vaId} ORDER BY id DESC LIMIT 1
   `;

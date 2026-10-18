@@ -133,6 +133,7 @@ export async function ensureTables() {
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS timesheet_view_url TEXT NOT NULL DEFAULT ''`;
 
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id INTEGER DEFAULT 0`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS submission_key UUID UNIQUE`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS va_client_assignments (
