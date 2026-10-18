@@ -1,23 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FileText, ExternalLink, Download } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { FileText, Eye } from "lucide-react";
 import * as actions from "@/lib/actions";
-import type { ClientInvoice } from "@/lib/actions";
+import type { ClientAccount, ClientInvoice } from "@/lib/actions";
+import ClientInvoicePreview from "@/components/ClientInvoicePreview";
 
 export default function ClientInvoicesPage() {
   const [invoices, setInvoices] = useState<ClientInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [client, setClient] = useState<ClientAccount | null>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<ClientInvoice | null>(null);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
       const email = localStorage.getItem("clientEmail") || "";
       if (email) {
-        setInvoices(await actions.getClientInvoicesByEmail(email));
+        const [items, account] = await Promise.all([
+          actions.getClientInvoicesByEmail(email),
+          actions.getClientAccountByEmail(email),
+        ]);
+        setInvoices(items);
+        setClient(account);
       }
+    } catch {
+      setError("Invoices could not be loaded. Please try again.");
+    } finally {
       setLoading(false);
-    })();
+    }
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   if (loading) {
     return (
@@ -34,7 +53,12 @@ export default function ClientInvoicesPage() {
         Invoices
       </h1>
 
-      {invoices.length === 0 ? (
+      {error ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          {error}
+          <button type="button" onClick={() => { void load(); }} className="ml-2 font-semibold underline">Try again</button>
+        </div>
+      ) : invoices.length === 0 ? (
         <div className="bg-card rounded-xl border border-border p-8 text-center">
           <FileText size={48} className="mx-auto text-slate-300 mb-4" />
           <h2 className="text-lg font-semibold text-slate-700 mb-2">No Invoices Yet</h2>
@@ -72,19 +96,9 @@ export default function ClientInvoicesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {inv.invoiceLink ? (
-                        <a
-                          href={inv.invoiceLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 font-medium"
-                        >
-                          <Download size={14} />
-                          View / Download
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">N/A</span>
-                      )}
+                      <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 font-medium">
+                        <Eye size={16} aria-hidden="true" /> View Invoice
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -93,6 +107,7 @@ export default function ClientInvoicesPage() {
           </div>
         </div>
       )}
+      {previewInvoice && <ClientInvoicePreview invoice={previewInvoice} client={client} onClose={() => setPreviewInvoice(null)} />}
     </div>
   );
 }

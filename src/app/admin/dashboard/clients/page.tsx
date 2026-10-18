@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { ClientAccount, ClientInvoice, ClientSalaryAdjustment } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
-import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign } from "lucide-react";
+import ClientInvoicePreview from "@/components/ClientInvoicePreview";
+import { clientInvoiceFileUrl } from "@/lib/invoice-links";
+import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye } from "lucide-react";
 
 const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
 
@@ -23,6 +25,7 @@ export default function AdminClientsPage() {
   const [editAdj, setEditAdj] = useState<ClientSalaryAdjustment | null>(null);
   const [editAdjForm, setEditAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [editInv, setEditInv] = useState<ClientInvoice | null>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<ClientInvoice | null>(null);
   const [tab, setTab] = useState<"accounts" | "invoices" | "adjustments">("accounts");
   const [adjClientFilter, setAdjClientFilter] = useState<number>(0);
   const [adjVAFilter, setAdjVAFilter] = useState("");
@@ -285,10 +288,13 @@ export default function AdminClientsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {inv.invoiceLink ? <a href={inv.invoiceLink} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline break-all">{inv.invoiceLink.slice(0, 40)}...</a> : <span className="text-slate-400">N/A</span>}
+                        {clientInvoiceFileUrl(inv.invoiceLink) ? <a href={clientInvoiceFileUrl(inv.invoiceLink)!} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline break-all">Open invoice file</a> : <span className="text-slate-400">No file attached</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50" title="View Invoice">
+                            <Eye size={16} aria-hidden="true" /> <span className="text-xs font-medium">View</span>
+                          </button>
                           <button onClick={() => { setEditInv(inv); setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billFrom: "", billTo: "", amount: inv.amount, invoiceDueDate: "", status: inv.status, invoiceLink: inv.invoiceLink }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
@@ -673,6 +679,7 @@ export default function AdminClientsPage() {
           </div>
         </div>
       )}
+      {previewInvoice && <ClientInvoicePreview invoice={previewInvoice} client={clients.find(client => client.id === previewInvoice.clientId)} onClose={() => setPreviewInvoice(null)} />}
     </div>
   );
 }
