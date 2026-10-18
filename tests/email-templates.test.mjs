@@ -15,13 +15,21 @@ function load(name) {
 }
 const templates=load('email-templates'), addresses=load('email-addresses');
 const origin='https://portal.example';
-const invoice={kind:'invoice',invoiceNumber:'INV-42',billCoverage:'October 1–15, 2026',amount:'$1,000.00',dueDate:'October 25, 2026',invoiceLink:'https://paypal.example/pay/42',clientEmail:'client@example.invalid',defaultPassword:true};
+const invoice={kind:'invoice',invoiceNumber:'INV-42',billCoverage:'October 1–15, 2026',amount:'$1,000.00',dueDate:'October 25, 2026',invoiceLink:'https://paypal.example/pay/42',clientEmail:'client@example.invalid',clientName:'Devin Rubin',defaultPassword:true};
 test('invoice email matches the requested subject, billing summary, payment link, access instructions, and signature',()=>{
   const result=templates.invoiceEmail(invoice,origin);
+  assert.ok(result.body.startsWith('Hi Devin,\n\nWe hope'));
+  assert.ok(result.html.includes('<p>Hi Devin,</p>'));
   assert.equal(result.subject,'INVOICE - October 1–15, 2026 : GY Virtual Support Team');
   for(const value of ['INV-42','October 1–15, 2026','$1,000.00','inclusive of PayPal transaction fees','October 25, 2026','https://paypal.example/pay/42','https://portal.example/client/dashboard','client@example.invalid','gyclient2026','Questions or Billing Concerns?','hello.graveyardcrewph@outlook.com'])assert.ok(result.body.includes(value),value);
   assert.ok(result.html.includes('<strong>Invoice Number:</strong>'));
   assert.ok(result.html.includes('View &amp; Pay Your Invoice'));
+});
+test('invoice greetings use the first name, escape HTML and handle legacy records without a name',()=>{
+  const result=templates.invoiceEmail({...invoice,clientName:'  Daisy\t Martinez  '},origin);
+  assert.ok(result.body.startsWith('Hi Daisy,'));assert.ok(!result.html.includes('Hi Daisy Martinez'));
+  assert.ok(templates.invoiceEmail({...invoice,clientName:'<Devin> Rubin'},origin).html.includes('Hi &lt;Devin&gt;,'));
+  assert.ok(templates.invoiceEmail({...invoice,clientName:undefined},origin).body.startsWith('Hi there,'));
 });
 test('changed passwords are never copied into emails and an absent invoice link opens portal invoices',()=>{
   const result=templates.invoiceEmail({...invoice,defaultPassword:false,invoiceLink:'javascript:alert(1)'},origin);

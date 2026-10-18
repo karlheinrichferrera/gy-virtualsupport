@@ -27,6 +27,8 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
     return results[1];
   };
   const sent = [];
+  const adminIdentity={id:1,username:'admin',displayName:'Admin'};
+  let admin=adminIdentity,deliveryWakes=0;
   let sendHook = async () => {};
   class OutlookSendError extends Error {
     constructor(kind, message, retryAfterSeconds) {
@@ -54,6 +56,9 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
     }).outputText;
     const localRequire = name => name === '@vercel/postgres' ? { sql }
       : name === './outlook' ? outlook
+      : name === './admin-session' ? {requireAdminSession:async()=>{if(!admin)throw new Error('Admin sign-in required');return admin;}}
+      : name === './email-dispatch' ? {wakeEmailDelivery:()=>{deliveryWakes++;}}
+      : name === './db' ? {ensureTables:async()=>{}}
       : name.startsWith('./') ? loadTs(`${name.slice(2)}.ts`) : runtimeRequire(name);
     new Function('require', 'module', 'exports', code)(localRequire, testModule, testModule.exports);
     return testModule.exports;
@@ -84,6 +89,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
     const service = loadTs('email-service.ts');
     const reset = async () => {
       sent.length = 0; sendHook = async () => {}; afterStatement = async () => {};
+      admin=adminIdentity;deliveryWakes=0;
       await sql`TRUNCATE email_jobs,client_invoices,invoices,notifications,email_va_contacts,notification_email_images,notification_image_assets RESTART IDENTITY CASCADE`;
       await sql`DELETE FROM va_profiles WHERE id NOT IN ('va-1','va-2')`;
       await sql`UPDATE va_profiles SET email=CASE WHEN id='va-1' THEN 'va-one@example.invalid' ELSE 'va-two@example.invalid' END`;
@@ -343,6 +349,73 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.ok(configured.html.includes('Invoice Summary'));
       assert.ok(configured.body.includes('inclusive of PayPal transaction fees'));
       await sql`UPDATE client_accounts SET invoice_cc='' WHERE id=1`;
+    });
+    await t.test('admin invoice resends preserve history, use current invoice data and first names, and deduplicate request retries',async()=>{
+      await reset();await service.setEmailAutomation(true,false);
+      const id=(await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (1,'RESEND-CURRENT',NOW()) RETURNING id`).rows[0].id;
+      await service.queueAutomaticEmails();await service.processEmailQueue();
+      const original=(await jobs())[0];assert.equal(original.status,'accepted');
+      await sql`UPDATE client_invoices SET amount='$250.00',additional_recipients='updated@example.invalid',invoice_link='https://payments.example/updated' WHERE id=${id}`;
+      await sql`UPDATE client_accounts SET display_name='Devin Rubin' WHERE id=1`;
+      const actions=loadTs('email-actions.ts'),request=randomUUID();
+      admin=null;await assert.rejects(actions.resendClientInvoiceEmail(id,request),/sign-in/);assert.equal((await jobs()).length,1);
+      admin=adminIdentity;
+      const results=await Promise.all([actions.resendClientInvoiceEmail(id,request),actions.resendClientInvoiceEmail(id,request)]);
+      assert.equal(results[0].id,results[1].id);assert.equal((await jobs()).length,2);assert.equal(deliveryWakes,2);
+      await service.processEmailQueue();const repeated=await actions.resendClientInvoiceEmail(id,request);assert.equal(repeated.status,'accepted');
+      assert.equal(sent.length,2);assert.deepEqual(sent[1].cc,['updated@example.invalid']);assert.ok(sent[1].body.startsWith('Hi Devin,'));
+      assert.ok(sent[1].body.includes('$250.00'));assert.ok(sent[1].html.includes('https://payments.example/updated'));
+      assert.ok(!sent[0].body.includes('$250.00'));assert.equal((await jobs()).find(row=>row.id===original.id).status,'accepted');
+      assert.equal(service.emailJob((await jobs()).find(row=>row.id===results[0].id)).isResend,true);
+      assert.equal((await sql`SELECT COUNT(*)::integer AS count FROM notifications`).rows[0].count,0);
+      const second=(await sql`INSERT INTO client_invoices(client_id,invoice_number) VALUES (2,'OTHER-RESEND') RETURNING id`).rows[0].id;
+      await assert.rejects(actions.resendClientInvoiceEmail(second,request),/another invoice/);
+      await sql`UPDATE client_accounts SET display_name='Client One' WHERE id=1`;
+    });
+    await t.test('a deliberate resend works with automation off and prevents a later automatic duplicate',async()=>{
+      await reset();
+      const id=(await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (1,'LEGACY-RESEND',NOW()) RETURNING id`).rows[0].id;
+      await service.queueInvoiceResend(id,randomUUID(),1);
+      await service.setEmailAutomation(false,false);await service.processEmailQueue();assert.equal(sent.length,1);
+      await service.setEmailAutomation(true,false);
+      const next=(await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (1,'BEFORE-SCANNER',NOW()) RETURNING id`).rows[0].id;
+      await service.queueInvoiceResend(next,randomUUID(),1);await service.queueAutomaticEmails();
+      assert.equal((await jobs()).filter(row=>row.source_id===next).length,1);
+      await service.processEmailQueue();assert.equal(sent.length,2);
+    });
+    await t.test('concurrent distinct resend requests and the automatic scanner allow only one active invoice email',async()=>{
+      await reset();await service.setEmailAutomation(true,false);
+      const id=(await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES (1,'CONCURRENT-RESEND',NOW()) RETURNING id`).rows[0].id;
+      const result=await Promise.allSettled([service.queueInvoiceResend(id,randomUUID(),1),service.queueInvoiceResend(id,randomUUID(),2),service.queueAutomaticEmails()]);
+      assert.equal(result[2].status,'fulfilled');assert.equal((await jobs()).filter(row=>row.source_id===id).length,1);
+      await service.processEmailQueue();assert.equal(sent.length,1);
+      await service.queueInvoiceResend(id,randomUUID(),1);await service.processEmailQueue();assert.equal(sent.length,2);
+    });
+    await t.test('resends reject drafts, invalid recipients, missing connections and unreviewed uncertain sends',async()=>{
+      await reset();const id=(await sql`INSERT INTO client_invoices(client_id,invoice_number,status) VALUES (1,'GUARDED-RESEND',' Draft ') RETURNING id`).rows[0].id;
+      await assert.rejects(service.queueInvoiceResend(id,randomUUID(),1),/draft/);
+      await sql`UPDATE client_invoices SET status='Pending',additional_recipients='bad-address' WHERE id=${id}`;
+      await assert.rejects(service.queueInvoiceResend(id,randomUUID(),1),/valid email/);
+      await sql`UPDATE client_invoices SET additional_recipients='' WHERE id=${id}`;
+      await assert.rejects(service.queueInvoiceResend(id,'not-a-request-id',1),/Refresh/);
+      await assert.rejects(service.queueInvoiceResend(99999,randomUUID(),1),/not found/);
+      await sql`UPDATE outlook_connection SET encrypted_tokens=NULL`;
+      await assert.rejects(service.queueInvoiceResend(id,randomUUID(),1),/Connect Outlook/);
+      await sql`UPDATE outlook_connection SET encrypted_tokens='mock-tokens'`;
+      const original=await service.queueInvoiceResend(id,randomUUID(),1);await sql`UPDATE email_jobs SET status='uncertain' WHERE id=${original.id}`;
+      await assert.rejects(service.queueInvoiceResend(id,randomUUID(),1),/Sent Items/);
+      const reviewed=await service.queueInvoiceResend(id,randomUUID(),1,true);
+      await assert.rejects(service.retryQueuedEmail(original.id),/cannot be retried/);
+      await service.processEmailQueue();assert.equal(sent.length,1);assert.equal((await jobs()).find(row=>row.id===original.id).status,'uncertain');
+      assert.equal((await jobs()).find(row=>row.id===reviewed.id).status,'accepted');
+    });
+    await t.test('resends stop when the invoice is withdrawn or the connected Outlook account changes',async()=>{
+      await reset();const id=(await sql`INSERT INTO client_invoices(client_id,invoice_number) VALUES (1,'WITHDRAWN-RESEND') RETURNING id`).rows[0].id;
+      const withdrawn=await service.queueInvoiceResend(id,randomUUID(),1);await sql`UPDATE client_invoices SET status='Draft' WHERE id=${id}`;
+      await service.processEmailQueue();assert.equal(sent.length,0);assert.equal((await jobs()).find(row=>row.id===withdrawn.id).status,'cancelled');
+      await sql`UPDATE client_invoices SET status='Pending' WHERE id=${id}`;
+      const replaced=await service.queueInvoiceResend(id,randomUUID(),1);await sql`UPDATE outlook_connection SET connection_id=${randomUUID()}::uuid`;
+      await service.processEmailQueue();assert.equal(sent.length,0);assert.equal((await jobs()).find(row=>row.id===replaced.id).status,'cancelled');
     });
     await t.test('manual CC/BCC are private in the payload and changed recipient fields cannot reuse a request ID', async () => {
       await reset();const input=manual({cc:['staff@example.invalid'],bcc:['private@example.invalid'],fromName:'Custom Team'});

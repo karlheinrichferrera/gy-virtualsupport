@@ -44,5 +44,9 @@ export async function ensureEmailSchema() {
     ADD COLUMN IF NOT EXISTS from_email TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS body_html TEXT,
     ADD COLUMN IF NOT EXISTS template_data JSONB,
-    ADD COLUMN IF NOT EXISTS image_token UUID`;
+    ADD COLUMN IF NOT EXISTS image_token UUID,
+    ADD COLUMN IF NOT EXISTS is_resend BOOLEAN NOT NULL DEFAULT false`;
+  await sql`CREATE INDEX IF NOT EXISTS email_jobs_invoice_history ON email_jobs(source_id,id DESC) WHERE source='invoice'`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS email_jobs_invoice_active ON email_jobs(source_id)
+    WHERE source='invoice' AND status IN ('queued','sending')`;
 }

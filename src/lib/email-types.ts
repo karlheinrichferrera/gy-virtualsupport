@@ -27,6 +27,7 @@ export interface EmailJob {
   createdAt: string;
   lastError: string | null;
   attempts: number;
+  isResend?: boolean;
 }
 
 export interface ManualEmailInput {

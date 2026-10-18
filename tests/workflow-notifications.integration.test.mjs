@@ -86,6 +86,14 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       const all=await actions.getClientInvoices();assert.equal(all.find(row=>row.invoiceNumber==='NO-MAIL').emailStatus,null);
       for(const status of statuses)assert.equal(all.find(row=>row.invoiceNumber===status).emailStatus,status);
       assert.equal(all.find(row=>row.invoiceNumber==='failed').emailError,'Outlook rejected the message.');
+      const invoiceId=all.find(row=>row.invoiceNumber==='accepted').id;
+      await sql`INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source,source_id,status,is_resend)
+        VALUES ('invoice-resend:test',${randomUUID()}::uuid,'["client-one@example.invalid"]'::jsonb,'Resent invoice','Body','invoice',${invoiceId},'queued',true)`;
+      const updated=await actions.getClientInvoices();assert.equal(updated.length,all.length);
+      assert.equal(updated.find(row=>row.id===invoiceId).emailStatus,'queued');
+      await sql`UPDATE email_jobs SET status='accepted' WHERE idempotency_key='invoice-resend:test'`;
+      await sql`UPDATE email_jobs SET status='queued' WHERE idempotency_key=${'invoice:'+invoiceId}`;
+      assert.equal((await actions.getClientInvoices()).find(row=>row.id===invoiceId).emailStatus,'queued','An active retry remains visible even when a newer history entry was accepted');
     });
     await t.test('leave and shift receipts are private and retried submissions do not duplicate them',async()=>{
       await reset();admin=null;

@@ -1,7 +1,7 @@
 import { sql } from "@vercel/postgres";
 import { getOutlookConnection, OutlookSendError, sendOutlookMessage } from "./outlook";
 import type { EmailJob, ManualEmailInput } from "./email-types";
-import { validEmailAddress, emailRecipients } from "./email-addresses";
+import { validEmailAddress, emailRecipients, parseEmailAddresses } from "./email-addresses";
 import { EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, invoiceEmail, notificationEmail, manualEmail, type EmailTemplateData } from "./email-templates";
 import { prepareEmailImage } from "./email-images";
 export { validEmailAddress } from "./email-addresses";
@@ -22,7 +22,7 @@ export function emailJob(row: Row): EmailJob {
     createdAt: new Date(row.created_at as string).toISOString(),
     cc: (row.cc_emails || []) as string[], bcc: (row.bcc_emails || []) as string[],
     fromName: String(row.from_name || EMAIL_FROM_NAME), fromEmail: String(row.from_email || ""),
-    lastError: row.last_error == null ? null : String(row.last_error), attempts: Number(row.attempts) };
+    lastError: row.last_error == null ? null : String(row.last_error), attempts: Number(row.attempts), isResend: Boolean(row.is_resend) };
 }
 
 async function connectionId() {
@@ -82,10 +82,10 @@ export async function queueAutomaticEmails() {
       to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
-        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'defaultPassword',c.password='gyclient2026'),
+        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026'),
       'invoice',i.id
     FROM publications i JOIN client_accounts c ON c.id = i.client_id
-    ON CONFLICT (idempotency_key) DO NOTHING
+    ON CONFLICT DO NOTHING
   `;
   await sql`
     WITH publications AS (
@@ -131,7 +131,7 @@ export async function processEmailQueue(limit = 5) {
       OR j.expires_at <= NOW()
       OR (j.source='invoice' AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status)) != 'draft'))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.id=j.source_id))
-      OR (j.source='invoice' AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_invoices_since IS NOT NULL AND j.created_at>=s.auto_invoices_since))
+      OR (j.source='invoice' AND NOT j.is_resend AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_invoices_since IS NOT NULL AND j.created_at>=s.auto_invoices_since))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_notifications_since IS NOT NULL AND j.created_at>=s.auto_notifications_since))
     )`;
   const started = Date.now();
@@ -139,7 +139,7 @@ export async function processEmailQueue(limit = 5) {
   while (processed < Math.min(Math.max(limit, 1), 20) && Date.now() - started < 20000) {
     const { rows } = await sql`UPDATE email_jobs SET status='sending',attempts=attempts+1,claimed_at=NOW(),last_error=NULL
       WHERE id=(SELECT j.id FROM email_jobs j WHERE j.status='queued' AND j.available_at<=NOW()
-        AND (j.source='manual' OR EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND
+        AND (j.source='manual' OR (j.source='invoice' AND j.is_resend) OR EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND
           ((j.source='invoice' AND s.auto_invoices_since IS NOT NULL AND j.created_at>=s.auto_invoices_since)
           OR (j.source='notification' AND s.auto_notifications_since IS NOT NULL AND j.created_at>=s.auto_notifications_since))))
         ORDER BY j.id FOR UPDATE SKIP LOCKED LIMIT 1)
@@ -209,7 +209,51 @@ export async function setEmailAutomation(autoInvoices: boolean, autoNotification
     auto_notifications_since=CASE WHEN ${autoNotifications} THEN COALESCE(auto_notifications_since,NOW()) ELSE NULL END
     WHERE singleton=true`;
   await sql`UPDATE email_jobs SET status='cancelled',last_error='Automatic emailing was switched off.'
-    WHERE status='queued' AND ((source='invoice' AND NOT ${autoInvoices}) OR (source='notification' AND NOT ${autoNotifications}))`;
+    WHERE status='queued' AND ((source='invoice' AND NOT is_resend AND NOT ${autoInvoices}) OR (source='notification' AND NOT ${autoNotifications}))`;
+}
+
+/** A deliberate resend keeps the original email history and snapshots current invoice details. */
+export async function queueInvoiceResend(invoiceId: number, requestId: string, adminId: number, reviewedUncertain = false) {
+  if (!Number.isSafeInteger(invoiceId) || invoiceId < 1 || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(requestId || "")) throw new Error("Refresh the invoice list and try again.");
+  const key = `invoice-resend:${adminId}:${requestId}`;
+  const sameRequest = (row: Row) => {
+    if (row.source !== 'invoice' || Number(row.source_id) !== invoiceId || !row.is_resend) throw new Error("This resend request was already used for another invoice. Refresh the invoice list.");
+    return emailJob(row);
+  };
+  const existing = await sql`SELECT * FROM email_jobs WHERE idempotency_key=${key}`;
+  if (existing.rows.length) return sameRequest(existing.rows[0]);
+  const connection = await connectionId();
+  const { rows: invoices } = await sql`SELECT i.status,i.additional_recipients,c.email,
+    (SELECT j.status FROM email_jobs j WHERE j.source='invoice' AND j.source_id=i.id ORDER BY (j.status IN ('queued','sending')) DESC,j.id DESC LIMIT 1) AS email_status
+    FROM client_invoices i JOIN client_accounts c ON c.id=i.client_id WHERE i.id=${invoiceId}`;
+  if (!invoices.length) throw new Error("Invoice or client not found. Refresh the invoice list.");
+  const invoice = invoices[0];
+  if (String(invoice.status).trim().toLowerCase() === 'draft') throw new Error("Publish this draft invoice before sending its email.");
+  if (invoice.email_status === 'queued' || invoice.email_status === 'sending') {
+    const repeated = await sql`SELECT * FROM email_jobs WHERE idempotency_key=${key}`;
+    if (repeated.rows.length) return sameRequest(repeated.rows[0]);
+    throw new Error("An email for this invoice is already queued or sending. Refresh email status.");
+  }
+  if (invoice.email_status === 'uncertain' && !reviewedUncertain) throw new Error("Check Outlook Sent Items before resending an email marked Needs review.");
+  emailRecipients([String(invoice.email).trim()], parseEmailAddresses(String(invoice.additional_recipients || ""),10));
+  const { rows } = await sql`WITH invoice AS MATERIALIZED (
+    SELECT i.* FROM client_invoices i WHERE i.id=${invoiceId} AND LOWER(TRIM(i.status))!='draft' FOR UPDATE
+  ), queued AS (
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id,is_resend)
+    SELECT ${key},${connection}::uuid,jsonb_build_array(TRIM(c.email)),
+      to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
+      'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
+      jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
+        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026'),
+      'invoice',i.id,true FROM invoice i JOIN client_accounts c ON c.id=i.client_id
+    ON CONFLICT DO NOTHING RETURNING *
+  ), publication AS (
+    UPDATE client_invoices i SET email_queued_at=COALESCE(i.email_queued_at,NOW()) FROM queued j WHERE i.id=j.source_id RETURNING i.id
+  ) SELECT * FROM queued`;
+  if (rows.length) return sameRequest(rows[0]);
+  const retry = await sql`SELECT * FROM email_jobs WHERE idempotency_key=${key}`;
+  if (retry.rows.length) return sameRequest(retry.rows[0]);
+  throw new Error("An invoice email is already queued or the invoice changed. Refresh the invoice list.");
 }
 
 /** Called only after an authenticated admin saves a VA record. */
@@ -222,6 +266,9 @@ export async function retryQueuedEmail(id: number) {
   const connection = await connectionId();
   const { rows } = await sql`UPDATE email_jobs SET status='queued',available_at=NOW(),last_error=NULL
     WHERE id=${id} AND status IN ('failed','uncertain') AND connection_id=${connection}::uuid
+      AND (source!='invoice' OR NOT EXISTS (
+        SELECT 1 FROM email_jobs active WHERE active.source='invoice' AND active.source_id=email_jobs.source_id AND active.status IN ('queued','sending')
+      ))
       AND (expires_at IS NULL OR expires_at>NOW()) RETURNING id`;
   if (!rows.length) throw new Error("This email cannot be retried. Create a new email if needed.");
 }

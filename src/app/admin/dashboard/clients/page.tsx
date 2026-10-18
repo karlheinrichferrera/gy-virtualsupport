@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as actions from "@/lib/actions";
 import type { ClientAccount, ClientInvoice, ClientSalaryAdjustment } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import ClientInvoicePreview from "@/components/ClientInvoicePreview";
 import { clientInvoiceFileUrl } from "@/lib/invoice-links";
 import { parseEmailAddresses } from "@/lib/email-addresses";
-import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye, RefreshCw } from "lucide-react";
+import { resendClientInvoiceEmail } from "@/lib/email-actions";
+import { Building2, Plus, X, Trash2, AlertTriangle, KeyRound, FileText, Pencil, Save, DollarSign, Eye, RefreshCw, Mail } from "lucide-react";
 import type { EmailJobStatus } from "@/lib/email-types";
 
 const emailStatusLabels: Record<EmailJobStatus, string> = {
@@ -54,6 +55,10 @@ export default function AdminClientsPage() {
   const [invoiceError, setInvoiceError] = useState("");
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [refreshingInvoices, setRefreshingInvoices] = useState(false);
+  const [resendingInvoice, setResendingInvoice] = useState<number | null>(null);
+  const [resendNotice, setResendNotice] = useState("");
+  const resendRequests = useRef(new Map<number,string>());
+  const resendInFlight = useRef(false);
 
   async function loadData() {
     const [c, i, vas, adjs] = await Promise.all([
@@ -87,6 +92,24 @@ export default function AdminClientsPage() {
     try { setInvoices(await actions.getClientInvoices()); }
     catch { setInvoiceError("Unable to refresh email status. Please try again."); }
     finally { setRefreshingInvoices(false); }
+  }
+
+  async function resendInvoice(inv: ClientInvoice) {
+    if (resendInFlight.current) return;
+    const reviewedUncertain = inv.emailStatus === "uncertain";
+    if (reviewedUncertain && !window.confirm("Check Outlook Sent Items first. This email may already have been sent. Have you checked and want to send another copy?")) return;
+    resendInFlight.current = true;
+    setResendingInvoice(inv.id);setInvoiceError("");setResendNotice("");
+    let requestId = resendRequests.current.get(inv.id);
+    if (!requestId) { requestId = crypto.randomUUID();resendRequests.current.set(inv.id,requestId); }
+    try {
+      const result = await resendClientInvoiceEmail(inv.id,requestId,reviewedUncertain);
+      resendRequests.current.delete(inv.id);
+      setInvoices(rows => rows.map(row => row.id === inv.id ? { ...row,emailStatus:result.status,emailError:null } : row));
+      setResendNotice(`Invoice ${inv.invoiceNumber}: ${emailStatusLabels[result.status]}. Check Email status for updates.`);
+      try { setInvoices(await actions.getClientInvoices()); } catch { /* Keep the confirmed queue status until the next refresh. */ }
+    } catch (error) { setInvoiceError(error instanceof Error ? error.message : "Unable to resend the invoice email. Please try again."); }
+    finally { resendInFlight.current = false;setResendingInvoice(null); }
   }
 
   async function handleAddClient(e: React.FormEvent) {
@@ -320,6 +343,7 @@ export default function AdminClientsPage() {
 
           <p className="text-xs text-muted">Email status refreshes every 15 seconds. Accepted by Outlook confirms the send request, not delivery to the recipient’s inbox. <a href="/admin/dashboard/email" className="text-indigo-600 underline">View email history</a></p>
           {invoiceError && !showAddInvoice && !editInv && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
+          {resendNotice && <p role="status" className="text-sm text-emerald-600">{resendNotice}</p>}
 
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
@@ -366,6 +390,11 @@ export default function AdminClientsPage() {
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50" title="View Invoice">
                             <Eye size={16} aria-hidden="true" /> <span className="text-xs font-medium">View</span>
+                          </button>
+                          <button type="button" onClick={() => { void resendInvoice(inv); }} disabled={resendingInvoice !== null || inv.status.trim().toLowerCase() === "draft" || inv.emailStatus === "queued" || inv.emailStatus === "sending"}
+                            aria-label={`Resend email for ${inv.invoiceNumber}`} title={inv.status.trim().toLowerCase() === "draft" ? "Publish this draft before emailing it" : inv.emailStatus === "queued" || inv.emailStatus === "sending" ? "An invoice email is already queued or sending" : "Send another copy using this invoice’s current details and recipients"}
+                            className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40">
+                            <Mail size={16} aria-hidden="true" /><span className="text-xs font-medium">{resendingInvoice === inv.id ? "Queuing..." : "Resend email"}</span>
                           </button>
                           <button onClick={() => openEditInvoice(inv)} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />

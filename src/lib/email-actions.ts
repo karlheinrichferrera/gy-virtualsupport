@@ -3,7 +3,7 @@
 import { sql } from "@vercel/postgres";
 import { requireAdminSession } from "./admin-session";
 import { getOutlookConfiguration, getOutlookConnection, disconnectOutlookConnection } from "./outlook";
-import { cancelPendingEmails, emailJob, processEmailQueue, queueAutomaticEmails, queueManualEmail, retryQueuedEmail, setEmailAutomation } from "./email-service";
+import { cancelPendingEmails, emailJob, processEmailQueue, queueAutomaticEmails, queueManualEmail, queueInvoiceResend, retryQueuedEmail, setEmailAutomation } from "./email-service";
 import { wakeEmailDelivery } from "./email-dispatch";
 import type { EmailJob, EmailSettings, ManualEmailInput } from "./email-types";
 
@@ -35,6 +35,14 @@ export async function sendManualEmail(input: ManualEmailInput): Promise<{ id: nu
   const admin = await requireAdminSession();
   await prepare();
   const queued = await queueManualEmail(input, admin.id);
+  wakeEmailDelivery();
+  return { id: queued.id, status: queued.status };
+}
+
+export async function resendClientInvoiceEmail(invoiceId: number, requestId: string, reviewedUncertain = false): Promise<{ id: number; status: EmailJob["status"] }> {
+  const admin = await requireAdminSession();
+  await prepare();
+  const queued = await queueInvoiceResend(invoiceId, requestId, admin.id, reviewedUncertain === true);
   wakeEmailDelivery();
   return { id: queued.id, status: queued.status };
 }

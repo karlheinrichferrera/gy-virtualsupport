@@ -670,7 +670,10 @@ export async function getClientInvoices(): Promise<ClientInvoice[]> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT i.*,j.status AS email_status,j.last_error AS email_error
-    FROM client_invoices i LEFT JOIN email_jobs j ON j.idempotency_key='invoice:' || i.id AND j.source='invoice'
+    FROM client_invoices i LEFT JOIN LATERAL (
+      SELECT status,last_error FROM email_jobs WHERE source='invoice' AND source_id=i.id
+      ORDER BY (status IN ('queued','sending')) DESC,id DESC LIMIT 1
+    ) j ON true
     ORDER BY i.id DESC`;
   return rows.map(rowToClientInvoice);
 }
