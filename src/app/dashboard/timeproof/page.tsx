@@ -1,5 +1,6 @@
 "use client";
 
+import ApprovalProgress from "@/components/ApprovalProgress";
 import { useEffect, useRef, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, Clock } from "lucide-react";
 import * as actions from "@/lib/actions";
@@ -274,7 +275,7 @@ export default function TimeproofPage() {
                     <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
                     <td className="px-4 py-3">
-                      {entry.entryType === "overtime" ? (
+                      {entry.entryType === "overtime" ? (<>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           entry.status === "pending" ? "bg-amber-100 text-amber-700" :
                           entry.status === "approved" ? "bg-green-100 text-green-700" :
@@ -282,7 +283,7 @@ export default function TimeproofPage() {
                           "bg-slate-100 text-slate-600"
                         }`}>
                           {entry.status === "pending" ? "Pending" : entry.status === "approved" ? "Approved" : entry.status === "rejected" ? "Rejected" : entry.status}
-                        </span>
+                        </span><ApprovalProgress approval={entry} /></>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
@@ -294,7 +295,7 @@ export default function TimeproofPage() {
                             <Pencil size={14} />
                           </button>
                         )}
-                        {(entry.entryType !== "overtime" || entry.status === "pending") && (
+                        {(entry.entryType !== "overtime" || (entry.status === "pending" && entry.adminApproval === "Pending" && entry.clientApproval === "Pending")) && (
                           <button onClick={() => handleDelete(entry.id)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-colors">
                             <Trash2 size={14} />
                           </button>

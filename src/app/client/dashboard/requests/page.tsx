@@ -3,171 +3,92 @@
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
+import type { ApprovalStatus } from "@/lib/request-approvals";
 import StatusBadge from "@/components/StatusBadge";
-import { CalendarDays, Check, X, MessageSquare, Eye } from "lucide-react";
+import ApprovalProgress from "@/components/ApprovalProgress";
+import { CalendarDays, X, Eye } from "lucide-react";
+import { fmtTime12 } from "@/lib/est";
 
+type RequestItem = { vaId: string; vaName: string; request: LeaveRequest };
+type OvertimeItem = actions.TimeproofEntry & { vaName: string };
 export default function ClientRequestsPage() {
-  const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: LeaveRequest }[]>([]);
-  const [filterStatus, setFilterStatus] = useState<string>("All");
-  const [remarkModal, setRemarkModal] = useState<string | null>(null);
-  const [remarkText, setRemarkText] = useState("");
-  const [viewing, setViewing] = useState<{ vaId: string; vaName: string; request: LeaveRequest } | null>(null);
-
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [overtime, setOvertime] = useState<OvertimeItem[]>([]);
+  const [tab, setTab] = useState<"requests" | "overtime">("requests");
+  const [filter, setFilter] = useState("All");
+  const [viewing, setViewing] = useState<RequestItem | null>(null);
+  const [remark, setRemark] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  async function reload() {
+    const [leaves, entries] = await Promise.all([actions.getClientRequests(), actions.getClientOvertimeRequests()]);
+    setRequests(leaves); setOvertime(entries);
+    setViewing(current => current ? leaves.find(row => row.request.id === current.request.id) || null : null);
+  }
   useEffect(() => {
-    (async () => {
-      setAllRequests(await actions.getAllRequestsFlat());
-    })();
+    Promise.all([actions.getClientRequests(), actions.getClientOvertimeRequests()])
+      .then(([leaves, entries]) => { setRequests(leaves); setOvertime(entries); if (new URLSearchParams(window.location.search).get("type") === "overtime") setTab("overtime"); })
+      .catch(err => setError(err instanceof Error ? err.message : "Unable to load requests."))
+      .finally(() => setLoading(false));
   }, []);
-
-  async function handleUpdateStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
-    await actions.updateRequestStatus(id, status, remarks);
-    setAllRequests(await actions.getAllRequestsFlat());
+  async function review(id: string | number, decision: ApprovalStatus) {
+    setBusy(true); setError("");
+    try {
+      if (typeof id === "number") await actions.reviewClientOvertime(id, decision);
+      else await actions.reviewClientRequest(id, decision);
+      await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save your decision."); }
+    finally { setBusy(false); }
   }
-
-  async function handleAddRemark(id: string) {
-    await actions.updateRequestRemarks(id, remarkText);
-    setAllRequests(await actions.getAllRequestsFlat());
-    setRemarkModal(null);
-    setRemarkText("");
+  async function saveRemark() {
+    if (!viewing) return;
+    setBusy(true); setError("");
+    try { await actions.updateClientRequestRemarks(viewing.request.id, remark); await reload(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Unable to save remarks."); }
+    finally { setBusy(false); }
   }
-
-  const filtered = filterStatus === "All"
-    ? allRequests
-    : allRequests.filter((r) => r.request.status === filterStatus);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <CalendarDays size={24} />
-          Leave & Shift Adjustment Requests
-        </h1>
-      </div>
-
-      <div className="flex gap-2">
-        {["All", "Pending", "Approved", "Denied"].map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filterStatus === s ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {s}
-            {s !== "All" && (
-              <span className="ml-1.5 text-xs">
-                ({allRequests.filter((r) => r.request.status === s).length})
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-8 text-center">
-          <CalendarDays size={48} className="mx-auto text-slate-300 mb-4" />
-          <p className="text-slate-500">No requests found.</p>
-        </div>
-      ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border">
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">ID</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">VA</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Type</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Date</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item) => (
-                  <tr key={item.request.id} className="border-b border-border hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-mono text-foreground">{item.request.id}</td>
-                    <td className="px-4 py-3 text-foreground">{item.vaName}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        item.request.type === "Leave" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-                      }`}>
-                        {item.request.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-foreground text-xs">
-                      {item.request.dateFrom}{item.request.dateFrom !== item.request.dateTo ? ` - ${item.request.dateTo}` : ""}
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={item.request.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setViewing(item)} className="p-1.5 hover:bg-slate-100 rounded-lg" title="View"><Eye size={14} className="text-slate-500" /></button>
-                        {item.request.status === "Pending" && (
-                          <>
-                            <button onClick={() => handleUpdateStatus(item.request.id, "Approved")} className="p-1.5 hover:bg-emerald-50 rounded-lg" title="Approve">
-                              <Check size={14} className="text-emerald-600" />
-                            </button>
-                            <button onClick={() => handleUpdateStatus(item.request.id, "Denied")} className="p-1.5 hover:bg-red-50 rounded-lg" title="Deny">
-                              <X size={14} className="text-red-600" />
-                            </button>
-                          </>
-                        )}
-                        <button onClick={() => { setRemarkModal(item.request.id); setRemarkText(item.request.remarks); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Add Remark">
-                          <MessageSquare size={14} className="text-blue-600" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {viewing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Request Details</h2>
-              <button onClick={() => setViewing(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
-            </div>
-            <div className="p-6 space-y-3 text-sm">
-              <div><span className="text-slate-500">VA:</span> <span className="font-medium text-slate-900">{viewing.vaName} ({viewing.vaId})</span></div>
-              <div><span className="text-slate-500">Type:</span> <span className="font-medium text-slate-900">{viewing.request.type}</span></div>
-              <div><span className="text-slate-500">Submitted:</span> <span className="font-medium text-slate-900">{viewing.request.dateSubmitted}</span></div>
-              <div><span className="text-slate-500">From:</span> <span className="font-medium text-slate-900">{viewing.request.dateFrom}</span></div>
-              <div><span className="text-slate-500">To:</span> <span className="font-medium text-slate-900">{viewing.request.dateTo}</span></div>
-              <div><span className="text-slate-500">Reason:</span> <span className="font-medium text-slate-900">{viewing.request.reason}</span></div>
-              <div><span className="text-slate-500">Status:</span> <StatusBadge status={viewing.request.status} /></div>
-              <div><span className="text-slate-500">Remarks:</span> <span className="font-medium text-slate-900">{viewing.request.remarks || "None"}</span></div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {remarkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Add Remark</h2>
-              <button onClick={() => setRemarkModal(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <textarea
-                value={remarkText}
-                onChange={(e) => setRemarkText(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                rows={3}
-                placeholder="Enter remarks..."
-              />
-              <div className="flex gap-3">
-                <button onClick={() => setRemarkModal(null)} className="flex-1 border border-slate-300 text-slate-700 font-medium py-2 rounded-lg hover:bg-slate-50">Cancel</button>
-                <button onClick={() => handleAddRemark(remarkModal)} className="flex-1 bg-emerald-600 text-white font-medium py-2 rounded-lg hover:bg-emerald-700">Save</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+  function controls(id: string | number, approval: LeaveRequest | OvertimeItem) {
+    if (!approval.requiresDualApproval) return null;
+    return <div className="flex flex-wrap gap-2">
+      {approval.clientApproval === "Pending" ? <>
+        <button disabled={busy} onClick={() => review(id, "Approved")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Approve</button>
+        <button disabled={busy} onClick={() => review(id, "Denied")} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Deny</button>
+      </> : <button disabled={busy} onClick={() => review(id, "Pending")} className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Reset my decision</button>}
+    </div>;
+  }
+  const otStatus = (entry: OvertimeItem) => entry.status === "approved" ? "Approved" : entry.status === "rejected" ? "Denied" : "Pending";
+  const leaves = requests.filter(row => filter === "All" || row.request.status === filter);
+  const entries = overtime.filter(row => filter === "All" || otStatus(row) === filter);
+  return <div className="space-y-4">
+    <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><CalendarDays size={24} />Requests & Approvals</h1>
+    <p className="text-sm text-muted">Requests need approval from both the selected client and an administrator. A denial from either reviewer denies the request.</p>
+    <div className="flex flex-wrap gap-2">
+      {([['requests', 'Leave & Shift Adjustment'], ['overtime', 'Overtime']] as const).map(([value, label]) => <button key={value} onClick={() => { setTab(value); setFilter("All"); }} className={`rounded-lg px-3 py-2 text-sm ${tab === value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{label}</button>)}
     </div>
-  );
+    <div className="flex flex-wrap gap-2">{["All", "Pending", "Approved", "Denied"].map(value => <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-1.5 text-sm ${filter === value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{value}</button>)}</div>
+    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {loading ? <p className="text-muted">Loading requests…</p> : <div className="overflow-hidden rounded-xl border border-border bg-card"><div className="overflow-x-auto">
+      <table className="w-full text-left text-sm"><thead><tr className="border-b border-border bg-slate-50 text-slate-600"><th className="px-4 py-3">VA</th><th className="px-4 py-3">Request</th><th className="px-4 py-3">Period</th><th className="px-4 py-3">Status & Approvals</th><th className="px-4 py-3">Actions</th></tr></thead>
+        <tbody>{tab === "requests" ? leaves.map(item => <tr key={item.request.id} className="border-b border-border">
+          <td className="px-4 py-3 text-foreground">{item.vaName}</td>
+          <td className="px-4 py-3 text-foreground">{item.request.type}<span className="block text-xs text-muted">{item.request.id}</span></td>
+          <td className="px-4 py-3 whitespace-nowrap text-foreground">{item.request.dateFrom} – {item.request.dateTo}</td>
+          <td className="px-4 py-3"><StatusBadge status={item.request.status} /><ApprovalProgress approval={item.request} /></td>
+          <td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><button onClick={() => { setViewing(item); setRemark(item.request.clientRemarks || ""); }} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700"><Eye size={14} />View</button>{controls(item.request.id, item.request)}</div></td>
+        </tr>) : entries.map(entry => <tr key={entry.id} className="border-b border-border">
+          <td className="px-4 py-3 text-foreground">{entry.vaName}</td><td className="max-w-xs px-4 py-3 text-foreground">Overtime<p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted">{entry.notes || "—"}</p></td>
+          <td className="px-4 py-3 whitespace-nowrap text-foreground">{entry.punchDate}<span className="block text-xs">{fmtTime12(entry.timeIn)} – {fmtTime12(entry.timeOut)}</span></td>
+          <td className="px-4 py-3"><StatusBadge status={otStatus(entry)} /><ApprovalProgress approval={entry} /></td><td className="px-4 py-3">{controls(entry.id, entry)}</td>
+        </tr>)}{(tab === "requests" ? leaves.length : entries.length) === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No requests found.</td></tr>}</tbody>
+      </table></div></div>}
+    {viewing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewing(null)}><div role="dialog" aria-modal="true" aria-labelledby="request-detail-title" onClick={event => event.stopPropagation()} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
+      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4"><h2 id="request-detail-title" className="text-lg font-bold text-slate-900">Request Details</h2><button aria-label="Close request details" onClick={() => setViewing(null)}><X size={20} className="text-slate-600" /></button></div>
+      <div className="space-y-3 p-6 text-sm text-slate-900"><p><strong>VA:</strong> {viewing.vaName}</p><p><strong>Type:</strong> {viewing.request.type}</p><p><strong>Period:</strong> {viewing.request.dateFrom} – {viewing.request.dateTo}</p><p className="whitespace-pre-wrap break-words"><strong>Reason:</strong> {viewing.request.reason}</p><StatusBadge status={viewing.request.status} /><ApprovalProgress approval={viewing.request} />
+        <p className="whitespace-pre-wrap break-words"><strong>Admin remarks:</strong> {viewing.request.adminRemarks || "—"}</p>
+        <label className="block"><span className="mb-1 block font-medium">Your remarks</span><textarea value={remark} onChange={event => setRemark(event.target.value)} maxLength={5000} rows={3} className="w-full rounded-lg border border-slate-300 p-3" /></label>
+        {error && <p role="alert" className="text-red-700">{error}</p>}<button disabled={busy} onClick={saveRemark} className="rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:opacity-50">Save remarks</button>
+        {controls(viewing.request.id, viewing.request)}
+      </div></div></div>}
+  </div>;
 }

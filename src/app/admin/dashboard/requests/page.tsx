@@ -3,11 +3,16 @@
 import { useState, useEffect } from "react";
 import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
+import ApprovalProgress from "@/components/ApprovalProgress";
 import StatusBadge from "@/components/StatusBadge";
 import { CalendarDays, Check, X, MessageSquare, Trash2, AlertTriangle, Eye, Pencil } from "lucide-react";
 
 export default function AdminRequestsPage() {
   const [allRequests, setAllRequests] = useState<{ vaId: string; vaName: string; request: LeaveRequest }[]>([]);
+  const [clients, setClients] = useState<actions.ClientAccount[]>([]);
+  const [assignments, setAssignments] = useState<{ vaId: string; clientId: number }[]>([]);
+  const [actionError, setActionError] = useState("");
+  const [reviewing, setReviewing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [remarkModal, setRemarkModal] = useState<string | null>(null);
   const [remarkText, setRemarkText] = useState("");
@@ -16,6 +21,7 @@ export default function AdminRequestsPage() {
   const [viewing, setViewing] = useState<{ vaId: string; vaName: string; request: LeaveRequest } | null>(null);
   const [editing, setEditing] = useState<{ vaId: string; vaName: string; request: LeaveRequest } | null>(null);
   const [editForm, setEditForm] = useState({
+    clientId: "",
     type: "Leave" as "Leave" | "Shift Adjustment",
     dateFrom: "",
     dateTo: "",
@@ -28,13 +34,16 @@ export default function AdminRequestsPage() {
 
   useEffect(() => {
     (async () => {
-      setAllRequests(await actions.getAllRequestsFlat());
+      const [requests, accounts, assigned] = await Promise.all([actions.getAllRequestsFlat(), actions.getClientAccounts(), actions.getVAClientAssignments()]);
+      setAllRequests(requests); setClients(accounts); setAssignments(assigned);
     })();
   }, []);
 
   async function handleUpdateStatus(id: string, status: "Pending" | "Approved" | "Denied", remarks?: string) {
-    await actions.updateRequestStatus(id, status, remarks);
-    setAllRequests(await actions.getAllRequestsFlat());
+    setReviewing(true); setActionError("");
+    try { await actions.updateRequestStatus(id, status, remarks); setAllRequests(await actions.getAllRequestsFlat()); }
+    catch (err) { setActionError(err instanceof Error ? err.message : "Unable to save approval."); }
+    finally { setReviewing(false); }
   }
 
   async function handleAddRemark(id: string) {
@@ -58,11 +67,13 @@ export default function AdminRequestsPage() {
     try {
       await actions.updateRequestDetails(editing.request.id, {
         type: editForm.type,
+        clientId: Number(editForm.clientId) || undefined,
         dateFrom: editForm.dateFrom,
         dateTo: editForm.dateTo,
         reason: editForm.reason,
       });
-      await actions.updateRequestStatus(editing.request.id, editForm.status, editForm.remarks);
+      if (editForm.status !== "Pending") await actions.updateRequestStatus(editing.request.id, editForm.status, editForm.remarks);
+      else if (editForm.remarks) await actions.updateRequestRemarks(editing.request.id, editForm.remarks);
       setAllRequests(await actions.getAllRequestsFlat());
       setEditing(null);
     } catch (err) {
@@ -85,6 +96,8 @@ export default function AdminRequestsPage() {
         <h1 className="text-2xl font-bold text-foreground">Leave & Request Management</h1>
       </div>
 
+      <p className="text-sm text-muted">Both client and admin approval are required. Editing a request resets both decisions.</p>
+      {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-card rounded-xl border border-border p-4">
           <p className="text-sm text-muted">Total Requests</p>
@@ -170,13 +183,13 @@ export default function AdminRequestsPage() {
                     </td>
                     <td className="px-6 py-4 text-foreground max-w-xs truncate">{item.request.reason}</td>
                     <td className="px-6 py-4 text-center">
-                      <StatusBadge status={item.request.status} />
+                      <StatusBadge status={item.request.status} /><ApprovalProgress approval={item.request} /><span className="mt-1 block text-xs text-muted">{item.request.clientName || "Select a client in Edit"}</span>
                     </td>
                     <td className="px-6 py-4 text-muted">
                       <div className="flex items-center gap-1">
                         <span className="truncate max-w-[120px]">{item.request.remarks || "—"}</span>
                         <button
-                          onClick={() => { setRemarkModal(item.request.id); setRemarkText(item.request.remarks); }}
+                          onClick={() => { setRemarkModal(item.request.id); setRemarkText(item.request.adminRemarks || ""); }}
                           className="p-1 hover:bg-slate-100 rounded"
                           title="Edit remarks"
                         >
@@ -198,11 +211,12 @@ export default function AdminRequestsPage() {
                             setEditing(item);
                             setEditForm({
                               type: item.request.type,
+                              clientId: item.request.clientId ? String(item.request.clientId) : "",
                               dateFrom: item.request.dateFrom,
                               dateTo: item.request.dateTo,
                               reason: item.request.reason,
-                              status: item.request.status,
-                              remarks: item.request.remarks,
+                              status: item.request.adminApproval || "Pending",
+                              remarks: item.request.adminRemarks || "",
                             });
                             setEditError("");
                           }}
@@ -211,19 +225,19 @@ export default function AdminRequestsPage() {
                         >
                           <Pencil size={14} />
                         </button>
-                        {item.request.status === "Pending" ? (
+                        {item.request.requiresDualApproval && item.request.adminApproval === "Pending" ? (
                           <>
                             <button
                               onClick={() => handleUpdateStatus(item.request.id, "Approved", "Approved by admin")}
                               className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
-                              title="Approve"
+                              disabled={reviewing} title="Approve as admin"
                             >
                               <Check size={14} />
                             </button>
                             <button
                               onClick={() => handleUpdateStatus(item.request.id, "Denied", "Denied by admin")}
                               className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                              title="Deny"
+                              disabled={reviewing} title="Deny as admin"
                             >
                               <X size={14} />
                             </button>
@@ -232,9 +246,9 @@ export default function AdminRequestsPage() {
                           <button
                             onClick={() => handleUpdateStatus(item.request.id, "Pending", "")}
                             className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-                            title="Revert to Pending"
+                            disabled={reviewing} title="Reset admin decision"
                           >
-                            Revert
+                            Reset admin
                           </button>
                         )}
                         <button
@@ -299,7 +313,7 @@ export default function AdminRequestsPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Status</p>
-                  <StatusBadge status={viewing.request.status} />
+                  <StatusBadge status={viewing.request.status} /><ApprovalProgress approval={viewing.request} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -329,11 +343,12 @@ export default function AdminRequestsPage() {
                     setEditing(viewing);
                     setEditForm({
                       type: viewing.request.type,
+                      clientId: viewing.request.clientId ? String(viewing.request.clientId) : "",
                       dateFrom: viewing.request.dateFrom,
                       dateTo: viewing.request.dateTo,
                       reason: viewing.request.reason,
-                      status: viewing.request.status,
-                      remarks: viewing.request.remarks,
+                      status: viewing.request.adminApproval || "Pending",
+                      remarks: viewing.request.adminRemarks || "",
                     });
                     setEditError("");
                   }}
@@ -368,6 +383,12 @@ export default function AdminRequestsPage() {
               </button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <label className="block text-sm font-medium text-slate-700">Client approver
+                <select required value={editForm.clientId} onChange={event => setEditForm(current => ({ ...current, clientId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900">
+                  <option value="">Select an assigned client</option>{clients.filter(client => assignments.some(a => a.vaId === editing.vaId && a.clientId === client.id)).map(client => <option key={client.id} value={client.id}>{client.displayName}</option>)}
+                </select>
+              </label>
+              <p className="text-xs text-slate-500">Saving edits resets client approval. The status below records only your admin decision.</p>
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-500">VA: <span className="font-medium text-slate-700">{editing.vaName}</span> (ID: {editing.vaId})</p>
               </div>
@@ -415,7 +436,7 @@ export default function AdminRequestsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Admin decision</label>
                 <select
                   value={editForm.status}
                   onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as "Pending" | "Approved" | "Denied" }))}

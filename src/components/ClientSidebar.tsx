@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import * as actions from "@/lib/actions";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -21,7 +23,7 @@ const navItems = [
   { href: "/client/dashboard/timeproof", label: "Timeproof", icon: Fingerprint },
   { href: "/client/dashboard/reports", label: "Weekly Reports", icon: ClipboardList },
   { href: "/client/dashboard/invoices", label: "Invoices", icon: FileText },
-  { href: "/client/dashboard/requests", label: "Leave & Requests", icon: CalendarDays },
+  { href: "/client/dashboard/requests", label: "Requests & Approvals", icon: CalendarDays },
   { href: "/client/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/client/dashboard/adjustments", label: "Salary Adjustments", icon: DollarSign },
   { href: "/client/dashboard/settings", label: "Settings", icon: Settings },
@@ -29,6 +31,7 @@ const navItems = [
 
 export default function ClientSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <>
@@ -76,10 +79,13 @@ export default function ClientSidebar({ open, onClose }: { open?: boolean; onClo
         <div className="p-3 border-t border-white/10">
           <Link
             href="/client"
-            onClick={() => {
+            onClick={async event => {
+              event.preventDefault();
+              await actions.logoutClient();
               localStorage.removeItem("clientAuth");
               localStorage.removeItem("clientEmail");
               localStorage.removeItem("clientDisplayName");
+              router.push("/client");
             }}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
           >

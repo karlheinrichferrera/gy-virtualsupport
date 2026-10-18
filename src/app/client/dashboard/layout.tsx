@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as actions from "@/lib/actions";
 import ClientSidebar from "@/components/ClientSidebar";
 import NotificationBell from "@/components/NotificationBell";
 import { ChevronDown, LogOut, Menu } from "lucide-react";
@@ -19,15 +20,14 @@ export default function ClientDashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const auth = localStorage.getItem("clientAuth");
-    if (auth !== "true") {
-      router.push("/client");
-      return;
-    }
-    const name = localStorage.getItem("clientDisplayName");
-    if (name) setDisplayName(name);
-    setClientEmail(localStorage.getItem("clientEmail") || "");
-    setReady(true);
+    actions.getCurrentClient().then(client => {
+      if (!client) { router.replace("/client"); return; }
+      setDisplayName(client.displayName); setClientEmail(client.email);
+      localStorage.setItem("clientEmail",client.email);
+      localStorage.setItem("clientDisplayName",client.displayName);
+      localStorage.setItem("clientAuth","true");
+      setReady(true);
+    }).catch(() => router.replace("/client"));
   }, [router]);
 
   if (!ready) {
@@ -74,7 +74,8 @@ export default function ClientDashboardLayout({
                   <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-40 py-1.5">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await actions.logoutClient();
                         localStorage.removeItem("clientAuth");
                         localStorage.removeItem("clientEmail");
                         localStorage.removeItem("clientDisplayName");

@@ -1,5 +1,6 @@
 "use client";
 
+import ApprovalProgress from "@/components/ApprovalProgress";
 import { useEffect, useState } from "react";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download, Copy, Clock, Check, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -98,6 +99,8 @@ export default function AdminTimeproofPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "week">("list");
   const [weekStart, setWeekStart] = useState(() => getBiweeklyStart(new Date()));
+  const [approvalError, setApprovalError] = useState("");
+  const [reviewing, setReviewing] = useState(false);
   const [pendingOT, setPendingOT] = useState<FullEntry[]>([]);
 
   useEffect(() => {
@@ -125,6 +128,13 @@ export default function AdminTimeproofPage() {
     setPendingOT(pending);
   }
 
+  async function reviewOvertime(id: number, status: string) {
+    setReviewing(true); setApprovalError("");
+    try { await actions.updateTimeproofEntryStatus(id,status); await reload(); }
+    catch (error) { setApprovalError(error instanceof Error ? error.message : "Unable to save overtime approval."); }
+    finally { setReviewing(false); }
+  }
+
   const filtered = allEntries.filter((e) => {
     if (filterVA && e.vaId !== filterVA) return false;
     if (filterClient && String(e.clientId) !== filterClient) return false;
@@ -135,7 +145,7 @@ export default function AdminTimeproofPage() {
     return true;
   });
 
-  const totalMins = filtered.reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
+  const totalMins = filtered.filter(e => e.entryType !== "overtime" || e.status === "approved").reduce((sum, e) => sum + calcMins(e.timeIn, e.timeOut), 0);
 
   function openCreate() {
     setForm({ vaId: vas[0]?.id || "", clientId: String(clients[0]?.id || ""), punchDate: estDate(), timeIn: estTime(), timeOut: "", notes: "", entryType: "time" });
@@ -248,6 +258,7 @@ export default function AdminTimeproofPage() {
         </div>
       </div>
 
+      {approvalError && <p role="alert" className="text-sm text-red-600">{approvalError}</p>}
       {pendingOT.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
@@ -267,13 +278,14 @@ export default function AdminTimeproofPage() {
                     <span className="text-slate-600">{fmtTime12(req.timeIn)} – {fmtTime12(req.timeOut)}</span>
                     <span className="text-xs text-slate-500">({fmtDuration(calcMins(req.timeIn, req.timeOut))})</span>
                   </div>
+                  <ApprovalProgress approval={req} />
                   {req.notes && <p className="text-xs text-slate-500 mt-0.5">{req.notes}</p>}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={async () => { await actions.updateTimeproofEntryStatus(req.id, "approved"); await reload(); }} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                  <button disabled={reviewing || req.adminApproval === "Approved"} onClick={() => reviewOvertime(req.id, "approved")} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
                     <Check size={14} /> Approve
                   </button>
-                  <button onClick={async () => { await actions.updateTimeproofEntryStatus(req.id, "rejected"); await reload(); }} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
+                  <button disabled={reviewing} onClick={() => reviewOvertime(req.id, "rejected")} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
                     <XCircle size={14} /> Reject
                   </button>
                 </div>
@@ -358,7 +370,7 @@ export default function AdminTimeproofPage() {
                         <td className="px-4 py-3 text-slate-600">{(entry.entryType === "time" || entry.entryType === "overtime") ? fmtDuration(calcMins(entry.timeIn, entry.timeOut)) : "—"}</td>
                         <td className="px-4 py-3 text-slate-500 max-w-[160px] truncate">{entry.notes || "—"}</td>
                         <td className="px-4 py-3">
-                          {entry.entryType === "overtime" ? (
+                          {entry.entryType === "overtime" ? (<>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                               entry.status === "pending" ? "bg-amber-100 text-amber-700" :
                               entry.status === "approved" ? "bg-green-100 text-green-700" :
@@ -366,23 +378,24 @@ export default function AdminTimeproofPage() {
                               "bg-slate-100 text-slate-600"
                             }`}>
                               {entry.status === "pending" ? "Pending" : entry.status === "approved" ? "Approved" : entry.status === "rejected" ? "Rejected" : entry.status}
-                            </span>
+                            </span><ApprovalProgress approval={entry} /></>
                           ) : (
                             <span className="text-slate-300">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {entry.entryType === "overtime" && entry.status === "pending" && (
+                            {entry.entryType === "overtime" && entry.requiresDualApproval && entry.adminApproval === "Pending" && (
                               <>
-                                <button onClick={async () => { await actions.updateTimeproofEntryStatus(entry.id, "approved"); await reload(); }} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 hover:text-green-700 transition-colors" title="Approve">
+                                <button disabled={reviewing} onClick={() => reviewOvertime(entry.id, "approved")} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 hover:text-green-700 transition-colors" title="Approve">
                                   <Check size={14} />
                                 </button>
-                                <button onClick={async () => { await actions.updateTimeproofEntryStatus(entry.id, "rejected"); await reload(); }} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700 transition-colors" title="Reject">
+                                <button disabled={reviewing} onClick={() => reviewOvertime(entry.id, "rejected")} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700 transition-colors" title="Reject">
                                   <XCircle size={14} />
                                 </button>
                               </>
                             )}
+                            {entry.entryType === "overtime" && entry.requiresDualApproval && entry.adminApproval !== "Pending" && <button disabled={reviewing} onClick={() => reviewOvertime(entry.id,"pending")} className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700">Reset admin</button>}
                             <button onClick={() => openEdit(entry)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
                               <Pencil size={14} />
                             </button>

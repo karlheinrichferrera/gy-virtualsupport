@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 import * as actions from "@/lib/actions";
 import type { LeaveRequest } from "@/lib/data";
 import { estDateLong } from "@/lib/est";
+import ApprovalProgress from "@/components/ApprovalProgress";
 import StatusBadge from "@/components/StatusBadge";
 import { Plus, Send, CalendarDays, X, Clock, Eye, Pencil } from "lucide-react";
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [clients, setClients] = useState<actions.ClientAccount[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     type: "Leave" as "Leave" | "Shift Adjustment",
+    clientId: "",
     dateFrom: "",
     dateTo: "",
     reason: "",
@@ -24,6 +27,7 @@ export default function RequestsPage() {
   const [editing, setEditing] = useState<LeaveRequest | null>(null);
   const [editForm, setEditForm] = useState({
     type: "Leave" as "Leave" | "Shift Adjustment",
+    clientId: "",
     dateFrom: "",
     dateTo: "",
     reason: "",
@@ -34,7 +38,8 @@ export default function RequestsPage() {
   useEffect(() => {
     (async () => {
       const id = localStorage.getItem("vaId") || "";
-      setRequests(await actions.getRequestsFor(id));
+      const [items, assigned] = await Promise.all([actions.getRequestsFor(id), actions.getClientsForVA(id)]);
+      setRequests(items); setClients(assigned);
     })();
   }, []);
 
@@ -48,6 +53,7 @@ export default function RequestsPage() {
       const newReq: LeaveRequest = {
         id: reqId,
         type: form.type,
+        clientId: Number(form.clientId) || undefined,
         dateSubmitted: estDateLong(),
         dateFrom: form.dateFrom,
         dateTo: form.dateTo,
@@ -74,6 +80,7 @@ export default function RequestsPage() {
     try {
       await actions.updateRequestDetails(editing.id, {
         type: editForm.type,
+        clientId: Number(editForm.clientId) || undefined,
         dateFrom: editForm.dateFrom,
         dateTo: editForm.dateTo,
         reason: editForm.reason,
@@ -101,7 +108,7 @@ export default function RequestsPage() {
           onClick={() => {
             setShowCreate(true);
             setSubmitted(false);
-            setForm({ type: "Leave", dateFrom: "", dateTo: "", reason: "" });
+            setForm({ type: "Leave", clientId: clients.length === 1 ? String(clients[0].id) : "", dateFrom: "", dateTo: "", reason: "" });
           }}
           className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
@@ -192,7 +199,7 @@ export default function RequestsPage() {
                     </td>
                     <td className="px-6 py-4 text-foreground max-w-xs truncate">{req.reason}</td>
                     <td className="px-6 py-4 text-center">
-                      <StatusBadge status={req.status} />
+                      <StatusBadge status={req.status} /><ApprovalProgress approval={req} /><span className="mt-1 block text-xs text-muted">{req.clientName || "Client not selected"}</span>
                     </td>
                     <td className="px-6 py-4 text-muted">{req.remarks || "—"}</td>
                     <td className="px-6 py-4 text-center">
@@ -205,12 +212,13 @@ export default function RequestsPage() {
                           <Eye size={14} />
                           View
                         </button>
-                        {req.status === "Pending" && (
+                        {req.status === "Pending" && req.adminApproval === "Pending" && req.clientApproval === "Pending" && (
                           <button
                             onClick={() => {
                               setEditing(req);
                               setEditForm({
                                 type: req.type,
+                                clientId: req.clientId ? String(req.clientId) : "",
                                 dateFrom: req.dateFrom,
                                 dateTo: req.dateTo,
                                 reason: req.reason,
@@ -269,7 +277,7 @@ export default function RequestsPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Status</p>
-                  <StatusBadge status={viewing.status} />
+                  <StatusBadge status={viewing.status} /><ApprovalProgress approval={viewing} /><p className="mt-2 text-sm text-slate-700">Client: {viewing.clientName || "Not selected"}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -293,13 +301,14 @@ export default function RequestsPage() {
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                {viewing.status === "Pending" && (
+                {viewing.status === "Pending" && viewing.adminApproval === "Pending" && viewing.clientApproval === "Pending" && (
                   <button
                     onClick={() => {
                       setViewing(null);
                       setEditing(viewing);
                       setEditForm({
                         type: viewing.type,
+                        clientId: viewing.clientId ? String(viewing.clientId) : "",
                         dateFrom: viewing.dateFrom,
                         dateTo: viewing.dateTo,
                         reason: viewing.reason,
@@ -338,6 +347,12 @@ export default function RequestsPage() {
               </button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
+                <label className="block text-sm font-medium text-slate-700">Client approver
+                  <select required value={editForm.clientId} onChange={event => setEditForm(current => ({ ...current, clientId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900">
+                    <option value="">Select a client</option>{clients.map(client => <option key={client.id} value={client.id}>{client.displayName}</option>)}
+                  </select>
+                </label>
+                <p className="text-xs text-slate-500">{clients.length ? "This request needs approval from this client and an administrator. Editing the request resets both approvals." : "No clients are assigned yet. Ask your administrator to set up your client assignment before submitting a request."}</p>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Request Type</label>
                 <select
@@ -437,6 +452,12 @@ export default function RequestsPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <label className="block text-sm font-medium text-slate-700">Client approver
+                  <select required value={form.clientId} onChange={event => setForm(current => ({ ...current, clientId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900">
+                    <option value="">Select a client</option>{clients.map(client => <option key={client.id} value={client.id}>{client.displayName}</option>)}
+                  </select>
+                </label>
+                <p className="text-xs text-slate-500">{clients.length ? "This request needs approval from this client and an administrator. Editing the request resets both approvals." : "No clients are assigned yet. Ask your administrator to set up your client assignment before submitting a request."}</p>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Request Type</label>
                   <select

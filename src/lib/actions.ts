@@ -14,6 +14,8 @@ import { getVASession, requireVAOrAdmin, createVASession, clearVASession, invali
 import { submitWorkflowRequest, setWorkflowRequestStatus, recordSalaryAdjustment, submitOvertime, setOvertimeStatus } from "./workflow-notifications";
 import { submitVAInvoice, saveVAInvoice } from "./va-invoices";
 import type { EmailJobStatus } from "./email-types";
+import { createClientSession, clearClientSession, getClientSession, requireClientSession, invalidateClientSessions } from "./client-session";
+import { approvalDetails, selectedRequestClient, reviewRequest, type ApprovalDetails } from "./request-approvals";
 
 
 let tablesReady = false;
@@ -121,6 +123,9 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
 
 function rowToRequest(r: Record<string, unknown>): LeaveRequest {
   return {
+    ...approvalDetails(r),
+    clientId: r.client_id == null ? undefined : Number(r.client_id),
+    clientName: String(r.client_name || ""),
     id: r.request_id as string,
     type: r.type as LeaveRequest["type"],
     dateSubmitted: r.date_submitted as string,
@@ -380,15 +385,20 @@ export async function generateNextInvoiceNumber(vaId: string): Promise<string> {
 // ── Leave Requests ──
 
 export async function getRequestsFor(vaId: string): Promise<LeaveRequest[]> {
-  const { rows } = await sql`SELECT * FROM leave_requests WHERE va_id = ${vaId} ORDER BY request_id`;
+  await requireVAOrAdmin(vaId);
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT r.*,c.display_name AS client_name FROM leave_requests r LEFT JOIN client_accounts c ON c.id=r.client_id WHERE r.va_id = ${vaId} ORDER BY r.request_id`;
   return rows.map(rowToRequest);
 }
 
 export async function getAllRequestsFlat(): Promise<{ vaId: string; vaName: string; request: LeaveRequest }[]> {
+  await requireAdminSession();
+  await ensureTablesOnce();
   const { rows } = await sql`
-    SELECT r.*, p.first_name, p.last_name
+    SELECT r.*, p.first_name, p.last_name,c.display_name AS client_name
     FROM leave_requests r
     JOIN va_profiles p ON r.va_id = p.id
+    LEFT JOIN client_accounts c ON c.id=r.client_id
     ORDER BY r.request_id
   `;
   return rows.map((r) => ({
@@ -414,21 +424,40 @@ export async function updateRequestStatus(id: string, status: LeaveRequest["stat
 
 export async function updateRequestDetails(
   id: string,
-  updates: { type?: LeaveRequest["type"]; dateFrom?: string; dateTo?: string; reason?: string }
+  updates: { type?: LeaveRequest["type"]; dateFrom?: string; dateTo?: string; reason?: string; clientId?: number }
 ): Promise<void> {
-  const { rows } = await sql`SELECT va_id FROM leave_requests WHERE request_id=${id}`;
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT * FROM leave_requests WHERE request_id=${id}`;
   if (!rows.length) return;
   const admin = await requireVAOrAdmin(String(rows[0].va_id));
   if (updates.type !== undefined && !["Leave", "Shift Adjustment"].includes(updates.type)) throw new Error("Invalid request type.");
-  const changed = await sql`UPDATE leave_requests SET type=COALESCE(${updates.type ?? null},type),
-    date_from=COALESCE(${updates.dateFrom ?? null},date_from),date_to=COALESCE(${updates.dateTo ?? null},date_to),reason=COALESCE(${updates.reason ?? null},reason)
-    WHERE request_id=${id} AND (${Boolean(admin)} OR status='Pending') RETURNING request_id`;
+  const clientId = await selectedRequestClient(String(rows[0].va_id), updates.clientId ?? (rows[0].client_id == null ? undefined : Number(rows[0].client_id)));
+  const previous = rows[0];
+  if (Number(previous.client_id) === clientId && (updates.type ?? previous.type) === previous.type &&
+    (updates.dateFrom ?? previous.date_from) === previous.date_from && (updates.dateTo ?? previous.date_to) === previous.date_to &&
+    (updates.reason ?? previous.reason) === previous.reason) return;
+  const changed = await sql`WITH changed AS (UPDATE leave_requests SET client_id=${clientId},type=COALESCE(${updates.type ?? null},type),
+    date_from=COALESCE(${updates.dateFrom ?? null},date_from),date_to=COALESCE(${updates.dateTo ?? null},date_to),reason=COALESCE(${updates.reason ?? null},reason),
+    requires_dual_approval=true,status='Pending',admin_approval='Pending',client_approval='Pending',
+    admin_approval_at=NULL,client_approval_at=NULL,admin_approved_by='',client_approved_by='',admin_remarks='',client_remarks='',remarks=''
+    WHERE request_id=${id} AND (${Boolean(admin)} OR (status='Pending' AND admin_approval='Pending' AND client_approval='Pending')) RETURNING *
+  ), notices AS (
+    INSERT INTO notifications(va_id,audience,client_id,title,message,type,created_by,created_at,redirect_to)
+    SELECT '','client',r.client_id,r.type || ' request updated — approval needed',
+      p.first_name || ' ' || p.last_name || E'\nThe request details changed. Please review and approve the updated request.' ||
+      E'\nPeriod: ' || r.date_from || ' to ' || r.date_to || E'\nReason: ' || r.reason,
+      'request','system',${new Date().toISOString()},'/client/dashboard/requests'
+    FROM changed r JOIN va_profiles p ON p.id=r.va_id RETURNING id
+  ) SELECT request_id FROM changed`;
   if (!changed.rows.length) throw new Error("Only pending requests can be edited. Refresh your request list.");
+  wakeEmailDelivery();
 }
 
 export async function updateRequestRemarks(id: string, remarks: string): Promise<void> {
   await requireAdminSession();
-  await sql`UPDATE leave_requests SET remarks = ${remarks} WHERE request_id = ${id}`;
+  if (typeof remarks !== "string" || remarks.length > 5000) throw new Error("Enter remarks up to 5,000 characters.");
+  await ensureTablesOnce();
+  await sql`UPDATE leave_requests SET admin_remarks=${remarks},remarks=concat_ws(E'\n',NULLIF(${remarks},''),NULLIF(client_remarks,'')) WHERE request_id=${id}`;
 }
 
 export async function deleteRequest(id: string): Promise<void> {
@@ -558,8 +587,12 @@ export async function authenticateClient(email: string, password: string): Promi
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE email = ${email} AND password = ${password}`;
   if (rows.length === 0) return null;
+  await createClientSession(Number(rows[0].id));
   return rowToClientAccount(rows[0]);
 }
+
+export async function getCurrentClient() { return getClientSession(); }
+export async function logoutClient() { await clearClientSession(); }
 
 export async function getClientAccounts(): Promise<ClientAccount[]> {
   await ensureTablesOnce();
@@ -623,6 +656,8 @@ export async function deleteClientAccount(id: number): Promise<void> {
 }
 
 export async function resetClientPassword(id: number): Promise<void> {
+  await requireAdminSession();
+  await invalidateClientSessions(id);
   await sql`UPDATE client_accounts SET password = 'gyclient2026' WHERE id = ${id}`;
 }
 
@@ -631,6 +666,8 @@ export async function changeClientPassword(email: string, currentPassword: strin
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email} AND password = ${currentPassword}`;
   if (rows.length === 0) return { success: false, error: "Current password is incorrect" };
   await sql`UPDATE client_accounts SET password = ${newPassword} WHERE email = ${email}`;
+  await invalidateClientSessions(Number(rows[0].id));
+  await createClientSession(Number(rows[0].id));
   return { success: true };
 }
 
@@ -906,7 +943,7 @@ export async function deleteClientSalaryAdjustment(id: number): Promise<void> {
 
 // ── Timeproof Entries ──
 
-export type TimeproofEntry = {
+export type TimeproofEntry = ApprovalDetails & {
   id: number;
   vaId: string;
   clientId: number;
@@ -921,6 +958,7 @@ export type TimeproofEntry = {
 
 function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
   return {
+    ...approvalDetails(r),
     id: r.id as number,
     vaId: r.va_id as string,
     clientId: r.client_id as number,
@@ -935,18 +973,22 @@ function rowToTimeproofEntry(r: Record<string, unknown>): TimeproofEntry {
 }
 
 export async function getTimeproofEntriesForVA(vaId: string): Promise<TimeproofEntry[]> {
+  await requireVAOrAdmin(vaId);
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE va_id = ${vaId} ORDER BY punch_date DESC, time_in DESC`;
   return rows.map(rowToTimeproofEntry);
 }
 
 export async function getTimeproofEntriesForVAClient(vaId: string, clientId: number): Promise<TimeproofEntry[]> {
+  await requireVAOrAdmin(vaId);
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM timeproof_entries WHERE va_id = ${vaId} AND client_id = ${clientId} ORDER BY punch_date DESC, time_in DESC`;
   return rows.map(rowToTimeproofEntry);
 }
 
 export async function getTimeproofEntriesByClientEmail(email: string): Promise<(TimeproofEntry & { vaName: string })[]> {
+  const client = await requireClientSession();
+  if (client.email.toLowerCase() !== email.toLowerCase()) throw new Error("Client account does not match your session.");
   await ensureTablesOnce();
   const { rows } = await sql`
     SELECT te.*, vp.first_name, vp.last_name
@@ -960,6 +1002,7 @@ export async function getTimeproofEntriesByClientEmail(email: string): Promise<(
 }
 
 export async function getAllTimeproofEntries(): Promise<(TimeproofEntry & { vaName: string; clientName: string })[]> {
+  await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`
     SELECT te.*, vp.first_name, vp.last_name, ca.display_name as client_name
@@ -987,7 +1030,8 @@ export async function addTimeproofEntry(entry: Omit<TimeproofEntry, "id"> & { su
   if (entry.entryType === "overtime") {
     const admin = await requireVAOrAdmin(entry.vaId);
     if (!admin && entry.status !== "pending") throw new Error("Overtime requests must be submitted for approval.");
-    await submitOvertime({ ...entry, timeIn, timeOut });
+    await selectedRequestClient(entry.vaId, entry.clientId);
+    await submitOvertime({ ...entry, timeIn, timeOut, adminName: admin?.username });
     wakeEmailDelivery();
     return;
   }
@@ -1006,24 +1050,39 @@ export async function addBulkTimeproofEntries(entries: Omit<TimeproofEntry, "id"
 
 export async function updateTimeproofEntry(id: number, updates: { timeIn?: string; timeOut?: string; notes?: string; punchDate?: string; entryType?: string }): Promise<void> {
   await ensureTablesOnce();
-  const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id = ${id}`;
-  if (rows.length === 0) return;
+  const { rows } = await sql`SELECT * FROM timeproof_entries WHERE id=${id}`;
+  if (!rows.length) return;
   const current = rowToTimeproofEntry(rows[0]);
-  if (current.entryType === "overtime" || updates.entryType === "overtime") {
-    const admin = await requireVAOrAdmin(current.vaId);
-    if (!admin && (current.status !== "pending" || current.entryType !== "overtime")) throw new Error("Use Request Overtime to submit an overtime request. Approved overtime can only be changed by an administrator.");
+  const admin = await requireVAOrAdmin(current.vaId);
+  const affectsOvertime = current.entryType === "overtime" || updates.entryType === "overtime";
+  if (affectsOvertime && !admin && (current.status !== "pending" || current.entryType !== "overtime" ||
+    current.adminApproval !== "Pending" || current.clientApproval !== "Pending" ||
+    (updates.entryType !== undefined && updates.entryType !== current.entryType))) {
+    throw new Error("Reviewed overtime can only be changed by an administrator. Use Request Overtime for new overtime.");
   }
-  const timeIn = roundTime30(updates.timeIn ?? current.timeIn);
-  const timeOut = roundTime30(updates.timeOut ?? current.timeOut);
-  await sql`
-    UPDATE timeproof_entries SET
-      punch_date = ${updates.punchDate ?? current.punchDate},
-      time_in = ${timeIn},
-      time_out = ${timeOut},
-      notes = ${updates.notes ?? current.notes},
-      entry_type = ${updates.entryType ?? current.entryType}
-    WHERE id = ${id}
-  `;
+  if (affectsOvertime) await selectedRequestClient(current.vaId,current.clientId);
+  const timeIn = roundTime30(updates.timeIn ?? current.timeIn), timeOut = roundTime30(updates.timeOut ?? current.timeOut);
+  if (timeIn === current.timeIn && timeOut === current.timeOut && (updates.notes ?? current.notes) === current.notes &&
+    (updates.punchDate ?? current.punchDate) === current.punchDate && (updates.entryType ?? current.entryType) === current.entryType) return;
+  const changed = await sql`WITH changed AS (
+    UPDATE timeproof_entries SET punch_date=${updates.punchDate ?? current.punchDate},time_in=${timeIn},time_out=${timeOut},
+      notes=${updates.notes ?? current.notes},entry_type=${updates.entryType ?? current.entryType},
+      status=CASE WHEN ${affectsOvertime} THEN 'pending' ELSE status END,
+      requires_dual_approval=CASE WHEN ${affectsOvertime} THEN true ELSE requires_dual_approval END,
+      admin_approval=CASE WHEN ${affectsOvertime} THEN 'Pending' ELSE admin_approval END,
+      client_approval=CASE WHEN ${affectsOvertime} THEN 'Pending' ELSE client_approval END,
+      admin_approval_at=NULL,client_approval_at=NULL,admin_approved_by='',client_approved_by='',admin_remarks='',client_remarks=''
+    WHERE id=${id} AND (${Boolean(admin)} OR entry_type!='overtime' OR (status='pending' AND admin_approval='Pending' AND client_approval='Pending')) RETURNING *
+  ), notices AS (
+    INSERT INTO notifications(va_id,audience,client_id,title,message,type,created_by,created_at,redirect_to)
+    SELECT '','client',r.client_id,'Overtime request updated — approval needed',
+      p.first_name || ' ' || p.last_name || E'\nThe overtime details changed. Please review and approve the updated request.' ||
+      E'\nDate: ' || r.punch_date || E'\nTime: ' || r.time_in || ' to ' || r.time_out,
+      'request','system',${new Date().toISOString()},'/client/dashboard/requests?type=overtime'
+    FROM changed r JOIN va_profiles p ON p.id=r.va_id WHERE r.entry_type='overtime' RETURNING id
+  ) SELECT id FROM changed`;
+  if (!changed.rows.length) throw new Error("This request was reviewed. Refresh before making changes.");
+  if (affectsOvertime) wakeEmailDelivery();
 }
 
 export async function roundExistingTimeproofEntries(): Promise<number> {
@@ -1044,7 +1103,13 @@ export async function roundExistingTimeproofEntries(): Promise<number> {
 }
 
 export async function deleteTimeproofEntry(id: number): Promise<void> {
-  await sql`DELETE FROM timeproof_entries WHERE id = ${id}`;
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT va_id FROM timeproof_entries WHERE id=${id}`;
+  if (!rows.length) return;
+  const admin = await requireVAOrAdmin(String(rows[0].va_id));
+  const deleted = await sql`DELETE FROM timeproof_entries WHERE id=${id} AND
+    (${Boolean(admin)} OR entry_type!='overtime' OR (status='pending' AND admin_approval='Pending' AND client_approval='Pending')) RETURNING id`;
+  if (!deleted.rows.length) throw new Error("Reviewed overtime can only be deleted by an administrator.");
 }
 
 export async function updateTimeproofEntryStatus(id: number, status: string): Promise<void> {
@@ -1055,6 +1120,7 @@ export async function updateTimeproofEntryStatus(id: number, status: string): Pr
 }
 
 export async function getPendingOvertimeRequests(): Promise<(TimeproofEntry & { vaName: string; clientName: string })[]> {
+  await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`
     SELECT te.*, vp.first_name, vp.last_name, ca.display_name as client_name
@@ -1362,9 +1428,15 @@ export async function markAllNotificationsRead(vaId: string): Promise<void> {
   await notificationService.readRecipientNotifications("va", vaId);
 }
 
+async function authenticatedClientRecipient(email: string) {
+  const client = await requireClientSession();
+  if (client.email.toLowerCase() !== email.trim().toLowerCase()) throw new Error("Client account does not match your session.");
+  return String(client.id);
+}
+
 export async function getClientNotifications(email: string) {
+  const recipientId = await authenticatedClientRecipient(email);
   await ensureTablesOnce();
-  const recipientId = await notificationService.clientRecipientId(email);
   const notifications = await notificationService.recipientNotifications("client", recipientId);
   wakeEmailDelivery();
   return notifications;
@@ -1375,14 +1447,14 @@ export async function getClientUnreadNotificationCount(email: string): Promise<n
 }
 
 export async function markClientNotificationRead(notificationId: number, email: string): Promise<void> {
+  const recipientId = await authenticatedClientRecipient(email);
   await ensureTablesOnce();
-  const recipientId = await notificationService.clientRecipientId(email);
   await notificationService.readRecipientNotifications("client", recipientId, notificationId);
 }
 
 export async function markAllClientNotificationsRead(email: string): Promise<void> {
+  const recipientId = await authenticatedClientRecipient(email);
   await ensureTablesOnce();
-  const recipientId = await notificationService.clientRecipientId(email);
   await notificationService.readRecipientNotifications("client", recipientId);
 }
 
@@ -1481,4 +1553,43 @@ export async function initDatabase(): Promise<{ created: boolean }> {
     }
   }
   return { created: true };
+}
+
+
+export async function getClientRequests() {
+  const client = await requireClientSession();
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT r.*,p.first_name,p.last_name,c.display_name AS client_name
+    FROM leave_requests r JOIN va_profiles p ON p.id=r.va_id JOIN client_accounts c ON c.id=r.client_id
+    WHERE r.client_id=${client.id} AND EXISTS(SELECT 1 FROM va_client_assignments a WHERE a.va_id=r.va_id AND a.client_id=${client.id})
+    ORDER BY r.request_id DESC`;
+  return rows.map(r => ({ vaId: String(r.va_id), vaName: `${r.first_name} ${r.last_name}`, request: rowToRequest(r) }));
+}
+export async function reviewClientRequest(id: string, decision: LeaveRequest["status"], remarks?: string) {
+  const client = await requireClientSession();
+  await ensureTablesOnce();
+  await reviewRequest("leave",id,decision,{ role: "client",name: client.email,clientId: client.id },remarks);
+  wakeEmailDelivery();
+}
+export async function updateClientRequestRemarks(id: string, remarks: string) {
+  const client = await requireClientSession();
+  if (typeof remarks !== "string" || remarks.length > 5000) throw new Error("Enter remarks up to 5,000 characters.");
+  await ensureTablesOnce();
+  const { rows } = await sql`UPDATE leave_requests r SET client_remarks=${remarks},remarks=concat_ws(E'\n',NULLIF(admin_remarks,''),NULLIF(${remarks},''))
+    WHERE r.request_id=${id} AND r.client_id=${client.id} AND EXISTS(SELECT 1 FROM va_client_assignments a WHERE a.va_id=r.va_id AND a.client_id=${client.id}) RETURNING request_id`;
+  if (!rows.length) throw new Error("Request not found or access denied.");
+}
+export async function getClientOvertimeRequests() {
+  const client = await requireClientSession();
+  await ensureTablesOnce();
+  const { rows } = await sql`SELECT e.*,p.first_name,p.last_name FROM timeproof_entries e JOIN va_profiles p ON p.id=e.va_id
+    WHERE e.entry_type='overtime' AND e.client_id=${client.id}
+    AND EXISTS(SELECT 1 FROM va_client_assignments a WHERE a.va_id=e.va_id AND a.client_id=${client.id}) ORDER BY e.id DESC`;
+  return rows.map(r => ({ ...rowToTimeproofEntry(r), vaName: `${r.first_name} ${r.last_name}` }));
+}
+export async function reviewClientOvertime(id: number, decision: "Pending" | "Approved" | "Denied") {
+  const client = await requireClientSession();
+  await ensureTablesOnce();
+  await reviewRequest("overtime",id,decision,{ role: "client",name: client.email,clientId: client.id });
+  wakeEmailDelivery();
 }

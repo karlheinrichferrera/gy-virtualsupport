@@ -14,14 +14,15 @@ export default function ClientDashboardPage() {
   useEffect(() => {
     (async () => {
       const email = localStorage.getItem("clientEmail") || "";
-      const [invoices, requests, myVAs, activeIds] = await Promise.all([
+      const [invoices, requests, myVAs, activeIds, overtime] = await Promise.all([
         actions.getClientInvoicesByEmail(email),
-        actions.getAllRequestsFlat(),
+        actions.getClientRequests(),
         actions.getVAsByClientEmail(email),
         actions.getActiveVAIdsByClientEmail(email),
+        actions.getClientOvertimeRequests(),
       ]);
       setInvoiceCount(invoices.length);
-      setRequestCount(requests.filter((r) => r.request.status === "Pending").length);
+      setRequestCount(requests.filter((r) => r.request.requiresDualApproval && r.request.clientApproval === "Pending" && r.request.status === "Pending").length + overtime.filter(entry => entry.requiresDualApproval && entry.clientApproval === "Pending" && entry.status === "pending").length);
       setVaCount(myVAs.length);
       setActiveCount(activeIds.length);
     })();
@@ -32,7 +33,7 @@ export default function ClientDashboardPage() {
     { label: "My VAs", icon: Users, href: "/client/dashboard/vas", color: "bg-indigo-500", count: vaCount, desc: "Your assigned virtual assistants" },
     { label: "Weekly Reports", icon: ClipboardList, href: "/client/dashboard/reports", color: "bg-purple-500", count: null, desc: "VA weekly reports" },
     { label: "Invoices", icon: FileText, href: "/client/dashboard/invoices", color: "bg-emerald-500", count: invoiceCount, desc: "View & download invoices" },
-    { label: "Leave & Requests", icon: CalendarDays, href: "/client/dashboard/requests", color: "bg-amber-500", count: requestCount, desc: "Pending requests" },
+    { label: "Requests & Approvals", icon: CalendarDays, href: "/client/dashboard/requests", color: "bg-amber-500", count: requestCount, desc: "Pending requests" },
     { label: "Salary Adjustments", icon: DollarSign, href: "/client/dashboard/adjustments", color: "bg-rose-500", count: null, desc: "VA salary adjustments" },
   ];
 

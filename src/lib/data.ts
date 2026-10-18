@@ -1,3 +1,4 @@
+import type { ApprovalDetails } from "./request-approvals";
 export interface VAProfile {
   id: string;
   firstName: string;
@@ -65,7 +66,9 @@ export interface Invoice {
   status: "Paid" | "Pending" | "Draft" | "";
 }
 
-export interface LeaveRequest {
+export interface LeaveRequest extends ApprovalDetails {
+  clientId?: number;
+  clientName?: string;
   id: string;
   type: "Leave" | "Shift Adjustment";
   dateSubmitted: string;

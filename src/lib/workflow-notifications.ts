@@ -1,11 +1,13 @@
 import { sql } from "@vercel/postgres";
 import type { LeaveRequest, SalaryAdjustment } from "./data";
+import { reviewRequest, selectedRequestClient } from "./request-approvals";
 
 export async function submitWorkflowRequest(vaId: string, request: LeaveRequest) {
   if (!["Leave", "Shift Adjustment"].includes(request.type) || request.status !== "Pending") throw new Error("Submit a pending leave or shift adjustment request.");
+  const clientId = await selectedRequestClient(vaId, request.clientId);
   const { rows } = await sql`WITH submitted AS (
-    INSERT INTO leave_requests(request_id,va_id,type,date_submitted,date_from,date_to,reason,status,remarks)
-    VALUES (${request.id},${vaId},${request.type},${request.dateSubmitted},${request.dateFrom},${request.dateTo},${request.reason},'Pending','')
+    INSERT INTO leave_requests(request_id,va_id,type,date_submitted,date_from,date_to,reason,status,remarks,client_id,requires_dual_approval,admin_approval,client_approval)
+    VALUES (${request.id},${vaId},${request.type},${request.dateSubmitted},${request.dateFrom},${request.dateTo},${request.reason},'Pending','',${clientId},true,'Pending','Pending')
     ON CONFLICT (request_id) DO NOTHING RETURNING *
   ), receipts AS (
     INSERT INTO notifications(va_id,audience,title,message,type,created_by,created_at,redirect_to)
@@ -13,28 +15,26 @@ export async function submitWorkflowRequest(vaId: string, request: LeaveRequest)
       'We have received your ' || LOWER(type) || ' request (' || request_id || '). It is pending review.' ||
       E'\nPeriod: ' || date_from || ' to ' || date_to,'request','system',${new Date().toISOString()},'/dashboard/requests'
     FROM submitted RETURNING id
+  ), client_notices AS (
+    INSERT INTO notifications(va_id,audience,client_id,title,message,type,created_by,created_at,redirect_to)
+    SELECT '', 'client',s.client_id,s.type || ' request awaiting your approval',
+      p.first_name || ' ' || p.last_name || ' submitted a ' || LOWER(s.type) || ' request (' || s.request_id || ').' ||
+      E'\nPeriod: ' || s.date_from || ' to ' || s.date_to || E'\nReason: ' || s.reason ||
+      E'\nPlease review this request. Both client and admin approval are required.',
+      'request','system',${new Date().toISOString()},'/client/dashboard/requests'
+    FROM submitted s JOIN va_profiles p ON p.id=s.va_id RETURNING id
   ) SELECT COUNT(*) AS count FROM receipts`;
   if (!Number(rows[0].count)) {
-    const existing = await sql`SELECT va_id,type,date_from,date_to,reason FROM leave_requests WHERE request_id=${request.id}`;
+    const existing = await sql`SELECT va_id,type,date_from,date_to,reason,client_id FROM leave_requests WHERE request_id=${request.id}`;
     const row = existing.rows[0];
-    if (!row || row.va_id !== vaId || row.type !== request.type || row.date_from !== request.dateFrom || row.date_to !== request.dateTo || row.reason !== request.reason) {
+    if (!row || row.va_id !== vaId || row.type !== request.type || row.date_from !== request.dateFrom || row.date_to !== request.dateTo || row.reason !== request.reason || Number(row.client_id) !== clientId) {
       throw new Error("This request number is already in use. Refresh and submit again.");
     }
   }
 }
 
 export async function setWorkflowRequestStatus(id: string, status: LeaveRequest["status"], remarks: string | undefined, actor: string) {
-  if (!["Pending", "Approved", "Denied"].includes(status)) throw new Error("Invalid request status.");
-  await sql`WITH previous AS MATERIALIZED (SELECT * FROM leave_requests WHERE request_id=${id} FOR UPDATE),
-  changed AS (
-    UPDATE leave_requests r SET status=${status},remarks=COALESCE(${remarks ?? null},previous.remarks)
-    FROM previous WHERE r.request_id=previous.request_id RETURNING r.*,previous.status AS previous_status
-  ) INSERT INTO notifications(va_id,audience,title,message,type,created_by,created_at,redirect_to)
-    SELECT va_id,'va',type || ' request approved',
-      'Your ' || LOWER(type) || ' request (' || request_id || ') has been approved.' ||
-      E'\nPeriod: ' || date_from || ' to ' || date_to || CASE WHEN remarks != '' THEN E'\nRemarks: ' || remarks ELSE '' END,
-      'request',${actor},${new Date().toISOString()},'/dashboard/requests'
-    FROM changed WHERE status='Approved' AND previous_status != 'Approved'`;
+  await reviewRequest("leave",id,status,{ role: "admin",name: actor },remarks);
 }
 
 export async function recordSalaryAdjustment(vaId: string, adjustment: SalaryAdjustment, actor: string) {
@@ -52,29 +52,28 @@ export async function recordSalaryAdjustment(vaId: string, adjustment: SalaryAdj
       'salary',${actor},${new Date().toISOString()},'/dashboard/adjustments' FROM adjustment`;
 }
 
-export type OvertimeSubmission = { vaId: string; clientId: number; punchDate: string; timeIn: string; timeOut: string; notes: string; createdAt: string; status: string; submissionKey?: string };
+export type OvertimeSubmission = { vaId: string; clientId: number; punchDate: string; timeIn: string; timeOut: string; notes: string; createdAt: string; status: string; submissionKey?: string; adminName?: string };
 export async function submitOvertime(entry: OvertimeSubmission) {
   if (!["pending", "approved"].includes(entry.status)) throw new Error("Invalid overtime request status.");
   await sql`WITH submitted AS (
-    INSERT INTO timeproof_entries(va_id,client_id,punch_date,time_in,time_out,notes,created_at,entry_type,status,submission_key)
-    VALUES (${entry.vaId},${entry.clientId},${entry.punchDate},${entry.timeIn},${entry.timeOut},${entry.notes},${entry.createdAt},'overtime',${entry.status},${entry.submissionKey ?? null})
+    INSERT INTO timeproof_entries(va_id,client_id,punch_date,time_in,time_out,notes,created_at,entry_type,status,submission_key,requires_dual_approval,admin_approval,client_approval,admin_approved_by,admin_approval_at)
+    VALUES (${entry.vaId},${entry.clientId},${entry.punchDate},${entry.timeIn},${entry.timeOut},${entry.notes},${entry.createdAt},'overtime','pending',${entry.submissionKey ?? null},true,${entry.status === 'approved' ? 'Approved' : 'Pending'},'Pending',${entry.adminName || ''},CASE WHEN ${entry.status === 'approved'} THEN NOW() ELSE NULL END)
     ON CONFLICT (submission_key) DO NOTHING RETURNING *
-  ) INSERT INTO notifications(va_id,audience,title,message,type,created_by,created_at,redirect_to)
+  ), receipts AS (INSERT INTO notifications(va_id,audience,title,message,type,created_by,created_at,redirect_to)
     SELECT va_id,'va',CASE WHEN status='approved' THEN 'Overtime request approved' ELSE 'Overtime request received' END,
       CASE WHEN status='approved' THEN 'Your overtime request has been approved.' ELSE 'We have received your overtime request. It is pending review.' END ||
       E'\nDate: ' || punch_date || E'\nTime: ' || time_in || ' to ' || time_out,
-      'request','system',${new Date().toISOString()},'/dashboard/timeproof' FROM submitted`;
+      'request','system',${new Date().toISOString()},'/dashboard/timeproof' FROM submitted RETURNING id
+  ) INSERT INTO notifications(va_id,audience,client_id,title,message,type,created_by,created_at,redirect_to)
+    SELECT '','client',s.client_id,'Overtime request awaiting your approval',
+      p.first_name || ' ' || p.last_name || ' submitted an overtime request.' || E'\nDate: ' || s.punch_date ||
+      E'\nTime: ' || s.time_in || ' to ' || s.time_out || CASE WHEN s.notes!='' THEN E'\nNotes: ' || s.notes ELSE '' END ||
+      E'\nPlease review this request. Both client and admin approval are required.',
+      'request','system',${new Date().toISOString()},'/client/dashboard/requests?type=overtime'
+    FROM submitted s JOIN va_profiles p ON p.id=s.va_id`;
 }
 
 export async function setOvertimeStatus(id: number, status: string, actor: string) {
   if (!["pending", "approved", "rejected"].includes(status)) throw new Error("Invalid overtime status.");
-  await sql`WITH previous AS MATERIALIZED (SELECT * FROM timeproof_entries WHERE id=${id} FOR UPDATE),
-  changed AS (
-    UPDATE timeproof_entries e SET status=${status} FROM previous WHERE e.id=previous.id
-    RETURNING e.*,previous.status AS previous_status
-  ) INSERT INTO notifications(va_id,audience,title,message,type,created_by,created_at,redirect_to)
-    SELECT va_id,'va','Overtime request approved','Your overtime request has been approved.' ||
-      E'\nDate: ' || punch_date || E'\nTime: ' || time_in || ' to ' || time_out,
-      'request',${actor},${new Date().toISOString()},'/dashboard/timeproof'
-    FROM changed WHERE entry_type='overtime' AND status='approved' AND previous_status != 'approved'`;
+  await reviewRequest("overtime",id,status === "approved" ? "Approved" : status === "rejected" ? "Denied" : "Pending",{ role: "admin",name: actor });
 }
