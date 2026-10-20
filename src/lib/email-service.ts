@@ -82,7 +82,8 @@ export async function queueAutomaticEmails() {
       to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
-        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026'),
+        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026',
+        'includesPayPalFees',c.invoice_paypal_fees),
       'invoice',i.id
     FROM publications i JOIN client_accounts c ON c.id = i.client_id
     ON CONFLICT DO NOTHING
@@ -253,7 +254,7 @@ export async function queueInvoiceResend(invoiceId: number, requestId: string, a
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
         'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026',
-        'isPaid',LOWER(TRIM(i.status))='paid'),
+        'isPaid',LOWER(TRIM(i.status))='paid','includesPayPalFees',c.invoice_paypal_fees),
       'invoice',i.id,true FROM invoice i JOIN client_accounts c ON c.id=i.client_id
     ON CONFLICT DO NOTHING RETURNING *
   ), publication AS (

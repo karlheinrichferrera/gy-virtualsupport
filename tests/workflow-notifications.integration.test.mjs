@@ -313,7 +313,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await actions.getClientInvoicesByEmail('client-one@example.invalid')).length,0);
       const id=Number((await sql`SELECT id FROM client_invoices`).rows[0].id);
       await Promise.all([actions.updateClientInvoice(id,{...invoice,status:'Pending'}),actions.updateClientInvoice(id,{...invoice,status:'Pending'})]);
-      const rows=await notices();assert.equal(rows.length,1);assert.equal(rows[0].audience,'client');assert.equal(rows[0].client_id,1);assert.equal(rows[0].type,'invoice');
+      const rows=await notices();assert.equal(rows.length,1);assert.equal(rows[0].audience,'client');assert.equal(rows[0].client_id,1);assert.equal(rows[0].type,'invoice');assert.doesNotMatch(rows[0].message,/paypal|transaction fees/i);assert.ok(rows[0].message.includes('$100.00'));
       await actions.addClientInvoice({...invoice,clientId:2,invoiceNumber:'OTHER',status:'Pending'});
       await actions.addClientInvoice({...invoice,invoiceNumber:'ANOTHER-DRAFT',status:' Draft '});
       assert.deepEqual((await actions.getClientInvoicesByEmail('client-one@example.invalid')).map(i=>i.invoiceNumber),['CI-1']);
@@ -379,7 +379,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       await actions.updateClientInvoice(id,{...invoice,status:'Paid'});
       const paid=(await notices()).filter(n=>n.title==='Client Invoice - Paid');
       assert.equal(paid.length,1);assert.equal(paid[0].client_id,1);assert.equal(paid[0].audience,'client');assert.equal(paid[0].redirect_to,'/client/dashboard/invoices');
-      assert.ok(paid[0].message.includes('PAID-CLIENT'));assert.ok(paid[0].message.includes('$300.00'));
+      assert.ok(paid[0].message.includes('PAID-CLIENT'));assert.ok(paid[0].message.includes('$300.00'));assert.doesNotMatch(paid[0].message,/paypal|transaction fees/i);
       await Promise.all([service.queueAutomaticEmails(),service.queueAutomaticEmails()]);
       const jobs=(await sql`SELECT * FROM email_jobs WHERE source='notification'`).rows;
       assert.equal(jobs.length,1);assert.deepEqual(jobs[0].to_emails,['client-one@example.invalid']);assert.equal(jobs[0].subject,'Client Invoice - Paid');assert.deepEqual(jobs[0].cc_emails,['staff@example.invalid']);

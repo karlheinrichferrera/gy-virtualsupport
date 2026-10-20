@@ -9,6 +9,10 @@ export async function ensureEmailSchema() {
     auto_notifications_since TIMESTAMPTZ
   )`;
   await sql`INSERT INTO email_settings(singleton) VALUES (true) ON CONFLICT DO NOTHING`;
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS invoice_paypal_fees BOOLEAN NOT NULL DEFAULT false`;
+  // A stored account preference retains Devin's exception when his login email changes.
+  await sql`UPDATE client_accounts SET invoice_paypal_fees=true
+    WHERE LOWER(TRIM(email))='devin@goldenyearsdesign.com' AND invoice_paypal_fees=false`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS request_notification_recipients TEXT`;
   // Set this account's initial request-email routing once; retain it if its login email changes.
   await sql`UPDATE client_accounts SET request_notification_recipients='zanyette@goldenyearsdesign.com,karl@goldenyearsdesign.com'
@@ -56,4 +60,9 @@ export async function ensureEmailSchema() {
   await sql`CREATE INDEX IF NOT EXISTS email_jobs_invoice_history ON email_jobs(source_id,id DESC) WHERE source='invoice'`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS email_jobs_invoice_active ON email_jobs(source_id)
     WHERE source='invoice' AND status IN ('queued','sending')`;
+  // Upgrade unsent legacy snapshots without changing completed email history or retrying delivery.
+  await sql`UPDATE email_jobs j SET template_data=j.template_data || jsonb_build_object('includesPayPalFees',c.invoice_paypal_fees)
+    FROM client_invoices i JOIN client_accounts c ON c.id=i.client_id
+    WHERE j.source='invoice' AND j.source_id=i.id AND j.status IN ('queued','failed','uncertain')
+      AND j.template_data->>'kind'='invoice' AND NOT (j.template_data ? 'includesPayPalFees')`;
 }

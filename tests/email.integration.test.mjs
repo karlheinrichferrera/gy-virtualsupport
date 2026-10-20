@@ -347,7 +347,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.equal(configured.fromName,'GY Virtual Support Team');
       assert.ok(configured.html.includes('https://payments.example/invoice/1'));
       assert.ok(configured.html.includes('Invoice Summary'));
-      assert.ok(configured.body.includes('inclusive of PayPal transaction fees'));
+      assert.ok(!configured.body.includes('inclusive of PayPal transaction fees'));assert.ok(!configured.html.includes('inclusive of PayPal transaction fees'));
       await sql`UPDATE client_accounts SET invoice_cc='' WHERE id=1`;
     });
     await t.test('admin invoice resends preserve history, use current invoice data and first names, and deduplicate request retries',async()=>{
@@ -483,6 +483,38 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       await service.queueAutomaticEmails();
       assert.deepEqual(await service.processEmailQueue(), { processed: 0 });
       assert.equal(sent.length, 1);
+    });
+    await t.test('PayPal fee wording is exclusive to Devin for automatic invoices, queued legacy jobs and resends; new clients default to no fees', async()=>{
+      await reset();
+      await sql`INSERT INTO client_accounts(id,email,display_name) VALUES (3,'devin@goldenyearsdesign.com','Devin Rubin')`;
+      await ensureEmailSchema();await ensureEmailSchema();
+      assert.equal((await sql`SELECT invoice_paypal_fees FROM client_accounts WHERE id=3`).rows[0].invoice_paypal_fees,true);
+      await sql`INSERT INTO client_accounts(id,email,display_name) VALUES (4,'future@example.invalid','Future Client')`;
+      assert.equal((await sql`SELECT invoice_paypal_fees FROM client_accounts WHERE id=4`).rows[0].invoice_paypal_fees,false);
+      await service.setEmailAutomation(true,false);
+      const rows=(await sql`INSERT INTO client_invoices(client_id,invoice_number,amount,email_published_at) VALUES
+        (1,'MICHAEL-NO-FEES','$300.00',NOW()),(3,'DEVIN-FEES','$300.00',NOW()),(4,'FUTURE-NO-FEES','$300.00',NOW()) RETURNING id,invoice_number`).rows;
+      await service.queueAutomaticEmails();
+      let all=await jobs();assert.equal(all.length,3);
+      assert.equal(all.find(j=>j.template_data.invoiceNumber==='DEVIN-FEES').template_data.includesPayPalFees,true);
+      for(const j of all.filter(j=>j.template_data.invoiceNumber!=='DEVIN-FEES'))assert.equal(j.template_data.includesPayPalFees,false);
+      // Simulate queued jobs made by the older application version.
+      await sql`UPDATE email_jobs SET template_data=template_data-'includesPayPalFees'`;
+      await ensureEmailSchema();
+      all=await jobs();assert.ok(all.every(j=>typeof j.template_data.includesPayPalFees==='boolean'));
+      await service.processEmailQueue();assert.equal(sent.length,3);
+      for(const message of sent){
+        const expected=message.to[0]==='devin@goldenyearsdesign.com';
+        assert.equal(message.body.includes('inclusive of PayPal transaction fees'),expected);assert.equal(message.html.includes('inclusive of PayPal transaction fees'),expected);
+        assert.ok(message.body.includes('Total Amount Due: $300.00'));
+      }
+      const history=(await jobs()).map(j=>({id:j.id,body:j.body,html:j.body_html,template:j.template_data,status:j.status}));
+      await sql`UPDATE client_accounts SET email='renamed-devin@example.invalid',display_name='Renamed account' WHERE id=3`;
+      await ensureEmailSchema();assert.equal((await sql`SELECT invoice_paypal_fees FROM client_accounts WHERE id=3`).rows[0].invoice_paypal_fees,true);
+      assert.deepEqual((await jobs()).map(j=>({id:j.id,body:j.body,html:j.body_html,template:j.template_data,status:j.status})),history,'Accepted history is not rewritten');
+      for(const row of rows)await service.queueInvoiceResend(row.id,randomUUID(),1);
+      await service.processEmailQueue();assert.equal(sent.length,6);
+      for(const message of sent.slice(3))assert.equal(message.body.includes('inclusive of PayPal transaction fees'),message.to[0]==='renamed-devin@example.invalid');
     });
   } finally {
     await connection(`DROP SCHEMA ${schema} CASCADE`);

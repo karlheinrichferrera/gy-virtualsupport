@@ -15,7 +15,7 @@ function load(name) {
 }
 const templates=load('email-templates'), addresses=load('email-addresses');
 const origin='https://portal.example';
-const invoice={kind:'invoice',invoiceNumber:'INV-42',billCoverage:'October 1–15, 2026',amount:'$1,000.00',dueDate:'October 25, 2026',invoiceLink:'https://paypal.example/pay/42',clientEmail:'client@example.invalid',clientName:'Devin Rubin',defaultPassword:true};
+const invoice={kind:'invoice',invoiceNumber:'INV-42',billCoverage:'October 1–15, 2026',amount:'$1,000.00',dueDate:'October 25, 2026',invoiceLink:'https://paypal.example/pay/42',clientEmail:'client@example.invalid',clientName:'Devin Rubin',defaultPassword:true,includesPayPalFees:true};
 test('invoice email matches the requested subject, billing summary, payment link, access instructions, and signature',()=>{
   const result=templates.invoiceEmail(invoice,origin);
   assert.ok(result.body.startsWith('Hi Devin,\n\nWe hope'));
@@ -56,4 +56,13 @@ test('recipient parsing deduplicates across To/CC/BCC without exposing BCC to CC
   assert.deepEqual(addresses.parseEmailAddresses('a@example.invalid; b@example.invalid\nc@example.invalid'),['a@example.invalid','b@example.invalid','c@example.invalid']);
   assert.throws(()=>addresses.emailRecipients(['client@example.invalid'],['bad-address']));
   assert.throws(()=>addresses.emailRecipients(['client@example.invalid'],Array.from({length:20},(_,i)=>`${i}@example.invalid`)));
+});
+
+test('all other invoice emails, including future accounts without a fee flag, omit PayPal fee wording',()=>{
+  for(const includesPayPalFees of [false,undefined]){
+    const result=templates.invoiceEmail({...invoice,clientName:'Michael Danis',clientEmail:'michael@example.invalid',invoiceLink:'https://wise.com/pay/me/example',includesPayPalFees},origin);
+    assert.ok(result.body.startsWith('Hi Michael,'));assert.ok(result.body.includes('Total Amount Due: $1,000.00\nPayment Due Date:'));
+    assert.doesNotMatch(result.body,/paypal|transaction fees/i);assert.doesNotMatch(result.html,/paypal|transaction fees/i);
+    assert.ok(result.html.includes('<strong>Total Amount Due:</strong>'));assert.ok(result.html.includes('$1,000.00'));
+  }
 });
