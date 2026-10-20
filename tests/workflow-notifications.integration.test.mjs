@@ -62,6 +62,39 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     const request={id:'LR-1',type:'Leave',dateSubmitted:'October 18, 2026',dateFrom:'2026-10-20',dateTo:'2026-10-21',reason:'Test leave',status:'Pending',remarks:''};
     const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices,email_jobs RESTART IDENTITY CASCADE`;admin=identity;va='va-1';client=null;wakes=0;sentMails.length=0;await sql`DELETE FROM va_client_assignments`;await sql`INSERT INTO va_client_assignments VALUES ('va-1',1),('va-2',2)`;};
 
+    await t.test('client calendar exposes only assigned VA birthdays, anniversaries and own approved requests',async()=>{
+      await reset();
+      await sql`ALTER TABLE va_profiles ADD COLUMN date_of_birth TEXT DEFAULT '', ADD COLUMN date_hired TEXT DEFAULT ''`;
+      await sql`UPDATE va_profiles SET date_of_birth='2000-10-15', date_hired='2024-10-01'`;
+      await sql`CREATE TABLE calendar_events(id SERIAL PRIMARY KEY,event_date TEXT,title TEXT,event_type TEXT)`;
+      await sql`INSERT INTO calendar_events(event_date,title,event_type) VALUES ('2026-10-20','Team event','event')`;
+      await sql`INSERT INTO leave_requests(request_id,va_id,client_id,type,date_from,date_to,status) VALUES
+        ('CAL-1','va-1',1,'Leave','2026-10-20','2026-10-20','Approved'),
+        ('CAL-2','va-2',2,'Leave','2026-10-20','2026-10-20','Approved'),
+        ('CAL-3','va-1',2,'Shift Adjustment','2026-10-21','2026-10-21','Approved')`;
+      admin=null;va=null;client={id:1,email:'client-one@example.invalid'};
+      let events=await actions.getCalendarEvents(2026,10,true);
+      assert.deepEqual([...new Set(events.filter(e=>e.vaId).map(e=>e.vaId))],['va-1']);
+      assert.equal(events.filter(e=>e.type==='birthday').length,1);
+      assert.equal(events.filter(e=>e.type==='anniversary').length,1);
+      assert.equal(events.filter(e=>e.type==='leave').length,1);
+      assert.ok(events.some(e=>e.title==='Team event'));assert.ok(events.some(e=>e.type==='holiday'));
+      client={id:2,email:'client-two@example.invalid'};
+      events=await actions.getCalendarEvents(2026,10,true);
+      assert.deepEqual([...new Set(events.filter(e=>e.vaId).map(e=>e.vaId))],['va-2']);
+      client={id:99,email:'empty@example.invalid'};
+      assert.equal((await actions.getCalendarEvents(2026,10,true)).filter(e=>e.vaId).length,0);
+      client={id:1,email:'client-one@example.invalid'};
+      await sql`DELETE FROM va_client_assignments WHERE client_id=1`;
+      assert.equal((await actions.getCalendarEvents(2026,10,true)).filter(e=>e.vaId).length,0);
+      admin=identity;client=null;
+      assert.equal((await actions.getCalendarEvents(2026,10,true)).filter(e=>e.type==='birthday').length,2);
+      admin=null;va='va-1';
+      assert.equal((await actions.getCalendarEvents(2026,10)).filter(e=>e.type==='birthday').length,2);
+      va=null;await assert.rejects(actions.getCalendarEvents(2026,10,true),/Sign-in required/);
+      await reset();
+    });
+
     await t.test('additional recipients are optional per invoice, normalized, admin-only and limited to ten',async()=>{
       await reset();
       const invoice={clientId:3,invoiceNumber:'RECIPIENTS',billCoverage:'October 1–15',amount:'$100',invoiceDueDate:'2026-10-25',status:'Draft',invoiceLink:''};

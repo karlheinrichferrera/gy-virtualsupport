@@ -1270,6 +1270,10 @@ function getFloatingUSHolidays(year: number): { month: number; day: number; titl
 }
 
 export async function getCalendarEvents(year: number, month: number, includeLeaves = false): Promise<CalendarEvent[]> {
+  const admin = await getAdminSession();
+  const client = admin ? null : await getClientSession();
+  if (!admin && !client && !await getVASession()) throw new Error("Sign-in required.");
+  const clientId = client?.id ?? null;
   await ensureTablesOnce();
   const events: CalendarEvent[] = [];
 
@@ -1297,7 +1301,14 @@ export async function getCalendarEvents(year: number, month: number, includeLeav
     return null;
   }
 
-  const { rows } = await sql`SELECT id, first_name, last_name, date_of_birth, date_hired FROM va_profiles`;
+  const { rows } = await sql`
+    SELECT vp.id, vp.first_name, vp.last_name, vp.date_of_birth, vp.date_hired
+    FROM va_profiles vp
+    WHERE (${clientId}::integer IS NULL OR EXISTS (
+      SELECT 1 FROM va_client_assignments assignment
+      WHERE assignment.va_id = vp.id AND assignment.client_id = ${clientId}
+    ))
+  `;
   for (const r of rows) {
     const dobParsed = parseFlexDate(r.date_of_birth as string);
     if (dobParsed && dobParsed.month === month) {
@@ -1341,6 +1352,12 @@ export async function getCalendarEvents(year: number, month: number, includeLeav
       FROM leave_requests lr
       JOIN va_profiles vp ON vp.id = lr.va_id
       WHERE lr.status = 'Approved'
+        AND (${clientId}::integer IS NULL OR (
+          lr.client_id = ${clientId} AND EXISTS (
+            SELECT 1 FROM va_client_assignments assignment
+            WHERE assignment.va_id = lr.va_id AND assignment.client_id = ${clientId}
+          )
+        ))
         AND lr.date_from <= ${monthStr + "-31"}
         AND lr.date_to >= ${monthStr + "-01"}
     `;
