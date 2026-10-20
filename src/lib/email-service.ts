@@ -74,7 +74,7 @@ export async function queueAutomaticEmails() {
       FROM email_settings s
       WHERE s.singleton = true AND s.auto_invoices_since IS NOT NULL
         AND i.email_published_at >= s.auto_invoices_since AND i.email_published_at <= NOW()
-        AND i.email_queued_at IS NULL AND LOWER(TRIM(i.status)) != 'draft'
+        AND i.email_queued_at IS NULL AND LOWER(TRIM(i.status)) NOT IN ('draft','paid')
       RETURNING i.*
     )
     INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id)
@@ -108,11 +108,14 @@ export async function queueAutomaticEmails() {
       CROSS JOIN LATERAL unnest(COALESCE(string_to_array(routing.delegates,','),ARRAY[c.email])) target(email)
     )
     , jobs AS (
-    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,from_name,from_email,subject,body,template_data,image_token,source,source_id,expires_at)
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,image_token,source,source_id,expires_at,client_invoice_id)
     SELECT 'notification:' || id || ':' || audience || ':' || recipient_id,
-      ${connection}::uuid,jsonb_build_array(TRIM(email)),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},title,message,
+      ${connection}::uuid,jsonb_build_array(TRIM(email)),
+      COALESCE((SELECT to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')) FROM client_invoices i
+        WHERE recipients.type='payment' AND recipients.audience='client' AND i.id=recipients.client_invoice_id AND i.client_id=recipients.client_id),'[]'::jsonb),
+      ${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},title,message,
       jsonb_build_object('kind','notification','title',title,'message',message,'redirectTo',redirect_to,'audience',audience),
-      CASE WHEN image_url != '' THEN gen_random_uuid() ELSE NULL END,'notification',id,expires_at
+      CASE WHEN image_url != '' THEN gen_random_uuid() ELSE NULL END,'notification',id,expires_at,client_invoice_id
     FROM recipients ON CONFLICT (idempotency_key) DO NOTHING
     RETURNING image_token,source_id
     ) INSERT INTO notification_email_images(token,image_reference)
@@ -133,7 +136,8 @@ export async function processEmailQueue(limit = 5) {
     WHERE j.status='queued' AND (
       NOT EXISTS (SELECT 1 FROM outlook_connection c WHERE c.singleton=true AND c.connection_id=j.connection_id AND c.encrypted_tokens IS NOT NULL)
       OR j.expires_at <= NOW()
-      OR (j.source='invoice' AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status)) != 'draft'))
+      OR (j.source='invoice' AND NOT j.is_resend AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status)) NOT IN ('draft','paid')))
+      OR (j.source='invoice' AND j.is_resend AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status))!='draft'))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.id=j.source_id))
       OR (j.source='invoice' AND NOT j.is_resend AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_invoices_since IS NOT NULL AND j.created_at>=s.auto_invoices_since))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_notifications_since IS NOT NULL AND j.created_at>=s.auto_notifications_since))
@@ -248,7 +252,8 @@ export async function queueInvoiceResend(invoiceId: number, requestId: string, a
       to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
-        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026'),
+        'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026',
+        'isPaid',LOWER(TRIM(i.status))='paid'),
       'invoice',i.id,true FROM invoice i JOIN client_accounts c ON c.id=i.client_id
     ON CONFLICT DO NOTHING RETURNING *
   ), publication AS (

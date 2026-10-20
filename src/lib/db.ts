@@ -6,6 +6,7 @@ import { ensureEmailSchema } from "./email-schema";
 import { ensureVASessionSchema } from "./va-session-schema";
 import { ensureClientSessionSchema } from "./client-session-schema";
 import { ensureRequestApprovalSchema } from "./request-approval-schema";
+import { ensureClientInvoiceSchema } from "./client-invoice-schema";
 
 export async function ensureTables() {
   await sql`
@@ -228,6 +229,7 @@ export async function ensureTables() {
   await ensureNotificationSchema();
   await ensureOutlookSchema();
   await ensureEmailSchema();
+  await ensureClientInvoiceSchema();
   await ensureClientSessionSchema();
   await ensureRequestApprovalSchema();
 }

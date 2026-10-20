@@ -22,7 +22,8 @@ export async function ensureEmailSchema() {
     ADD COLUMN IF NOT EXISTS email_queued_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS portal_notified_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS additional_recipients TEXT NOT NULL DEFAULT ''`;
-  await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS email_queued_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS email_queued_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS client_invoice_id INTEGER`;
   await sql`CREATE TABLE IF NOT EXISTS email_jobs (
     id SERIAL PRIMARY KEY,
     idempotency_key TEXT NOT NULL UNIQUE,
@@ -49,7 +50,9 @@ export async function ensureEmailSchema() {
     ADD COLUMN IF NOT EXISTS body_html TEXT,
     ADD COLUMN IF NOT EXISTS template_data JSONB,
     ADD COLUMN IF NOT EXISTS image_token UUID,
+    ADD COLUMN IF NOT EXISTS client_invoice_id INTEGER,
     ADD COLUMN IF NOT EXISTS is_resend BOOLEAN NOT NULL DEFAULT false`;
+  await sql`CREATE INDEX IF NOT EXISTS email_jobs_client_invoice_history ON email_jobs(client_invoice_id,id DESC) WHERE client_invoice_id IS NOT NULL`;
   await sql`CREATE INDEX IF NOT EXISTS email_jobs_invoice_history ON email_jobs(source_id,id DESC) WHERE source='invoice'`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS email_jobs_invoice_active ON email_jobs(source_id)
     WHERE source='invoice' AND status IN ('queued','sending')`;

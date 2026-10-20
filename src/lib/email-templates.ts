@@ -13,6 +13,7 @@ function layout(content: string) {
 export type InvoiceEmailData = {
   kind: "invoice"; invoiceNumber: string; billCoverage: string; amount: string; dueDate: string;
   invoiceLink: string; clientEmail: string; clientName?: string; defaultPassword: boolean;
+  isPaid?: boolean;
 };
 export type NotificationEmailData = {
   kind: "notification"; title: string; message: string; redirectTo: string; audience: "va" | "client";
@@ -20,6 +21,10 @@ export type NotificationEmailData = {
 export type EmailTemplateData = InvoiceEmailData | NotificationEmailData;
 
 export function invoiceEmail(data: InvoiceEmailData, origin: string) {
+  if (data.isPaid) {
+    return notificationEmail({ kind: "notification", title: "Client Invoice - Paid", audience: "client", redirectTo: "/client/dashboard/invoices",
+      message: `Hi ${data.clientName?.trim().split(/\s+/)[0] || "there"},\n\nYour invoice ${data.invoiceNumber} has been marked as paid. Thank you for your payment.\n\nBilling period: ${data.billCoverage}\nInvoice amount: ${data.amount}` }, origin);
+  }
   const portal = `${origin}/client/dashboard`;
   const invoice = clientInvoiceFileUrl(data.invoiceLink) || `${portal}/invoices`;
   const greeting = `Hi ${data.clientName?.trim().split(/\s+/)[0] || "there"},`;

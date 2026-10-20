@@ -5,6 +5,9 @@ import * as actions from "@/lib/actions";
 import type { ClientAccount, ClientInvoice, ClientSalaryAdjustment } from "@/lib/actions";
 import type { VAProfile } from "@/lib/data";
 import ClientInvoicePreview from "@/components/ClientInvoicePreview";
+import ClientInvoiceDownloadButton from "@/components/ClientInvoiceDownloadButton";
+import InvoiceItemsEditor from "@/components/InvoiceItemsEditor";
+import { invoiceItems, DEFAULT_INVOICE_PAYMENT_LINK, type InvoiceLineItem } from "@/lib/client-invoice-format";
 import { clientInvoiceFileUrl } from "@/lib/invoice-links";
 import { parseEmailAddresses } from "@/lib/email-addresses";
 import { resendClientInvoiceEmail } from "@/lib/email-actions";
@@ -22,7 +25,7 @@ function InvoiceRecipients({ id, value, onChange }: { id: string; value: string;
     <p id={`${id}-help`} className="mt-1 text-xs text-muted">CC up to 10 email addresses on this invoice only. Separate with commas or new lines.</p></div>;
 }
 
-const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
+const inputClass = "w-full min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900";
 
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<ClientAccount[]>([]);
@@ -48,8 +51,9 @@ export default function AdminClientsPage() {
   const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
   const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
-  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "" });
-  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "", additionalRecipients: "" });
+  const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "", lineItems: [{ title: "", description: "", amount: "" }] as InvoiceLineItem[], paymentLink: DEFAULT_INVOICE_PAYMENT_LINK });
+  const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "", additionalRecipients: "", lineItems: [{ title: "", description: "", amount: "" }] as InvoiceLineItem[], paymentLink: DEFAULT_INVOICE_PAYMENT_LINK });
+  const addItemized = invForm.clientId > 0 && clients.find(client => client.id === invForm.clientId)?.invoiceLayout !== "legacy";
   const [adjForm, setAdjForm] = useState({ clientId: 0, vaId: "", effectivityDate: "", type: "INCREASE", hourlyRate: "", salesCommission: "", referralBonus: "", notes: "" });
   const [error, setError] = useState("");
   const [invoiceError, setInvoiceError] = useState("");
@@ -171,7 +175,8 @@ export default function AdminClientsPage() {
     const [from,to] = inv.billCoverage.split(/\s+[–—-]\s+/);
     setInvoiceError("");setEditInv(inv);
     setEditInvForm({ clientId: inv.clientId, invoiceNumber: inv.invoiceNumber, billFrom: asInputDate(from), billTo: asInputDate(to), amount: inv.amount,
-      invoiceDueDate: asInputDate(inv.invoiceDueDate), status: inv.status, invoiceLink: inv.invoiceLink, additionalRecipients: inv.additionalRecipients || "" });
+      invoiceDueDate: asInputDate(inv.invoiceDueDate), status: inv.status, invoiceLink: inv.invoiceLink, additionalRecipients: inv.additionalRecipients || "",
+      lineItems: inv.lineItems?.length ? inv.lineItems.map(item => ({ ...item })) : [{ title: "", description: "", amount: "" }], paymentLink: inv.paymentLink || "" });
   }
 
   async function handleAddInvoice(e: React.FormEvent) {
@@ -180,10 +185,11 @@ export default function AdminClientsPage() {
     setInvoiceError("");setSavingInvoice(true);
     try {
       const additionalRecipients = parseEmailAddresses(invForm.additionalRecipients, 10).join(", ");
-      const payload = { ...invForm, additionalRecipients, billCoverage: fmtCoverage(invForm.billFrom, invForm.billTo), invoiceDueDate: fmtDueDate(invForm.invoiceDueDate) };
+      const amount = addItemized ? invoiceItems(invForm.lineItems).amount : invForm.amount;
+      const payload = { ...invForm, amount, additionalRecipients, billCoverage: fmtCoverage(invForm.billFrom, invForm.billTo), invoiceDueDate: fmtDueDate(invForm.invoiceDueDate) };
       await actions.addClientInvoice(payload);
       setShowAddInvoice(false);
-      setInvForm({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "" });
+      setInvForm({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "", lineItems: [{ title: "", description: "", amount: "" }] as InvoiceLineItem[], paymentLink: DEFAULT_INVOICE_PAYMENT_LINK });
       await loadData();
     } catch (error) { setInvoiceError(error instanceof Error ? error.message : "Unable to save invoice."); }
     finally { setSavingInvoice(false); }
@@ -195,7 +201,8 @@ export default function AdminClientsPage() {
     setInvoiceError("");setSavingInvoice(true);
     try {
       const additionalRecipients = parseEmailAddresses(editInvForm.additionalRecipients, 10).join(", ");
-      const payload = { ...editInvForm, additionalRecipients, billCoverage: fmtCoverage(editInvForm.billFrom, editInvForm.billTo), invoiceDueDate: fmtDueDate(editInvForm.invoiceDueDate) };
+      const amount = editInv.invoiceLayout === "itemized" ? invoiceItems(editInvForm.lineItems).amount : editInvForm.amount;
+      const payload = { ...editInvForm, amount, additionalRecipients, billCoverage: fmtCoverage(editInvForm.billFrom, editInvForm.billTo), invoiceDueDate: fmtDueDate(editInvForm.invoiceDueDate) };
       await actions.updateClientInvoice(editInv.id, payload);
       setEditInv(null);
       await loadData();
@@ -391,6 +398,7 @@ export default function AdminClientsPage() {
                           <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50" title="View Invoice">
                             <Eye size={16} aria-hidden="true" /> <span className="text-xs font-medium">View</span>
                           </button>
+                          {inv.invoiceLayout === "itemized" && <ClientInvoiceDownloadButton id={inv.id} invoiceNumber={inv.invoiceNumber} compact />}
                           <button type="button" onClick={() => { void resendInvoice(inv); }} disabled={resendingInvoice !== null || inv.status.trim().toLowerCase() === "draft" || inv.emailStatus === "queued" || inv.emailStatus === "sending"}
                             aria-label={`Resend email for ${inv.invoiceNumber}`} title={inv.status.trim().toLowerCase() === "draft" ? "Publish this draft before emailing it" : inv.emailStatus === "queued" || inv.emailStatus === "sending" ? "An invoice email is already queued or sending" : "Send another copy using this invoice’s current details and recipients"}
                             className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40">
@@ -668,7 +676,7 @@ export default function AdminClientsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={invForm.invoiceNumber} onChange={(e) => setInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} placeholder="e.g. INV-001" /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={invForm.amount} onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="e.g. $2,500.00" /></div>
+                {!(addItemized) && <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={invForm.amount} onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} placeholder="e.g. $2,500.00" /></div>}
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={invForm.billFrom} onChange={(e) => setInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (To) *</label><input type="date" required value={invForm.billTo} onChange={(e) => setInvForm((f) => ({ ...f, billTo: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="date" required value={invForm.invoiceDueDate} onChange={(e) => setInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} /></div>
@@ -682,6 +690,10 @@ export default function AdminClientsPage() {
                 </div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={invForm.invoiceLink} onChange={(e) => setInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} placeholder="https://drive.google.com/..." /></div>
               </div>
+              {addItemized && <>
+                <InvoiceItemsEditor id="new-invoice-items" items={invForm.lineItems} onChange={lineItems => setInvForm(form => ({ ...form, lineItems }))} />
+                <div><label htmlFor="new-invoice-payment-link" className="mb-1 block text-xs font-medium text-slate-600">Payment link (optional)</label><input id="new-invoice-payment-link" type="url" value={invForm.paymentLink} onChange={event => setInvForm(form => ({ ...form, paymentLink: event.target.value }))} className={inputClass} placeholder="https://wise.com/pay/..." /></div>
+              </>}
               <InvoiceRecipients id="invoice-additional-recipients" value={invForm.additionalRecipients} onChange={value => setInvForm(form => ({ ...form, additionalRecipients: value }))} />
               {invoiceError && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
               <div className="flex gap-3 pt-2">
@@ -703,14 +715,14 @@ export default function AdminClientsPage() {
             </div>
             <form onSubmit={handleEditInvoice} className="p-6 space-y-4">
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Client *</label>
-                <select required value={editInvForm.clientId || ""} onChange={(e) => setEditInvForm((f) => ({ ...f, clientId: parseInt(e.target.value), additionalRecipients: "" }))} className={inputClass}>
+                <select required disabled={editInv.invoiceLayout === "itemized"} value={editInvForm.clientId || ""} onChange={(e) => setEditInvForm((f) => ({ ...f, clientId: parseInt(e.target.value), additionalRecipients: "" }))} className={inputClass}>
                   <option value="">Select a client</option>
                   {clients.map((c) => (<option key={c.id} value={c.id}>{c.displayName} ({c.email})</option>))}
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Number *</label><input type="text" required value={editInvForm.invoiceNumber} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceNumber: e.target.value }))} className={inputClass} /></div>
-                <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={editInvForm.amount} onChange={(e) => setEditInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} /></div>
+                {!(editInv.invoiceLayout === "itemized") && <div><label className="block text-xs font-medium text-slate-600 mb-1">Amount *</label><input type="text" required value={editInvForm.amount} onChange={(e) => setEditInvForm((f) => ({ ...f, amount: e.target.value }))} className={inputClass} /></div>}
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (From) *</label><input type="date" required value={editInvForm.billFrom} onChange={(e) => setEditInvForm((f) => ({ ...f, billFrom: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Bill Coverage (To) *</label><input type="date" required value={editInvForm.billTo} onChange={(e) => setEditInvForm((f) => ({ ...f, billTo: e.target.value }))} className={inputClass} /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Due Date *</label><input type="date" required value={editInvForm.invoiceDueDate} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceDueDate: e.target.value }))} className={inputClass} /></div>
@@ -724,6 +736,10 @@ export default function AdminClientsPage() {
                 </div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-600 mb-1">Invoice Link</label><input type="text" value={editInvForm.invoiceLink} onChange={(e) => setEditInvForm((f) => ({ ...f, invoiceLink: e.target.value }))} className={inputClass} /></div>
               </div>
+              {editInv.invoiceLayout === "itemized" && <>
+                <InvoiceItemsEditor id="edit-invoice-items" items={editInvForm.lineItems} onChange={lineItems => setEditInvForm(form => ({ ...form, lineItems }))} />
+                <div><label htmlFor="edit-invoice-payment-link" className="mb-1 block text-xs font-medium text-slate-600">Payment link (optional)</label><input id="edit-invoice-payment-link" type="url" value={editInvForm.paymentLink} onChange={event => setEditInvForm(form => ({ ...form, paymentLink: event.target.value }))} className={inputClass} placeholder="https://wise.com/pay/..." /></div>
+              </>}
               <InvoiceRecipients id="edit-invoice-additional-recipients" value={editInvForm.additionalRecipients} onChange={value => setEditInvForm(form => ({ ...form, additionalRecipients: value }))} />
               {editInv.emailStatus && <p className="text-xs text-muted">Recipients are fixed when an email is queued. Changes here do not update or resend an existing email.</p>}
               {invoiceError && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}

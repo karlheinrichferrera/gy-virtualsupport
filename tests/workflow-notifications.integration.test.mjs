@@ -19,7 +19,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
   sql.query=query;
   const identity={id:1,username:'test-admin',displayName:'Test Admin'};
   let admin=identity,va='va-1',client=null,wakes=0;
-  const sessions=[];
+  const sessions=[],sentMails=[];
   const cache=new Map();
   function load(name){
     const filename=path.resolve('src/lib',name+'.ts');if(cache.has(filename))return cache.get(filename).exports;
@@ -33,7 +33,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     }:id==='./va-session'?{
       requireVAOrAdmin:async id=>{if(admin)return admin;if(va!==id)throw new Error('VA sign-in required');return null;},
       createVASession:async id=>sessions.push(id),getVASession:async()=>va?{id:va}:null,
-    }:id==='./outlook'?{getOutlookConnection:async()=>({connected:true,senderEmail:'hello.graveyardcrewph@outlook.com'}),sendOutlookMessage:async()=>{throw new Error('Real sending is disabled in tests');},OutlookSendError:class extends Error{}}:id==='./email-service'?{approveVAEmail:async()=>{}}:id==='./email-dispatch'?{wakeEmailDelivery:()=>{wakes++;}}:
+    }:id==='./outlook'?{getOutlookConnection:async()=>({connected:true,senderEmail:'hello.graveyardcrewph@outlook.com'}),sendOutlookMessage:async message=>{sentMails.push(structuredClone(message));},OutlookSendError:class extends Error{}}:id==='./email-service'?{approveVAEmail:async()=>{}}:id==='./email-dispatch'?{wakeEmailDelivery:()=>{wakes++;}}:
       id==='./db'?{ensureTables:async()=>{}}:id.startsWith('./')?load(id.slice(2)):runtimeRequire(id);
     new Function('require','module','exports',code)(require,testModule,testModule.exports);return testModule.exports;
   }
@@ -55,11 +55,12 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     await load('request-approval-schema').ensureRequestApprovalSchema();
     await load('notification-schema').ensureNotificationSchema();
     await load('email-schema').ensureEmailSchema();
+    await load('client-invoice-schema').ensureClientInvoiceSchema();
     await sql`CREATE TABLE outlook_connection(singleton BOOLEAN PRIMARY KEY DEFAULT true,connection_id UUID NOT NULL,encrypted_tokens TEXT)`;
     await sql`INSERT INTO outlook_connection VALUES(true,${randomUUID()}::uuid,'test-placeholder')`;
     const actions=load('actions'),notices=async()=> (await sql`SELECT * FROM notifications ORDER BY id`).rows;
     const request={id:'LR-1',type:'Leave',dateSubmitted:'October 18, 2026',dateFrom:'2026-10-20',dateTo:'2026-10-21',reason:'Test leave',status:'Pending',remarks:''};
-    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices,email_jobs RESTART IDENTITY CASCADE`;admin=identity;va='va-1';client=null;wakes=0;await sql`DELETE FROM va_client_assignments`;await sql`INSERT INTO va_client_assignments VALUES ('va-1',1),('va-2',2)`;};
+    const reset=async()=>{await sql`TRUNCATE notifications,leave_requests,salary_adjustments,timeproof_entries,client_invoices,invoices,email_jobs RESTART IDENTITY CASCADE`;admin=identity;va='va-1';client=null;wakes=0;sentMails.length=0;await sql`DELETE FROM va_client_assignments`;await sql`INSERT INTO va_client_assignments VALUES ('va-1',1),('va-2',2)`;};
 
     await t.test('additional recipients are optional per invoice, normalized, admin-only and limited to ten',async()=>{
       await reset();
@@ -83,7 +84,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
     });
     await t.test('invoice list shows the actual queue status and failure reason without inventing delivery confirmation',async()=>{
       await reset();const statuses=['queued','sending','accepted','failed','uncertain','skipped','cancelled'];
-      const invoice={clientId:1,invoiceNumber:'NO-MAIL',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''};
+      const invoice={clientId:1,lineItems:[{title:'Support',description:'October',amount:'100'}],invoiceNumber:'NO-MAIL',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''};
       await actions.addClientInvoice(invoice);
       for(const status of statuses){
         await actions.addClientInvoice({...invoice,invoiceNumber:status});
@@ -307,7 +308,7 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await load('notifications').recipientNotifications('va','va-2')).length,0);
     });
     await t.test('draft invoices remain private until published, and publication pushes are not duplicated',async()=>{
-      await reset();const invoice={clientId:1,invoiceNumber:'CI-1',billCoverage:'October 1–15',amount:'$100',invoiceDueDate:'2026-10-25',status:'Draft',invoiceLink:''};
+      await reset();const invoice={clientId:1,lineItems:[{title:'Support',description:'October',amount:'100'}],invoiceNumber:'CI-1',billCoverage:'October 1–15',amount:'$100',invoiceDueDate:'2026-10-25',status:'Draft',invoiceLink:''};
       await actions.addClientInvoice(invoice);assert.equal((await notices()).length,0);
       assert.equal((await actions.getClientInvoicesByEmail('client-one@example.invalid')).length,0);
       const id=Number((await sql`SELECT id FROM client_invoices`).rows[0].id);
@@ -319,6 +320,88 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await actions.getClientInvoicesByEmail('client-two@example.invalid')).length,1);
       await actions.updateClientInvoice(id,{...invoice,status:'Draft'});await actions.updateClientInvoice(id,{...invoice,status:'Pending'});
       assert.equal((await notices()).filter(n=>n.client_id===1).length,1);
+    });
+    await t.test('new invoices calculate item totals, preserve billing identity, and exclude Devin regardless of submitted layout',async()=>{
+      await reset();
+      await sql`INSERT INTO client_invoices(client_id,invoice_number) VALUES(1,'LEGACY-BEFORE-MIGRATION')`;
+      await load('client-invoice-schema').ensureClientInvoiceSchema();await load('client-invoice-schema').ensureClientInvoiceSchema();
+      assert.equal((await actions.getClientInvoices())[0].invoiceLayout,'legacy');
+      const invoice={clientId:1,invoiceNumber:'ITEMIZED',billCoverage:'October',amount:'$999.99',invoiceDueDate:'2026-10-25',status:'Draft',invoiceLink:'',
+        invoiceLayout:'legacy',lineItems:[{title:'Monthly GHL Support',description:'GHL Strategy Support\nRate: $300 per month',amount:'300.00'},{title:'Extra work',description:'',amount:'0.10'},{title:'Extra work 2',description:'',amount:'0.20'}]};
+      await actions.addClientInvoice(invoice);
+      let row=(await actions.getClientInvoices()).find(r=>r.invoiceNumber==='ITEMIZED');
+      assert.equal(row.invoiceLayout,'itemized');assert.equal(row.amount,'$300.30');assert.equal(row.lineItems.length,3);
+      const billingName=row.billToName;
+      await sql`UPDATE client_accounts SET display_name='Renamed account' WHERE id=1`;
+      await actions.updateClientInvoice(row.id,{...invoice,amount:'$1',lineItems:[{title:'Revised',description:'Updated',amount:'350'}]});
+      row=(await actions.getClientInvoices()).find(r=>r.id===row.id);
+      assert.equal(row.amount,'$350.00');assert.equal(row.billToName,billingName);
+      await assert.rejects(actions.updateClientInvoice(row.id,{...invoice,clientId:3}),/cannot be reassigned/);
+      await assert.rejects(actions.addClientInvoice({...invoice,lineItems:[]}),/between 1 and 50/);
+      await assert.rejects(actions.addClientInvoice({...invoice,lineItems:[{title:'Bad',description:'',amount:'-1'}]}),/valid USD/);
+      await assert.rejects(actions.addClientInvoice({...invoice,paymentLink:'javascript:alert(1)'}),/HTTPS payment/);
+      await actions.addClientInvoice({...invoice,clientId:3,invoiceNumber:'DEVIN-LEGACY',invoiceLayout:'itemized'});
+      const devin=(await actions.getClientInvoices()).find(r=>r.invoiceNumber==='DEVIN-LEGACY');
+      assert.equal(devin.invoiceLayout,'legacy');assert.equal(devin.amount,'$999.99');assert.deepEqual(devin.lineItems,[]);assert.equal(devin.paymentLink,'');
+      await sql`UPDATE client_accounts SET email='renamed-devin@example.invalid' WHERE id=3`;
+      try { await load('client-invoice-schema').ensureClientInvoiceSchema();assert.equal((await actions.getClientAccounts()).find(c=>c.id===3).invoiceLayout,'legacy'); }
+      finally { await sql`UPDATE client_accounts SET email='devin@goldenyearsdesign.com' WHERE id=3`; }
+    });
+    await t.test('invoice lists and PDF downloads require the owning client session and hide Drafts',async()=>{
+      await reset();
+      const invoice={clientId:1,invoiceNumber:'PDF-1',billCoverage:'October',amount:'$300',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:'',lineItems:[{title:'Support',description:'Monthly support',amount:'300'}]};
+      await actions.addClientInvoice(invoice);await actions.addClientInvoice({...invoice,invoiceNumber:'DRAFT-PDF',status:'Draft'});
+      const all=await actions.getClientInvoices(),live=all.find(r=>r.invoiceNumber==='PDF-1'),draft=all.find(r=>r.invoiceNumber==='DRAFT-PDF');
+      const download=load('client-invoice-download').clientInvoiceDownload;
+      assert.equal((await download(draft.id)).invoice.invoiceNumber,'DRAFT-PDF','Admin can download a draft');
+      admin=null;client=null;
+      assert.equal((await download(live.id)).status,401);
+      await assert.rejects(actions.getClientInvoicesByClientId(1),/sign-in/);
+      client={id:2,email:'client-two@example.invalid'};
+      assert.equal((await download(live.id)).status,404);
+      await assert.rejects(actions.getClientInvoicesByClientId(1),/own invoices/);
+      await assert.rejects(actions.getClientInvoicesByEmail('client-one@example.invalid'),/own invoices/);
+      client={id:1,email:'client-one@example.invalid'};
+      assert.equal((await download(draft.id)).status,404);
+      assert.equal((await download(live.id)).invoice.invoiceNumber,'PDF-1');
+      assert.equal((await actions.getClientInvoicesByClientId(1,false)).length,1,'Client cannot request draft visibility');
+      assert.equal((await actions.getClientInvoicesByEmail(client.email)).length,1);
+      assert.equal((await download(999999)).status,404);
+    });
+    await t.test('marking a client invoice paid commits one portal receipt and queues one scoped email even with concurrent saves',async()=>{
+      await reset();
+      const service=load('email-service');
+      await sql`UPDATE email_settings SET auto_invoices_since=NOW()-INTERVAL '1 minute',auto_notifications_since=NOW()-INTERVAL '1 minute' WHERE singleton=true`;
+      const invoice={clientId:1,invoiceNumber:'PAID-CLIENT',additionalRecipients:'staff@example.invalid',billCoverage:'October',amount:'$300',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:'',lineItems:[{title:'Support',description:'Monthly support',amount:'300'}]};
+      await actions.addClientInvoice(invoice);const id=(await actions.getClientInvoices())[0].id;
+      await service.queueAutomaticEmails();
+      await Promise.all([actions.updateClientInvoice(id,{...invoice,status:'Paid'}),actions.updateClientInvoice(id,{...invoice,status:'Paid'})]);
+      await actions.updateClientInvoice(id,{...invoice,status:'Paid'});
+      const paid=(await notices()).filter(n=>n.title==='Client Invoice - Paid');
+      assert.equal(paid.length,1);assert.equal(paid[0].client_id,1);assert.equal(paid[0].audience,'client');assert.equal(paid[0].redirect_to,'/client/dashboard/invoices');
+      assert.ok(paid[0].message.includes('PAID-CLIENT'));assert.ok(paid[0].message.includes('$300.00'));
+      await Promise.all([service.queueAutomaticEmails(),service.queueAutomaticEmails()]);
+      const jobs=(await sql`SELECT * FROM email_jobs WHERE source='notification'`).rows;
+      assert.equal(jobs.length,1);assert.deepEqual(jobs[0].to_emails,['client-one@example.invalid']);assert.equal(jobs[0].subject,'Client Invoice - Paid');assert.deepEqual(jobs[0].cc_emails,['staff@example.invalid']);
+      await service.processEmailQueue(5);assert.equal(sentMails.length,1);assert.ok(sentMails[0].body.includes('has been marked as paid'));assert.deepEqual(sentMails[0].cc,['staff@example.invalid']);
+      assert.equal((await sql`SELECT status FROM email_jobs WHERE source='invoice' AND source_id=${id}`).rows[0].status,'cancelled','A previously queued collection email is cancelled when the invoice becomes Paid');
+      assert.equal((await actions.getClientInvoices()).find(r=>r.id===id).emailStatus,'accepted','The invoice list includes the paid-receipt email status');
+      await sql`DELETE FROM notifications WHERE id=${paid[0].id}`;assert.equal((await actions.getClientInvoices()).find(r=>r.id===id).emailStatus,'accepted','Email history survives portal-notification deletion');
+      await actions.addClientInvoice({...invoice,clientId:3,invoiceNumber:'PAID-DEVIN',status:'Paid'});
+      const devin=(await notices()).filter(n=>n.title==='Client Invoice - Paid'&&n.client_id===3);assert.equal(devin.length,1,'Paid notifications also cover Devin while his format remains unchanged');
+      await service.queueAutomaticEmails();
+      assert.equal((await sql`SELECT COUNT(*)::int AS n FROM email_jobs WHERE subject='Client Invoice - Paid' AND to_emails='["devin@goldenyearsdesign.com"]'::jsonb`).rows[0].n,1);
+      assert.equal((await sql`SELECT COUNT(*)::int AS n FROM email_jobs WHERE source='invoice' AND template_data->>'invoiceNumber'='PAID-DEVIN'`).rows[0].n,0,'New paid invoices must not send a payment request');
+    });
+    await t.test('a failed client payment receipt rolls back the Paid status',async()=>{
+      await reset();
+      const invoice={clientId:3,invoiceNumber:'PAID-ROLLBACK',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''};
+      await actions.addClientInvoice(invoice);const id=(await actions.getClientInvoices())[0].id;
+      await sql`CREATE FUNCTION reject_client_paid_notice() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.title='Client Invoice - Paid' THEN RAISE EXCEPTION 'test paid receipt failure'; END IF; RETURN NEW; END $$`;
+      await sql`CREATE TRIGGER reject_client_paid_notice BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION reject_client_paid_notice()`;
+      try { await assert.rejects(actions.updateClientInvoice(id,{...invoice,status:'Paid'}),/test paid receipt failure/);assert.equal((await actions.getClientInvoices())[0].status,'Pending'); }
+      finally { await sql`DROP TRIGGER reject_client_paid_notice ON notifications`; }
+      await actions.updateClientInvoice(id,{...invoice,status:'Paid'});assert.equal((await notices()).filter(n=>n.title==='Client Invoice - Paid').length,1);
     });
     const invoice={invoiceNumber:'VA-1001',clientId:1,dateCovered:'October 1–15, 2026',amount:'$100.00',transactionFee:'$1.00',amountDisbursed:'$99.00',invoiceCopy:'',status:'Pending'};
     await t.test('VA invoice acknowledgements are private, atomic and idempotent on submission retries',async()=>{

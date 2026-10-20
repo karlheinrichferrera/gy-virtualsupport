@@ -16,6 +16,7 @@ import { submitVAInvoice, saveVAInvoice } from "./va-invoices";
 import type { EmailJobStatus } from "./email-types";
 import { createClientSession, clearClientSession, getClientSession, requireClientSession, invalidateClientSessions } from "./client-session";
 import { approvalDetails, selectedRequestClient, reviewRequest, type ApprovalDetails } from "./request-approvals";
+import { invoiceItems, invoicePaymentLink, validateItemizedInvoiceDetails, DEFAULT_INVOICE_PAYMENT_LINK, type InvoiceLayout, type InvoiceLineItem } from "./client-invoice-format";
 
 
 let tablesReady = false;
@@ -567,6 +568,7 @@ export type ClientAccount = {
   timesheetUrl: string;
   timesheetViewUrl: string;
   createdAt: string;
+  invoiceLayout?: InvoiceLayout;
 };
 
 function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
@@ -580,6 +582,7 @@ function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
     timesheetUrl: (r.timesheet_url as string) || "",
     timesheetViewUrl: (r.timesheet_view_url as string) || "",
     createdAt: r.created_at as string,
+    invoiceLayout: r.invoice_layout === "legacy" ? "legacy" : "itemized",
   };
 }
 
@@ -682,6 +685,11 @@ export type ClientInvoice = {
   invoiceDueDate: string;
   status: string;
   invoiceLink: string;
+  invoiceLayout?: InvoiceLayout;
+  lineItems?: InvoiceLineItem[];
+  paymentLink?: string;
+  billToName?: string;
+  billToCompany?: string;
   additionalRecipients?: string;
   emailStatus?: EmailJobStatus | null;
   emailError?: string | null;
@@ -697,6 +705,11 @@ function rowToClientInvoice(r: Record<string, unknown>): ClientInvoice {
     invoiceDueDate: r.invoice_due_date as string,
     status: r.status as string,
     invoiceLink: r.invoice_link as string,
+    invoiceLayout: r.invoice_layout === "itemized" ? "itemized" : "legacy",
+    lineItems: Array.isArray(r.line_items) ? r.line_items as InvoiceLineItem[] : [],
+    paymentLink: String(r.payment_link || ""),
+    billToName: String(r.bill_to_name || ""),
+    billToCompany: String(r.bill_to_company || ""),
     additionalRecipients: String(r.additional_recipients || ""),
     emailStatus: r.email_status as EmailJobStatus | null | undefined,
     emailError: r.email_error == null ? null : String(r.email_error),
@@ -708,7 +721,7 @@ export async function getClientInvoices(): Promise<ClientInvoice[]> {
   await ensureTablesOnce();
   const { rows } = await sql`SELECT i.*,j.status AS email_status,j.last_error AS email_error
     FROM client_invoices i LEFT JOIN LATERAL (
-      SELECT status,last_error FROM email_jobs WHERE source='invoice' AND source_id=i.id
+      SELECT status,last_error FROM email_jobs WHERE (source='invoice' AND source_id=i.id) OR client_invoice_id=i.id
       ORDER BY (status IN ('queued','sending')) DESC,id DESC LIMIT 1
     ) j ON true
     ORDER BY i.id DESC`;
@@ -716,14 +729,20 @@ export async function getClientInvoices(): Promise<ClientInvoice[]> {
 }
 
 export async function getClientInvoicesByClientId(clientId: number, excludeDraft = false): Promise<ClientInvoice[]> {
+  const admin = await getAdminSession();
+  if (!admin && (await requireClientSession()).id !== clientId) throw new Error("You can only view your own invoices.");
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_invoices WHERE client_id = ${clientId} ORDER BY id DESC`;
   const all = rows.map(rowToClientInvoice);
-  if (excludeDraft) return all.filter((inv) => inv.status.trim().toLowerCase() !== "draft");
+  if (excludeDraft || !admin) return all.filter((inv) => inv.status.trim().toLowerCase() !== "draft");
   return all;
 }
 
 export async function getClientInvoicesByEmail(email: string): Promise<ClientInvoice[]> {
+  if (!await getAdminSession()) {
+    const client = await requireClientSession();
+    if (client.email.toLowerCase() !== email.trim().toLowerCase()) throw new Error("You can only view your own invoices.");
+  }
   await ensureTablesOnce();
   const { rows: acctRows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (acctRows.length === 0) return [];
@@ -735,16 +754,30 @@ export async function addClientInvoice(inv: Omit<ClientInvoice, "id">): Promise<
   await requireAdminSession();
   await ensureTablesOnce();
   const recipients = parseEmailAddresses(inv.additionalRecipients ?? "", 10).join(", ");
+  const { rows: accounts } = await sql`SELECT id,invoice_layout,display_name,company_name FROM client_accounts WHERE id=${inv.clientId}`;
+  if (!accounts.length) throw new Error("Select an existing client.");
+  const account = accounts[0];
+  const layout = account.invoice_layout === 'legacy' ? 'legacy' : 'itemized';
+  const itemized = layout === 'itemized' ? invoiceItems(inv.lineItems) : null;
+  if (itemized) validateItemizedInvoiceDetails(inv);
+  const amount = itemized?.amount ?? inv.amount;
+  const paymentLink = itemized ? invoicePaymentLink(inv.paymentLink ?? DEFAULT_INVOICE_PAYMENT_LINK) : '';
   await sql`
     WITH published AS (
-    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, additional_recipients, email_published_at,portal_notified_at)
-    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${inv.amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},${recipients},
+    INSERT INTO client_invoices (client_id, invoice_number, bill_coverage, amount, invoice_due_date, status, invoice_link, additional_recipients,
+      invoice_layout,line_items,payment_link,bill_to_name,bill_to_company,email_published_at,portal_notified_at)
+    VALUES (${inv.clientId}, ${inv.invoiceNumber}, ${inv.billCoverage}, ${amount}, ${inv.invoiceDueDate}, ${inv.status}, ${inv.invoiceLink},${recipients},
+      ${layout},${JSON.stringify(itemized?.items || [])}::jsonb,${paymentLink},${itemized ? String(account.display_name || '') : ''},${itemized ? String(account.company_name || '') : ''},
       CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END,
       CASE WHEN LOWER(TRIM(${inv.status})) != 'draft' THEN NOW() ELSE NULL END) RETURNING *
-    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to)
-      SELECT 'client',client_id,'New invoice available','Your invoice ' || invoice_number || ' is now available.' ||
-        E'\nBilling period: ' || bill_coverage || E'\nTotal amount due: ' || amount || E'\nPayment due date: ' || invoice_due_date,
-        'invoice','system',${new Date().toISOString()},'/client/dashboard/invoices' FROM published WHERE portal_notified_at IS NOT NULL
+    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to,client_invoice_id)
+      SELECT 'client',client_id,CASE WHEN LOWER(TRIM(status))='paid' THEN 'Client Invoice - Paid' ELSE 'New invoice available' END,
+        CASE WHEN LOWER(TRIM(status))='paid' THEN 'Your invoice ' || invoice_number || ' has been marked as paid. Thank you for your payment.'
+          ELSE 'Your invoice ' || invoice_number || ' is now available.' END ||
+        E'\nBilling period: ' || bill_coverage || CASE WHEN LOWER(TRIM(status))='paid' THEN E'\nInvoice amount: ' || amount
+          ELSE E'\nTotal amount due: ' || amount || E'\nPayment due date: ' || invoice_due_date END,
+        CASE WHEN LOWER(TRIM(status))='paid' THEN 'payment' ELSE 'invoice' END,
+        'system',${new Date().toISOString()},'/client/dashboard/invoices',id FROM published WHERE portal_notified_at IS NOT NULL
   `;
   wakeEmailDelivery();
 }
@@ -753,13 +786,26 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
   await requireAdminSession();
   await ensureTablesOnce();
   const recipients = inv.additionalRecipients === undefined ? null : parseEmailAddresses(inv.additionalRecipients, 10).join(", ");
+  const { rows: previousRows } = await sql`SELECT i.*,c.invoice_layout AS account_layout FROM client_invoices i
+    JOIN client_accounts c ON c.id=${inv.clientId} WHERE i.id=${id}`;
+  if (!previousRows.length) throw new Error("Invoice or client not found.");
+  const original = previousRows[0];
+  const isItemized = original.invoice_layout === 'itemized';
+  if (isItemized && Number(original.client_id) !== inv.clientId) throw new Error("An itemized invoice cannot be reassigned. Create a separate invoice for the other client.");
+  if (isItemized && original.account_layout === 'legacy') throw new Error("This client uses the original invoice format.");
+  const itemized = isItemized ? invoiceItems(inv.lineItems ?? original.line_items) : null;
+  if (itemized) validateItemizedInvoiceDetails(inv);
+  const amount = itemized?.amount ?? inv.amount;
+  const paymentLink = itemized ? invoicePaymentLink(inv.paymentLink ?? String(original.payment_link || '')) : '';
   await sql`
     WITH previous AS MATERIALIZED (SELECT * FROM client_invoices WHERE id=${id} FOR UPDATE), changed AS (
     UPDATE client_invoices i SET
       client_id = ${inv.clientId},
       invoice_number = ${inv.invoiceNumber},
       bill_coverage = ${inv.billCoverage},
-      amount = ${inv.amount},
+      amount = ${amount},
+      line_items = ${JSON.stringify(itemized?.items || [])}::jsonb,
+      payment_link = ${paymentLink},
       invoice_due_date = ${inv.invoiceDueDate},
       status = ${inv.status},
       invoice_link = ${inv.invoiceLink},
@@ -771,12 +817,19 @@ export async function updateClientInvoice(id: number, inv: Omit<ClientInvoice, "
         THEN COALESCE(previous.portal_notified_at,NOW()) ELSE previous.portal_notified_at END
     FROM previous WHERE i.id=previous.id
     RETURNING i.*
-    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to)
+    ) INSERT INTO notifications(audience,client_id,title,message,type,created_by,created_at,redirect_to,client_invoice_id)
       SELECT 'client',c.client_id,'New invoice available','Your invoice ' || c.invoice_number || ' is now available.' ||
         E'\nBilling period: ' || c.bill_coverage || E'\nTotal amount due: ' || c.amount || E'\nPayment due date: ' || c.invoice_due_date,
-        'invoice','system',${new Date().toISOString()},'/client/dashboard/invoices'
+        'invoice','system',${new Date().toISOString()},'/client/dashboard/invoices',c.id
       FROM changed c JOIN previous p ON p.id=c.id
-      WHERE LOWER(TRIM(p.status))='draft' AND LOWER(TRIM(c.status))!='draft' AND p.portal_notified_at IS NULL
+      WHERE LOWER(TRIM(p.status))='draft' AND LOWER(TRIM(c.status)) NOT IN ('draft','paid') AND p.portal_notified_at IS NULL
+      UNION ALL
+      SELECT 'client',c.client_id,'Client Invoice - Paid','Your invoice ' || c.invoice_number ||
+        ' has been marked as paid. Thank you for your payment.' || E'\nBilling period: ' || c.bill_coverage ||
+        E'\nInvoice amount: ' || c.amount,
+        'payment','system',${new Date().toISOString()},'/client/dashboard/invoices',c.id
+      FROM changed c JOIN previous p ON p.id=c.id
+      WHERE LOWER(TRIM(c.status))='paid' AND LOWER(TRIM(p.status))!='paid'
   `;
   wakeEmailDelivery();
 }

@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { ExternalLink, FileText, X } from "lucide-react";
 import type { ClientAccount, ClientInvoice } from "@/lib/actions";
 import { clientInvoiceFileUrl } from "@/lib/invoice-links";
+import ItemizedClientInvoice from "./ItemizedClientInvoice";
+import ClientInvoiceDownloadButton from "./ClientInvoiceDownloadButton";
 
 interface ClientInvoicePreviewProps {
   invoice: ClientInvoice;
@@ -17,6 +19,7 @@ export default function ClientInvoicePreview({ invoice, client, onClose }: Clien
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const fileUrl = clientInvoiceFileUrl(invoice.invoiceLink || "");
+  const itemized = invoice.invoiceLayout === "itemized";
   const billTo = client?.companyName || client?.displayName || `Client #${invoice.clientId}`;
   const statusClass = invoice.status === "Paid" ? "bg-emerald-100 text-emerald-700"
     : invoice.status === "Pending" ? "bg-amber-100 text-amber-700"
@@ -109,6 +112,7 @@ export default function ClientInvoicePreview({ invoice, client, onClose }: Clien
         </div>
 
         <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
+          {itemized ? <ItemizedClientInvoice invoice={invoice} client={client} /> : <>
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
             <div className="min-w-0 [overflow-wrap:anywhere]">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">From</p>
@@ -152,9 +156,11 @@ export default function ClientInvoicePreview({ invoice, client, onClose }: Clien
               No invoice file is attached. The invoice details are shown above.
             </p>
           )}
+          </>}
         </div>
 
         <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border px-4 py-3 sm:px-6 sm:py-4">
+          {itemized && <ClientInvoiceDownloadButton id={invoice.id} invoiceNumber={invoice.invoiceNumber} />}
           {fileUrl && (
             <a
               href={fileUrl}

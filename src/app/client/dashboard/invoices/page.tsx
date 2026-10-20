@@ -5,6 +5,7 @@ import { FileText, Eye } from "lucide-react";
 import * as actions from "@/lib/actions";
 import type { ClientAccount, ClientInvoice } from "@/lib/actions";
 import ClientInvoicePreview from "@/components/ClientInvoicePreview";
+import ClientInvoiceDownloadButton from "@/components/ClientInvoiceDownloadButton";
 
 export default function ClientInvoicesPage() {
   const [invoices, setInvoices] = useState<ClientInvoice[]>([]);
@@ -99,6 +100,7 @@ export default function ClientInvoicesPage() {
                       <button type="button" onClick={() => setPreviewInvoice(inv)} aria-label={`View invoice ${inv.invoiceNumber}`} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 font-medium">
                         <Eye size={16} aria-hidden="true" /> View Invoice
                       </button>
+                      {inv.invoiceLayout === "itemized" && <ClientInvoiceDownloadButton id={inv.id} invoiceNumber={inv.invoiceNumber} compact />}
                     </td>
                   </tr>
                 ))}
