@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import VAAccountMenu from "@/components/VAAccountMenu";
-import { getProfile, getCurrentVASession, autoFillScheduleTimeproof } from "@/lib/actions";
+import { getProfile, getCurrentVASession } from "@/lib/actions";
 import { Menu } from "lucide-react";
 
 export default function DashboardLayout({
@@ -37,7 +37,6 @@ export default function DashboardLayout({
       setVaName(`${profile.firstName} ${profile.lastName}`);
       setProfilePhoto(profile.profilePicture || "");
       setReady(true);
-      autoFillScheduleTimeproof(id);
       } catch { setSessionError("Unable to verify your session. Please refresh the page to try again."); }
     })();
   }, [router]);

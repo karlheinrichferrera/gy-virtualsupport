@@ -2,6 +2,7 @@
 
 import ApprovalProgress from "@/components/ApprovalProgress";
 import { useEffect, useState } from "react";
+import { periodStart, dateKey } from "@/lib/timeproof-period";
 import { Fingerprint, Plus, Pencil, Trash2, X, AlertCircle, CalendarDays, List, CalendarRange, ChevronLeft, ChevronRight, Download, Copy, Clock, Check, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import * as actions from "@/lib/actions";
@@ -30,19 +31,7 @@ function fmtDuration(mins: number): string {
   return `${h}h ${m}m`;
 }
 
-const BIWEEKLY_ANCHOR = new Date(2026, 9, 5);
-
-function getBiweeklyStart(d: Date): Date {
-  const diffDays = Math.floor((d.getTime() - BIWEEKLY_ANCHOR.getTime()) / 86400000);
-  const periodIndex = Math.floor(diffDays / 14);
-  const start = new Date(BIWEEKLY_ANCHOR);
-  start.setDate(start.getDate() + periodIndex * 14);
-  return start;
-}
-
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+function fmtDate(d: Date): string { return dateKey(d); }
 
 function shortDay(d: Date): string {
   return d.toLocaleDateString("en-US", { weekday: "short" });
@@ -97,8 +86,8 @@ export default function AdminTimeproofPage() {
   const [showBulk, setShowBulk] = useState(false);
   const [bulkForm, setBulkForm] = useState({ vaIds: [] as string[], clientId: "", dateFrom: "", dateTo: "", entryType: "holiday", notes: "" });
   const [bulkSaving, setBulkSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "week">("list");
-  const [weekStart, setWeekStart] = useState(() => getBiweeklyStart(new Date()));
+  const [viewMode, setViewMode] = useState<"list" | "week" | "weekly">("list");
+  const [weekStart, setWeekStart] = useState(() => periodStart(new Date(), 14));
   const [approvalError, setApprovalError] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [pendingOT, setPendingOT] = useState<FullEntry[]>([]);
@@ -182,7 +171,7 @@ export default function AdminTimeproofPage() {
   }
 
   function downloadXLSX() {
-    const source = viewMode === "week" ? weekEntries : filtered;
+    const source = viewMode !== "list" ? weekEntries : filtered;
     const rows = source.map((e) => ({
       "VA ID": e.vaId,
       "VA Name": e.vaName,
@@ -203,17 +192,18 @@ export default function AdminTimeproofPage() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Timeproof");
-    const dateLabel = viewMode === "week" ? `${fmtDate(weekStart)}_to_${fmtDate(periodEnd)}` : dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : "all";
+    const dateLabel = viewMode !== "list" ? `${fmtDate(weekStart)}_to_${fmtDate(periodEnd)}` : dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : "all";
     XLSX.writeFile(wb, `timeproof_${dateLabel}.xlsx`);
   }
 
-  const periodDays = Array.from({ length: 14 }, (_, i) => {
+  const periodLength = viewMode === "weekly" ? 7 : 14;
+  const periodDays = Array.from({ length: periodLength }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
     return d;
   });
 
-  const periodEnd = periodDays[13];
+  const periodEnd = periodDays[periodLength - 1];
   const weekEntries = filtered.filter((e) => e.punchDate >= fmtDate(weekStart) && e.punchDate <= fmtDate(periodEnd));
   const week1Days = periodDays.slice(0, 7);
   const week2Days = periodDays.slice(7, 14);
@@ -237,12 +227,13 @@ export default function AdminTimeproofPage() {
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Fingerprint size={24} /> Timeproof
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex bg-slate-100 rounded-lg p-0.5">
             <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "list" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               <List size={14} /> List
             </button>
-            <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "week" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            <button onClick={() => { setViewMode("weekly"); setWeekStart(periodStart(weekStart, 7)); }} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === "weekly" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500"}`}>Weekly</button>
+            <button onClick={() => { setViewMode("week"); setWeekStart(periodStart(weekStart, 14)); }} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${viewMode === "week" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               <CalendarRange size={14} /> Biweekly
             </button>
           </div>
@@ -423,19 +414,19 @@ export default function AdminTimeproofPage() {
         </>
       )}
 
-      {viewMode === "week" && (
+      {viewMode !== "list" && (
         <>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
+            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() - periodLength); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronLeft size={18} />
             </button>
             <div className="text-sm font-semibold text-slate-700">
               {shortDate(weekStart)} — {shortDate(periodEnd)}
             </div>
-            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 14); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
+            <button onClick={() => setWeekStart((prev) => { const d = new Date(prev); d.setDate(d.getDate() + periodLength); return d; })} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
               <ChevronRight size={18} />
             </button>
-            <button onClick={() => setWeekStart(getBiweeklyStart(new Date()))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
+            <button onClick={() => setWeekStart(periodStart(new Date(), periodLength))} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-1">Today</button>
           </div>
 
           <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
@@ -452,7 +443,7 @@ export default function AdminTimeproofPage() {
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
               <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
               <h2 className="text-lg font-semibold text-slate-700 mb-2">No Entries This Period</h2>
-              <p className="text-slate-500">No timeproof entries for the selected two-week period.</p>
+              <p className="text-slate-500">No timeproof entries for the selected period.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -462,7 +453,7 @@ export default function AdminTimeproofPage() {
                     <tr className="bg-slate-100 border-b border-slate-200">
                       <th rowSpan={2} className="text-left px-4 py-2 font-semibold text-slate-600 min-w-[140px] border-r border-slate-200">VA</th>
                       <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs border-r border-slate-200">Week 1: {shortDate(week1Days[0])} – {shortDate(week1Days[6])}</th>
-                      <th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>
+                          {viewMode === "week" && (<th colSpan={7} className="text-center px-2 py-1.5 font-semibold text-indigo-700 text-xs">Week 2: {shortDate(week2Days[0])} – {shortDate(week2Days[6])}</th>)}
                       <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Regular</th>
                       <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-red-600 min-w-[80px] border-l border-slate-200">Overtime</th>
                       <th rowSpan={2} className="text-center px-3 py-2 font-semibold text-slate-700 min-w-[80px] border-l border-slate-200">Billed</th>
@@ -501,6 +492,11 @@ export default function AdminTimeproofPage() {
                                   <span className="text-slate-300 text-xs">—</span>
                                 ) : (
                                   <div className="space-y-0.5">
+                                    {dayEntries.filter((e) => e.entryType === "time" || e.entryType === "overtime").map((e) => (
+                                      <div key={e.id} className="text-[10px] whitespace-nowrap text-slate-600">
+                                        {e.entryType === "overtime" ? "OT: " : ""}{e.timeIn ? fmtTime12(e.timeIn) : "—"} – {e.timeOut ? fmtTime12(e.timeOut) : "Not punched out"}
+                                      </div>
+                                    ))}
                                     {dayMins > 0 && <div className="text-slate-700 font-medium text-xs">{fmtDuration(dayMins)}</div>}
                                     {dayOTMins > 0 && <div className="text-red-600 font-medium text-xs">+{fmtDuration(dayOTMins)}</div>}
                                     {dayEntries.filter((e) => e.entryType !== "time" && e.entryType !== "overtime").map((e) => {
