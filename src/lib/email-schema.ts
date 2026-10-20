@@ -54,9 +54,11 @@ export async function ensureEmailSchema() {
     ADD COLUMN IF NOT EXISTS body_html TEXT,
     ADD COLUMN IF NOT EXISTS template_data JSONB,
     ADD COLUMN IF NOT EXISTS image_token UUID,
+    ADD COLUMN IF NOT EXISTS invoice_pdf_token UUID,
     ADD COLUMN IF NOT EXISTS client_invoice_id INTEGER,
     ADD COLUMN IF NOT EXISTS is_resend BOOLEAN NOT NULL DEFAULT false`;
   await sql`CREATE INDEX IF NOT EXISTS email_jobs_client_invoice_history ON email_jobs(client_invoice_id,id DESC) WHERE client_invoice_id IS NOT NULL`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS email_jobs_invoice_pdf_token ON email_jobs(invoice_pdf_token) WHERE invoice_pdf_token IS NOT NULL`;
   await sql`CREATE INDEX IF NOT EXISTS email_jobs_invoice_history ON email_jobs(source_id,id DESC) WHERE source='invoice'`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS email_jobs_invoice_active ON email_jobs(source_id)
     WHERE source='invoice' AND status IN ('queued','sending')`;
@@ -65,4 +67,11 @@ export async function ensureEmailSchema() {
     FROM client_invoices i JOIN client_accounts c ON c.id=i.client_id
     WHERE j.source='invoice' AND j.source_id=i.id AND j.status IN ('queued','failed','uncertain')
       AND j.template_data->>'kind'='invoice' AND NOT (j.template_data ? 'includesPayPalFees')`;
+  // Add direct PDF links to unsent invoices; keep delivered email history and Devin's destination intact.
+  await sql`UPDATE email_jobs j SET invoice_pdf_token=gen_random_uuid(),
+      template_data=j.template_data || jsonb_build_object('clientId',c.id)
+    FROM client_invoices i JOIN client_accounts c ON c.id=i.client_id
+    WHERE j.source='invoice' AND j.source_id=i.id AND j.status IN ('queued','failed','uncertain')
+      AND j.template_data->>'kind'='invoice' AND NOT c.invoice_paypal_fees AND j.invoice_pdf_token IS NULL
+      AND LOWER(TRIM(j.template_data->>'clientEmail'))=LOWER(TRIM(c.email))`;
 }

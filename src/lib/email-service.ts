@@ -77,14 +77,14 @@ export async function queueAutomaticEmails() {
         AND i.email_queued_at IS NULL AND LOWER(TRIM(i.status)) NOT IN ('draft','paid')
       RETURNING i.*
     )
-    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id)
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id,invoice_pdf_token)
     SELECT 'invoice:' || i.id,${connection}::uuid,jsonb_build_array(TRIM(c.email)),
       to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
         'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026',
-        'includesPayPalFees',c.invoice_paypal_fees),
-      'invoice',i.id
+        'includesPayPalFees',c.invoice_paypal_fees,'clientId',c.id),
+      'invoice',i.id,CASE WHEN NOT c.invoice_paypal_fees THEN gen_random_uuid() ELSE NULL END
     FROM publications i JOIN client_accounts c ON c.id = i.client_id
     ON CONFLICT DO NOTHING
   `;
@@ -166,10 +166,14 @@ export async function processEmailQueue(limit = 5) {
         try { recipients = emailRecipients(to, ((row.cc_emails || []) as string[]).filter(Boolean), (row.bcc_emails || []) as string[]); }
         catch { throw new OutlookSendError("rejected", "Check the email's To, CC, and BCC addresses before retrying."); }
         const template = row.template_data as EmailTemplateData | null;
+        if (template?.kind === "invoice" && template.includesPayPalFees === false && !row.invoice_pdf_token) {
+          throw new OutlookSendError("rejected", "The invoice changed before its PDF link could be created. Resend the invoice using its current details.");
+        }
         let image: Awaited<ReturnType<typeof prepareEmailImage>> = { imageSrc: undefined, attachments: undefined };
         try { if (template?.kind === "notification") image = await prepareEmailImage(row.image_token as string | null, emailPortalOrigin()); }
         catch { throw new OutlookSendError("rejected", "The notification image is unavailable. Restore it before retrying this email."); }
-        const rendered = template?.kind === "invoice" ? invoiceEmail(template, emailPortalOrigin())
+        const rendered = template?.kind === "invoice" ? invoiceEmail({ ...template,
+          invoicePdfUrl: row.invoice_pdf_token ? `${emailPortalOrigin()}/api/client-invoices/view/${row.invoice_pdf_token}` : undefined }, emailPortalOrigin())
           : template?.kind === "notification" ? notificationEmail(template, emailPortalOrigin(), image.imageSrc)
           : { subject: String(row.subject), body: String(row.body), html: row.body_html ? String(row.body_html) : undefined };
         await sql`UPDATE email_jobs SET subject=${rendered.subject},body=${rendered.body},body_html=${rendered.html || null} WHERE id=${row.id as number} AND status='sending'`;
@@ -248,14 +252,14 @@ export async function queueInvoiceResend(invoiceId: number, requestId: string, a
   const { rows } = await sql`WITH invoice AS MATERIALIZED (
     SELECT i.* FROM client_invoices i WHERE i.id=${invoiceId} AND LOWER(TRIM(i.status))!='draft' FOR UPDATE
   ), queued AS (
-    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id,is_resend)
+    INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,source,source_id,is_resend,invoice_pdf_token)
     SELECT ${key},${connection}::uuid,jsonb_build_array(TRIM(c.email)),
       to_jsonb(string_to_array(REPLACE(i.additional_recipients,' ',''),',')),${EMAIL_FROM_NAME},${EMAIL_FROM_ADDRESS},
       'INVOICE - ' || i.bill_coverage || ' : GY Virtual Support Team','Invoice ready for review.',
       jsonb_build_object('kind','invoice','invoiceNumber',i.invoice_number,'billCoverage',i.bill_coverage,'amount',i.amount,
         'dueDate',i.invoice_due_date,'invoiceLink',i.invoice_link,'clientEmail',c.email,'clientName',c.display_name,'defaultPassword',c.password='gyclient2026',
-        'isPaid',LOWER(TRIM(i.status))='paid','includesPayPalFees',c.invoice_paypal_fees),
-      'invoice',i.id,true FROM invoice i JOIN client_accounts c ON c.id=i.client_id
+        'isPaid',LOWER(TRIM(i.status))='paid','includesPayPalFees',c.invoice_paypal_fees,'clientId',c.id),
+      'invoice',i.id,true,CASE WHEN NOT c.invoice_paypal_fees THEN gen_random_uuid() ELSE NULL END FROM invoice i JOIN client_accounts c ON c.id=i.client_id
     ON CONFLICT DO NOTHING RETURNING *
   ), publication AS (
     UPDATE client_invoices i SET email_queued_at=COALESCE(i.email_queued_at,NOW()) FROM queued j WHERE i.id=j.source_id RETURNING i.id

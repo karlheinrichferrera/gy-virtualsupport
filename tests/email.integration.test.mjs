@@ -65,7 +65,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
   }
   await connection(`CREATE SCHEMA ${schema}`);
   try {
-    await sql`CREATE TABLE client_accounts (id INTEGER PRIMARY KEY, email TEXT, display_name TEXT NOT NULL,password TEXT NOT NULL DEFAULT 'gyclient2026')`;
+    await sql`CREATE TABLE client_accounts (id INTEGER PRIMARY KEY, email TEXT, display_name TEXT NOT NULL,password TEXT NOT NULL DEFAULT 'gyclient2026',company_name TEXT NOT NULL DEFAULT '')`;
     await sql`CREATE TABLE va_profiles (id TEXT PRIMARY KEY, email TEXT)`;
     await sql`CREATE TABLE invoices(id SERIAL PRIMARY KEY,va_id TEXT REFERENCES va_profiles(id),client_id INTEGER,invoice_number TEXT,date_covered TEXT,amount TEXT,transaction_fee TEXT,amount_disbursed TEXT,invoice_copy TEXT,status TEXT,submission_key UUID UNIQUE)`;
     await sql`CREATE TABLE client_invoices (
@@ -345,7 +345,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.deepEqual(configured.cc,recipients);assert.deepEqual(same.cc,[]);assert.deepEqual(other.cc,[]);
       assert.equal(configured.fromEmail,'hello.graveyardcrewph@outlook.com');
       assert.equal(configured.fromName,'GY Virtual Support Team');
-      assert.ok(configured.html.includes('https://payments.example/invoice/1'));
+      assert.ok(configured.html.includes('/api/client-invoices/view/'));assert.ok(!configured.html.includes('https://payments.example/invoice/1'));
       assert.ok(configured.html.includes('Invoice Summary'));
       assert.ok(!configured.body.includes('inclusive of PayPal transaction fees'));assert.ok(!configured.html.includes('inclusive of PayPal transaction fees'));
       await sql`UPDATE client_accounts SET invoice_cc='' WHERE id=1`;
@@ -364,7 +364,7 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       assert.equal(results[0].id,results[1].id);assert.equal((await jobs()).length,2);assert.equal(deliveryWakes,2);
       await service.processEmailQueue();const repeated=await actions.resendClientInvoiceEmail(id,request);assert.equal(repeated.status,'accepted');
       assert.equal(sent.length,2);assert.deepEqual(sent[1].cc,['updated@example.invalid']);assert.ok(sent[1].body.startsWith('Hi Devin,'));
-      assert.ok(sent[1].body.includes('$250.00'));assert.ok(sent[1].html.includes('https://payments.example/updated'));
+      assert.ok(sent[1].body.includes('$250.00'));assert.ok(sent[1].html.includes('/api/client-invoices/view/'));assert.ok(!sent[1].html.includes('https://payments.example/updated'));
       assert.ok(!sent[0].body.includes('$250.00'));assert.equal((await jobs()).find(row=>row.id===original.id).status,'accepted');
       assert.equal(service.emailJob((await jobs()).find(row=>row.id===results[0].id)).isResend,true);
       assert.equal((await sql`SELECT COUNT(*)::integer AS count FROM notifications`).rows[0].count,0);
@@ -515,6 +515,45 @@ test('email publication snapshots and durable delivery queue', { skip: !process.
       for(const row of rows)await service.queueInvoiceResend(row.id,randomUUID(),1);
       await service.processEmailQueue();assert.equal(sent.length,6);
       for(const message of sent.slice(3))assert.equal(message.body.includes('inclusive of PayPal transaction fees'),message.to[0]==='renamed-devin@example.invalid');
+    });
+    await t.test('emailed PDF links are stable per send, open for CC recipients, and block drafts, reassigned invoices, cancelled jobs and Devin',async()=>{
+      await reset();
+      await sql`INSERT INTO client_accounts(id,email,display_name) VALUES (3,'devin@goldenyearsdesign.com','Devin Rubin')`;
+      await ensureEmailSchema();await service.setEmailAutomation(true,false);
+      const ids=(await sql`INSERT INTO client_invoices(client_id,invoice_number,amount,additional_recipients,email_published_at,invoice_link) VALUES
+        (1,'PDF-CLIENT','$300.00','staff@example.invalid',NOW(),'https://old.example/file'),(3,'PDF-DEVIN','$400.00','',NOW(),'https://devin.example/file') RETURNING id,client_id`).rows;
+      await Promise.all([service.queueAutomaticEmails(),service.queueAutomaticEmails()]);
+      let all=await jobs();const original=all.find(j=>j.template_data.invoiceNumber==='PDF-CLIENT'),devin=all.find(j=>j.template_data.invoiceNumber==='PDF-DEVIN');
+      assert.ok(original.invoice_pdf_token);assert.equal(devin.invoice_pdf_token,null);assert.equal(original.template_data.clientId,1);
+      const link=loadTs('client-invoice-email-link.ts').emailedClientInvoice;
+      for(const token of ['1','',randomUUID()])assert.equal(await link(token),null);
+      assert.equal((await link(original.invoice_pdf_token)).invoiceNumber,'PDF-CLIENT','Recipients can open the emailed link without a portal session');
+      await service.processEmailQueue();
+      const email=sent.find(m=>m.to[0]==='one@example.invalid'),other=sent.find(m=>m.to[0]==='devin@goldenyearsdesign.com');
+      const url='https://gy-virtualsupport-safq.vercel.app/api/client-invoices/view/'+original.invoice_pdf_token;
+      assert.ok(email.body.includes('View & Pay Your Invoice: '+url));assert.ok(email.html.includes('href="'+url+'"'));assert.deepEqual(email.cc,['staff@example.invalid']);
+      assert.ok(other.body.includes('https://devin.example/file'));assert.ok(!other.html.includes('/api/client-invoices/view/'));
+      const request=randomUUID(),invoiceId=ids.find(i=>i.client_id===1).id;
+      const first=await service.queueInvoiceResend(invoiceId,request,1),again=await service.queueInvoiceResend(invoiceId,request,1);assert.equal(first.id,again.id);
+      all=await jobs();const resend=all.find(j=>j.id===first.id);assert.ok(resend.invoice_pdf_token);assert.notEqual(resend.invoice_pdf_token,original.invoice_pdf_token);
+      assert.equal(all.find(j=>j.id===again.id).invoice_pdf_token,resend.invoice_pdf_token,'Request retries retain the same link');
+      await sql`UPDATE email_jobs SET status='cancelled' WHERE id=${resend.id}`;assert.equal(await link(resend.invoice_pdf_token),null);
+      await sql`UPDATE client_invoices SET status='Draft' WHERE id=${invoiceId}`;assert.equal(await link(original.invoice_pdf_token),null);
+      await sql`UPDATE client_invoices SET status='Paid' WHERE id=${invoiceId}`;assert.equal((await link(original.invoice_pdf_token)).status,'Paid','Paid invoices remain viewable');
+      await sql`UPDATE client_invoices SET client_id=2 WHERE id=${invoiceId}`;assert.equal(await link(original.invoice_pdf_token),null);
+      await sql`UPDATE client_invoices SET client_id=3 WHERE id=${invoiceId}`;assert.equal(await link(original.invoice_pdf_token),null);
+      await sql`UPDATE email_jobs SET template_data=jsonb_set(template_data,'{clientId}','3'::jsonb) WHERE id=${original.id}`;assert.equal(await link(original.invoice_pdf_token),null,'Devin remains excluded even with a forged matching client ID');
+      await sql`DELETE FROM client_invoices WHERE id=${invoiceId}`;assert.equal(await link(original.invoice_pdf_token),null);
+    });
+    await t.test('unsent legacy invoice jobs get PDF links without rewriting accepted email history or changing their recipients',async()=>{
+      await reset();await service.setEmailAutomation(true,false);
+      await sql`INSERT INTO client_invoices(client_id,invoice_number,email_published_at) VALUES(1,'OLD-QUEUED',NOW()),(2,'OLD-ACCEPTED',NOW())`;
+      await service.queueAutomaticEmails();
+      await sql`UPDATE email_jobs SET invoice_pdf_token=NULL,template_data=template_data-'clientId',status=CASE WHEN template_data->>'invoiceNumber'='OLD-ACCEPTED' THEN 'accepted' ELSE 'queued' END`;
+      const before=(await jobs()).find(j=>j.status==='accepted');
+      await ensureEmailSchema();await ensureEmailSchema();
+      const all=await jobs(),queued=all.find(j=>j.status==='queued');assert.ok(queued.invoice_pdf_token);assert.equal(queued.template_data.clientId,1);assert.deepEqual(queued.to_emails,['one@example.invalid']);
+      assert.deepEqual(all.find(j=>j.status==='accepted'),before);
     });
   } finally {
     await connection(`DROP SCHEMA ${schema} CASCADE`);

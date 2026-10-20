@@ -15,6 +15,8 @@ export type InvoiceEmailData = {
   invoiceLink: string; clientEmail: string; clientName?: string; defaultPassword: boolean;
   isPaid?: boolean;
   includesPayPalFees?: boolean;
+  clientId?: number;
+  invoicePdfUrl?: string;
 };
 export type NotificationEmailData = {
   kind: "notification"; title: string; message: string; redirectTo: string; audience: "va" | "client";
@@ -27,7 +29,10 @@ export function invoiceEmail(data: InvoiceEmailData, origin: string) {
       message: `Hi ${data.clientName?.trim().split(/\s+/)[0] || "there"},\n\nYour invoice ${data.invoiceNumber} has been marked as paid. Thank you for your payment.\n\nBilling period: ${data.billCoverage}\nInvoice amount: ${data.amount}` }, origin);
   }
   const portal = `${origin}/client/dashboard`;
-  const invoice = clientInvoiceFileUrl(data.invoiceLink) || `${portal}/invoices`;
+  const pdf = data.includesPayPalFees !== true ? clientInvoiceFileUrl(data.invoicePdfUrl || "") : null;
+  const pdfUrl = pdf ? new URL(pdf) : null;
+  const invoice = pdfUrl?.origin === origin && /^\/api\/client-invoices\/view\/[a-f0-9-]{36}$/i.test(pdfUrl.pathname) && !pdfUrl.search && !pdfUrl.hash
+    ? pdfUrl.href : clientInvoiceFileUrl(data.invoiceLink) || `${portal}/invoices`;
   const greeting = `Hi ${data.clientName?.trim().split(/\s+/)[0] || "there"},`;
   const password = data.defaultPassword ? "gyclient2026" : "Use your current portal password";
   const amountDue = `${data.amount}${data.includesPayPalFees === true ? " (inclusive of PayPal transaction fees)" : ""}`;

@@ -66,3 +66,14 @@ test('all other invoice emails, including future accounts without a fee flag, om
     assert.ok(result.html.includes('<strong>Total Amount Due:</strong>'));assert.ok(result.html.includes('$1,000.00'));
   }
 });
+
+test('non-Devin View & Pay buttons use the invoice PDF and Devin keeps the original link',()=>{
+  const pdf=origin+'/api/client-invoices/view/12345678-1234-4123-8123-123456789abc';
+  const other=templates.invoiceEmail({...invoice,clientName:'Michael Danis',includesPayPalFees:false,invoicePdfUrl:pdf},origin);
+  assert.ok(other.body.includes('View & Pay Your Invoice: '+pdf));assert.ok(other.html.includes('href="'+pdf+'"'));assert.ok(!other.html.includes(invoice.invoiceLink));
+  const devin=templates.invoiceEmail({...invoice,invoicePdfUrl:pdf},origin);
+  assert.ok(devin.body.includes('View & Pay Your Invoice: '+invoice.invoiceLink));assert.ok(!devin.html.includes(pdf));
+  for(const invoicePdfUrl of ['https://other.example/api/client-invoices/view/12345678-1234-4123-8123-123456789abc',origin+'/admin/dashboard',pdf+'?redirect=outside']){
+    const email=templates.invoiceEmail({...invoice,includesPayPalFees:false,invoicePdfUrl},origin);assert.ok(!email.body.includes('View & Pay Your Invoice: '+invoicePdfUrl));
+  }
+});

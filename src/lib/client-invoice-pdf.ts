@@ -7,7 +7,9 @@ import { invoiceAmountCents, invoiceMoney, invoiceItems, invoicePaymentLink, INV
 
 let fontBytes: Promise<Buffer[]> | undefined;
 export async function clientInvoicePdf(invoice: ClientInvoice): Promise<Uint8Array> {
-  const { items, amount } = invoiceItems(invoice.lineItems);
+  const itemized = invoice.invoiceLayout === 'itemized';
+  const { items, amount } = itemized ? invoiceItems(invoice.lineItems)
+    : { items: [{ title: "Billed services", description: invoice.billCoverage, amount: invoice.amount }], amount: invoice.amount };
   const paid = invoice.status.trim().toLowerCase() === "paid";
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
@@ -85,7 +87,7 @@ export async function clientInvoicePdf(invoice: ClientInvoice): Promise<Uint8Arr
       rect(left, y, split, height); rect(left + split, y, width - split, height);
       lines.slice(offset, offset + count).forEach((line, i) => text(line.value, left + 8, y - 8 - i * 15, line.size, line.font));
       if (offset === 0) {
-        const value = invoiceMoney(invoiceAmountCents(item.amount));
+        const value = itemized ? invoiceMoney(invoiceAmountCents(item.amount)) : item.amount;
         text(value, left + split + (width - split - regular.widthOfTextAtSize(value, 11)) / 2, y - height / 2 + 6, 11);
       }
       offset += count; y -= height;

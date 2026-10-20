@@ -74,3 +74,10 @@ test('a Paid invoice PDF shows the payment status and omits payment instructions
     assert.equal(pdf.getPages()[0].node.Annots()?.size()||0,0);
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+test('an older non-itemized invoice can be viewed as a PDF without changing its original amount',async()=>{
+ const bytes=await clientInvoicePdf({...example,invoiceLayout:'legacy',lineItems:[],amount:'$300 USD'}),pdf=await PDFDocument.load(bytes);
+ assert.equal(pdf.getPageCount(),1);assert.ok(pdf.getPages()[0].node.Annots().size()>0);
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gy-legacy-invoice-'));
+ try{const file=path.join(dir,'legacy.pdf');fs.writeFileSync(file,bytes);const text=execFileSync('pdftotext',['-layout',file,'-'],{encoding:'utf8'});assert.ok(text.includes('$300 USD'));assert.ok(text.includes('Billed services'));}
+ finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
