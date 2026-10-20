@@ -16,8 +16,9 @@ export async function clientInvoicePdf(invoice: ClientInvoice): Promise<Uint8Arr
   fontBytes ??= Promise.all(["DejaVuSans.ttf", "DejaVuSans-Bold.ttf"].map(file => readFile(path.join(process.cwd(), "src/assets/invoice-fonts", file))));
   const [regular, bold] = await Promise.all((await fontBytes).map(bytes => pdf.embedFont(bytes, { subset: true })));
   pdf.setTitle(`Invoice ${invoice.invoiceNumber}`); pdf.setAuthor("GY Virtual Support Team");
-  const black = rgb(0, 0, 0), white = rgb(1, 1, 1), blue = rgb(0.294, 0.525, 0.91), navy = rgb(0.125, 0.278, 0.502);
-  const left = 32, width = 531, split = 319, bottom = 36;
+  const ink = rgb(0.078, 0.176, 0.259), muted = rgb(0.39, 0.45, 0.52), white = rgb(1, 1, 1);
+  const pale = rgb(0.965, 0.973, 0.98), rule = rgb(0.89, 0.91, 0.93);
+  const left = 44, width = 507, split = 360, bottom = 48;
   let page!: PDFPage;
   let y = 0;
   const supported = new Set(regular.getCharacterSet());
@@ -39,85 +40,102 @@ export async function clientInvoicePdf(invoice: ClientInvoice): Promise<Uint8Arr
     }
     return lines;
   };
-  const text = (value: string, x: number, top: number, size = 10, font = regular, color = black) => {
+  const text = (value: string, x: number, top: number, size = 10, font = regular, color = ink) => {
     page.drawText(printable(value), { x, y: top - size, size, font, color });
   };
-  const rect = (x: number, top: number, w: number, h: number, color = white) => page.drawRectangle({ x, y: top - h, width: w, height: h, color, borderColor: black, borderWidth: 0.6 });
-  const row = (label: string, value: string, color = white, strong = false, alignLeft = false) => {
-    const font = strong ? bold : regular;
-    const labelLines = wrap(label, font, 10, split - 16), valueLines = wrap(value, font, 10, width - split - 16);
-    const height = Math.max(labelLines.length, valueLines.length) * 14 + 12;
-    rect(left, y, split, height, color); rect(left + split, y, width - split, height, color);
-    labelLines.forEach((line, i) => text(line, alignLeft ? left + 8 : left + split - 8 - font.widthOfTextAtSize(line, 10), y - 6 - 14 * i, 10, font, color === navy ? white : black));
-    valueLines.forEach((line, i) => text(line, left + split + (width - split - font.widthOfTextAtSize(line, 10)) / 2, y - 6 - 14 * i, 10, font, color === navy ? white : black));
-    y -= height;
+  const right = (value: string, top: number, size = 10, font = regular, color = ink) => {
+    text(value, left + width - font.widthOfTextAtSize(printable(value), size), top, size, font, color);
+  };
+  const fill = (x: number, top: number, w: number, h: number, color = pale) => page.drawRectangle({ x, y: top - h, width: w, height: h, color });
+  const line = (top: number) => page.drawLine({ start: { x: left, y: top }, end: { x: left + width, y: top }, thickness: 0.6, color: rule });
+  const link = (url: string, x: number, top: number, w: number, h: number) => {
+    const annotation = pdf.context.obj({ Type: "Annot", Subtype: "Link", Rect: [x, top - h, x + w, top],
+      Border: [0, 0, 0], A: { Type: "Action", S: PDFName.of("URI"), URI: PDFString.of(url) } });
+    page.node.addAnnot(pdf.context.register(annotation));
   };
   const heading = () => {
-    rect(left, y, split, 28, black); rect(left + split, y, width - split, 28, black);
-    text("Description", left + 8, y - 7, 11, bold, white); text("TOTAL", left + split + 75, y - 7, 11, bold, white); y -= 28;
+    fill(left, y, width, 28); text("DESCRIPTION", left + 10, y - 8, 8, bold, muted); right("AMOUNT", y - 8, 8, bold, muted); y -= 40;
   };
   const newPage = (continued = false) => {
-    page = pdf.addPage([595, 842]); y = 810;
-    if (continued) { text(`INVOICE ${invoice.invoiceNumber} (continued)`, left, y, 12, bold); y -= 28; heading(); }
+    page = pdf.addPage([595, 842]); fill(0, 842, 595, 5, ink); y = 796;
+    if (continued) {
+      text("GY VIRTUAL SUPPORT", left, y, 10, bold); right(`INVOICE ${invoice.invoiceNumber}`, y, 9, regular, muted); y -= 32; heading();
+    }
   };
   newPage();
-  rect(left, y, split, 55, black); rect(left + split, y, width - split, 55);
-  text("INVOICE", left + 8, y - 8, 29, bold, white);
-  // Long totals shrink to fit the amount column.
-  const amountSize = Math.min(27, (width - split - 16) / bold.widthOfTextAtSize(amount, 1));
-  text(amount, left + split + (width - split - bold.widthOfTextAtSize(amount, amountSize)) / 2, y - 10, amountSize, bold); y -= 55;
-  for (const [label, value] of [["INVOICE NUMBER", invoice.invoiceNumber], ["BILL TO", invoice.billToName || "—"], ["COMPANY", invoice.billToCompany || "—"]]) {
-    const lines = wrap(value, bold, 10, width - split - 16), height = lines.length * 14 + 8;
-    rect(left, y, split, height, black); rect(left + split, y, width - split, height);
-    text(label, left + 8, y - 4, 10, bold, white); lines.forEach((line, i) => text(line, left + split + 8, y - 4 - i * 14, 10, bold)); y -= height;
+  fill(left, y, 40, 40, ink); text("GY", left + 9, y - 10, 17, bold, white);
+  text("GY Virtual Support", left + 52, y - 3, 13, bold);
+  text("Client services · Billing", left + 52, y - 23, 8, regular, muted);
+  right("INVOICE", y + 2, 30); y -= 54;
+  const referenceLines = wrap(invoice.invoiceNumber, regular, 9, width);
+  for (const value of referenceLines) { right(value, y, 9, regular, muted); y -= 13; }
+  y -= 14; line(y); y -= 22;
+  text("BILL TO", left, y, 8, bold, muted);
+  const billLines = wrap(invoice.billToName || "—", bold, 14, 240);
+  let billY = y - 19;
+  for (const value of billLines) { text(value, left, billY, 14, bold); billY -= 19; }
+  for (const value of wrap(invoice.billToCompany || "—", regular, 10, 240)) { text(value, left, billY, 10, regular, muted); billY -= 15; }
+  let detailsY = y;
+  for (const [label, value] of [["Billing Period", invoice.billCoverage], ["Payment Due Date", invoice.invoiceDueDate], ["Status", invoice.status]]) {
+    text(label, left + 270, detailsY, 8, regular, muted); detailsY -= 14;
+    for (const valueLine of wrap(value, regular, 10, width - 270)) { text(valueLine, left + 270, detailsY); detailsY -= 15; }
+    detailsY -= 9;
   }
-  y -= 14;
-  for (const value of [`Billing Period: ${invoice.billCoverage}`, `Payment Due Date: ${invoice.invoiceDueDate}`, `Status: ${invoice.status}`]) {
-    for (const line of wrap(value, regular, 10, width - 16)) { text(line, left + 8, y); y -= 14; }
-  }
-  y -= 10; heading();
+  y = Math.min(billY, detailsY) - 18; heading();
   for (const item of items) {
-    const lines = [...wrap(item.title, bold, 11, split - 16).map(value => ({ value, font: bold, size: 11 })),
-      ...(item.description ? wrap(item.description, regular, 10, split - 16).map(value => ({ value, font: regular, size: 10 })) : [])];
+    const lines = [...wrap(item.title, bold, 11, split - 18).map(value => ({ value, font: bold, size: 11, color: ink })),
+      ...(item.description ? wrap(item.description, regular, 10, split - 18).map(value => ({ value, font: regular, size: 10, color: muted })) : [])];
     let offset = 0;
     while (offset < lines.length) {
       if (y - bottom < 50) newPage(true);
-      const count = Math.min(lines.length - offset, Math.floor((y - bottom - 16) / 15));
-      const height = Math.max(58, count * 15 + 16);
-      rect(left, y, split, height); rect(left + split, y, width - split, height);
-      lines.slice(offset, offset + count).forEach((line, i) => text(line.value, left + 8, y - 8 - i * 15, line.size, line.font));
+      const count = Math.min(lines.length - offset, Math.floor((y - bottom - 18) / 16));
+      const height = Math.max(52, count * 16 + 18);
+      lines.slice(offset, offset + count).forEach((value, i) => text(value.value, left, y - i * 16, value.size, value.font, value.color));
       if (offset === 0) {
         const value = itemized ? invoiceMoney(invoiceAmountCents(item.amount)) : item.amount;
-        text(value, left + split + (width - split - regular.widthOfTextAtSize(value, 11)) / 2, y - height / 2 + 6, 11);
+        const size = Math.min(11, (width - split - 4) / bold.widthOfTextAtSize(printable(value), 1));
+        right(value, y, size, bold);
       }
-      offset += count; y -= height;
+      offset += count; y -= height; line(y); y -= 14;
       if (offset < lines.length) newPage(true);
     }
   }
-  if (y < bottom + 100) newPage(true);
-  row("**Nothing follows**", "", white, false, true); row("TOTAL", amount, blue); row("GRAND TOTAL", amount, navy, true);
-  y -= 24;
+  if (y < bottom + 135) newPage(true);
+  y -= 8;
+  const totalLeft = left + 260, totalWidth = width - 260;
+  const amountSize = Math.min(24, (totalWidth - 32) / bold.widthOfTextAtSize(printable(amount), 1));
+  fill(totalLeft, y, totalWidth, 110);
+  text("Subtotal", totalLeft + 16, y - 13, 9, regular, muted);
+  text(amount, left + width - 16 - regular.widthOfTextAtSize(printable(amount), 9), y - 13, 9, regular, muted);
+  text("GRAND TOTAL", totalLeft + 16, y - 38, 8, bold);
+  text(amount, totalLeft + 16, y - 54, amountSize, bold);
+  text(paid ? "USD · PAYMENT RECEIVED" : "USD · AMOUNT DUE", totalLeft + 16, y - 90, 8, regular, muted);
+  y -= 136;
   let paymentLink = "";
   try { paymentLink = invoicePaymentLink(invoice.paymentLink || ""); } catch { /* Omit unsafe stored links. */ }
+  const ensureSpace = (height: number) => {
+    if (y < bottom + height) { newPage(); text(`INVOICE ${invoice.invoiceNumber}`, left, y, 11, bold); y -= 32; }
+  };
+  if (!paid && paymentLink) {
+    ensureSpace(75); fill(left, y, 128, 34, ink); text("Pay invoice", left + 30, y - 10, 11, bold, white); link(paymentLink, left, y, 128, 34); y -= 45;
+    for (const value of wrap(paymentLink, regular, 9, width)) {
+      ensureSpace(18); text(value, left, y, 9, regular, muted); link(paymentLink, left, y, regular.widthOfTextAtSize(value, 9), 13); y -= 15;
+    }
+    y -= 14;
+  }
   const footer = [
-    ...(paid ? ["Thank you for your payment.", ""] : paymentLink ? ["To pay your invoice, kindly click the link below:", paymentLink, ""] : []),
-    `If you have any questions or concerns about this invoice, please email ${INVOICE_SUPPORT_EMAIL}.`,
-    ...(!paid ? ["Please pay before the scheduled due date to avoid interruption of VA workloads."] : []), "", "Thank you for your business!",
+    ...(paid ? ["Thank you for your payment."] : []),
+    `Questions about this invoice? ${INVOICE_SUPPORT_EMAIL}`,
+    ...(!paid ? ["Please pay before the scheduled due date to avoid interruption of VA workloads."] : []),
+    "", "Thank you for your business!",
   ];
   for (const paragraph of footer) {
-    for (const line of wrap(paragraph, regular, 10, width - 16)) {
-      if (y < bottom + 15) { newPage(); text(`INVOICE ${invoice.invoiceNumber}`, left, y, 12, bold); y -= 32; }
-      const linked = paragraph === paymentLink;
-      text(line, left + 8, y, 10, regular, linked ? rgb(0, 0.25, 0.9) : black);
-      if (linked && line) {
-        const annotation = pdf.context.obj({ Type: "Annot", Subtype: "Link", Rect: [left + 8, y - 13, left + 8 + regular.widthOfTextAtSize(line, 10), y + 1],
-          Border: [0, 0, 0], A: { Type: "Action", S: PDFName.of("URI"), URI: PDFString.of(paymentLink) } });
-        page.node.addAnnot(pdf.context.register(annotation));
-      }
-      y -= 15;
-    }
+    for (const value of wrap(paragraph, regular, 9, width)) { ensureSpace(18); text(value, left, y, 9, regular, muted); y -= 15; }
   }
   const pages = pdf.getPages();
-  pages.forEach((p, index) => p.drawText(`${index + 1} / ${pages.length}`, { x: 535, y: 18, size: 8, font: regular, color: black }));
+  pages.forEach((p, index) => {
+    p.drawText("GY Virtual Support Team", { x: left, y: 23, size: 8, font: regular, color: muted });
+    p.drawText(`${index + 1} / ${pages.length}`, { x: 520, y: 23, size: 8, font: regular, color: muted });
+  });
   return pdf.save();
 }
