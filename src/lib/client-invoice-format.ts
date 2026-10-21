@@ -1,7 +1,7 @@
 export type InvoiceLayout = "legacy" | "itemized";
 export type InvoiceLineItem = { title: string; description: string; amount: string };
 export const DEFAULT_INVOICE_PAYMENT_LINK = "https://wise.com/pay/me/karlf283";
-export const INVOICE_SUPPORT_EMAIL = "karlheinrich.ferrera@gmail.com";
+export const INVOICE_SUPPORT_EMAIL = "hello.graveyardcrewph@outlook.com";
 
 export function validateItemizedInvoiceDetails(input: { invoiceNumber: string; billCoverage: string; invoiceDueDate: string; status: string }) {
   for (const [label, value, max] of [["invoice number", input.invoiceNumber, 100], ["billing period", input.billCoverage, 300], ["payment due date", input.invoiceDueDate, 100]] as const) {

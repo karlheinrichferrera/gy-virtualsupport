@@ -40,7 +40,7 @@ test('downloaded PDF includes selectable invoice content, correct totals and a c
   try {
     const file=path.join(dir,'invoice.pdf');fs.writeFileSync(file,bytes);
     const text=execFileSync('pdftotext',['-layout',file,'-'],{encoding:'utf8'});
-    for (const expected of ['TGC-MD-006','Michael Danis','Golden Age Assistance','Monthly GHL Support','GHL Strategy Support','Rate: $300 USD','Billing Period','August 2026','GRAND TOTAL','$300.00','August 31, 2026','https://wise.com/pay/me/karlf283','karlheinrich.ferrera@gmail.com']) assert.ok(text.includes(expected),expected);
+    for (const expected of ['TGC-MD-006','Michael Danis','Golden Age Assistance','Monthly GHL Support','GHL Strategy Support','Rate: $300 USD','Billing Period','August 2026','GRAND TOTAL','$300.00','August 31, 2026','https://wise.com/pay/me/karlf283','hello.graveyardcrewph@outlook.com']) assert.ok(text.includes(expected),expected);
     assert.ok(pdf.getPages()[0].node.Annots()?.size()>0,'The PDF contains a link annotation');
     fs.writeFileSync('/tmp/gy-itemized-invoice-example.pdf',bytes);
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }
