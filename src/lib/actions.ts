@@ -560,6 +560,7 @@ export async function resetAdminPassword(id: number): Promise<void> {
 
 export type ClientAccount = {
   id: number;
+  clientCode?: string;
   email: string;
   displayName: string;
   companyName: string;
@@ -571,11 +572,17 @@ export type ClientAccount = {
   invoiceLayout?: InvoiceLayout;
 };
 
+function clientReference(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length > 64) throw new Error("Client ID must be 64 characters or fewer.");
+  return value.trim();
+}
+
 function rowToClientAccount(r: Record<string, unknown>): ClientAccount {
   return {
     id: r.id as number,
     email: r.email as string,
     displayName: r.display_name as string,
+    clientCode: (r.client_code as string) || "",
     companyName: (r.company_name as string) || "",
     address: (r.address as string) || "",
     phone: (r.phone as string) || "",
@@ -610,17 +617,17 @@ export async function getClientAccountByEmail(email: string): Promise<ClientAcco
   return rowToClientAccount(rows[0]);
 }
 
-export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string): Promise<{ success: boolean; error?: string }> {
+export async function addClientAccount(email: string, password: string, displayName: string, companyName?: string, address?: string, phone?: string, clientCode = ""): Promise<{ success: boolean; error?: string }> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT id FROM client_accounts WHERE email = ${email}`;
   if (rows.length > 0) return { success: false, error: "Email already exists" };
   const now = estDateLong();
-  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${now})`;
+  await sql`INSERT INTO client_accounts (email, password, display_name, company_name, address, phone, client_code, created_at) VALUES (${email}, ${password}, ${displayName}, ${companyName || ""}, ${address || ""}, ${phone || ""}, ${clientReference(clientCode)}, ${now})`;
   return { success: true };
 }
 
-export async function updateClientAccount(id: number, updates: { displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
+export async function updateClientAccount(id: number, updates: { clientCode?: string; displayName?: string; companyName?: string; address?: string; phone?: string; email?: string; timesheetUrl?: string; timesheetViewUrl?: string }): Promise<void> {
   await requireAdminSession();
   await ensureTablesOnce();
   const { rows } = await sql`SELECT * FROM client_accounts WHERE id = ${id}`;
@@ -628,6 +635,7 @@ export async function updateClientAccount(id: number, updates: { displayName?: s
   const current = rowToClientAccount(rows[0]);
   await sql`
     UPDATE client_accounts SET
+      client_code = ${clientReference(updates.clientCode ?? current.clientCode ?? "")},
       display_name = ${updates.displayName ?? current.displayName},
       company_name = ${updates.companyName ?? current.companyName},
       address = ${updates.address ?? current.address},

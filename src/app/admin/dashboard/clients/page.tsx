@@ -48,9 +48,9 @@ export default function AdminClientsPage() {
   const [adjVAFilter, setAdjVAFilter] = useState("");
   const [adjDateFilter, setAdjDateFilter] = useState("");
 
-  const [clientForm, setClientForm] = useState({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
+  const [clientForm, setClientForm] = useState({ clientCode: "", email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
   const [editClient, setEditClient] = useState<ClientAccount | null>(null);
-  const [editClientForm, setEditClientForm] = useState({ displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
+  const [editClientForm, setEditClientForm] = useState({ clientCode: "", displayName: "", companyName: "", address: "", phone: "", email: "", timesheetUrl: "", timesheetViewUrl: "" });
   const [invForm, setInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "Pending", invoiceLink: "", additionalRecipients: "", lineItems: [{ title: "", description: "", amount: "" }] as InvoiceLineItem[], paymentLink: DEFAULT_INVOICE_PAYMENT_LINK });
   const [editInvForm, setEditInvForm] = useState({ clientId: 0, invoiceNumber: "", billFrom: "", billTo: "", amount: "", invoiceDueDate: "", status: "", invoiceLink: "", additionalRecipients: "", lineItems: [{ title: "", description: "", amount: "" }] as InvoiceLineItem[], paymentLink: DEFAULT_INVOICE_PAYMENT_LINK });
   const addItemized = invForm.clientId > 0 && clients.find(client => client.id === invForm.clientId)?.invoiceLayout !== "legacy";
@@ -120,10 +120,10 @@ export default function AdminClientsPage() {
     e.preventDefault();
     setError("");
     try {
-    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone);
+    const result = await actions.addClientAccount(clientForm.email, clientForm.password, clientForm.displayName, clientForm.companyName, clientForm.address, clientForm.phone, clientForm.clientCode);
     if (!result.success) { setError(result.error || "Failed"); return; }
     setShowAddClient(false);
-    setClientForm({ email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
+    setClientForm({ clientCode: "", email: "", password: "gyclient2026", displayName: "", companyName: "", address: "", phone: "" });
     await loadData();
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to save client."); }
   }
@@ -300,6 +300,7 @@ export default function AdminClientsPage() {
                 <thead>
                   <tr className="bg-slate-50 border-b border-border">
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">ID</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Client ID</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Name</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Company</th>
@@ -312,6 +313,7 @@ export default function AdminClientsPage() {
                   {clients.map((c) => (
                     <tr key={c.id} className="border-b border-border hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-mono text-foreground">{c.id}</td>
+                      <td className="px-4 py-3 font-mono text-foreground">{c.clientCode || "—"}</td>
                       <td className="px-4 py-3 font-medium text-foreground">{c.displayName}</td>
                       <td className="px-4 py-3 text-foreground">{c.email}</td>
                       <td className="px-4 py-3 text-foreground">{c.companyName || "—"}</td>
@@ -319,7 +321,7 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 text-foreground text-xs">{c.createdAt}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setEditClient(c); setEditClientForm({ displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
+                          <button onClick={() => { setEditClient(c); setEditClientForm({ clientCode: c.clientCode || "", displayName: c.displayName, companyName: c.companyName || "", address: c.address || "", phone: c.phone || "", email: c.email, timesheetUrl: c.timesheetUrl || "", timesheetViewUrl: c.timesheetViewUrl || "" }); }} className="p-1.5 hover:bg-blue-50 rounded-lg" title="Edit">
                             <Pencil size={14} className="text-blue-600" />
                           </button>
                           <button onClick={() => setResetTarget(c.id)} className="p-1.5 hover:bg-amber-50 rounded-lg" title="Reset Password">
@@ -611,7 +613,7 @@ export default function AdminClientsPage() {
       {/* Add Client Modal */}
       {showAddClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-2xl w-full min-w-0 max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Plus size={20} className="text-indigo-600" /> Add Client Account</h2>
               <button onClick={() => setShowAddClient(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
@@ -620,6 +622,7 @@ export default function AdminClientsPage() {
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={clientForm.displayName} onChange={(e) => setClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} placeholder="e.g. Devin Rubin" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={clientForm.email} onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="e.g. client@company.com" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Password</label><input type="text" value={clientForm.password} onChange={(e) => setClientForm((f) => ({ ...f, password: e.target.value }))} className={inputClass} /></div>
+              <div><label htmlFor="clientForm-client-id" className="block text-xs font-medium text-slate-600 mb-1">Client ID</label><input id="clientForm-client-id" type="text" maxLength={64} value={clientForm.clientCode} onChange={(e) => setClientForm((f) => ({ ...f, clientCode: e.target.value }))} className={inputClass} placeholder="e.g. CL-1001" /><p className="mt-1 text-xs text-slate-500">Optional reference only. Clients sign in with their email.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={clientForm.companyName} onChange={(e) => setClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} placeholder="e.g. Acme Corp" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={clientForm.address} onChange={(e) => setClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} placeholder="e.g. 123 Main St, City" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={clientForm.phone} onChange={(e) => setClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} placeholder="e.g. +1 555-0100" /></div>
@@ -636,7 +639,7 @@ export default function AdminClientsPage() {
       {/* Edit Client Modal */}
       {editClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-2xl w-full min-w-0 max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Pencil size={20} className="text-emerald-600" /> Edit Client</h2>
               <button onClick={() => setEditClient(null)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={20} className="text-slate-500" /></button>
@@ -645,6 +648,7 @@ export default function AdminClientsPage() {
               {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Display Name *</label><input type="text" required value={editClientForm.displayName} onChange={(e) => setEditClientForm((f) => ({ ...f, displayName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Email *</label><input type="email" required value={editClientForm.email} onChange={(e) => setEditClientForm((f) => ({ ...f, email: e.target.value }))} className={inputClass} /></div>
+              <div><label htmlFor="editClientForm-client-id" className="block text-xs font-medium text-slate-600 mb-1">Client ID</label><input id="editClientForm-client-id" type="text" maxLength={64} value={editClientForm.clientCode} onChange={(e) => setEditClientForm((f) => ({ ...f, clientCode: e.target.value }))} className={inputClass} placeholder="e.g. CL-1001" /><p className="mt-1 text-xs text-slate-500">Optional reference only. Clients sign in with their email.</p></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Company Name</label><input type="text" value={editClientForm.companyName} onChange={(e) => setEditClientForm((f) => ({ ...f, companyName: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Address</label><input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm((f) => ({ ...f, address: e.target.value }))} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Phone</label><input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm((f) => ({ ...f, phone: e.target.value }))} className={inputClass} /></div>

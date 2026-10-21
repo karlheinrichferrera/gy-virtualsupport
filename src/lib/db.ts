@@ -129,6 +129,7 @@ export async function ensureTables() {
     await sql`INSERT INTO client_accounts (email, password, display_name, created_at) VALUES ('devin@goldenyearsdesign.com', 'gyclient2026', 'Devin Rubin', 'System Default')`;
   }
 
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS client_code TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''`;

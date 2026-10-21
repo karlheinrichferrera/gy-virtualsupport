@@ -124,6 +124,7 @@ export default function ClientSettingsPage() {
         </h2>
 
         <div className="space-y-3">
+          <div><label htmlFor="client-reference-id" className="block text-sm font-medium text-slate-700 mb-1">Client ID</label><input id="client-reference-id" type="text" value={account?.clientCode || "—"} readOnly className={`${inputClass} bg-slate-50`} /><p className="mt-1 text-xs text-slate-500">For reference only. Continue signing in with your email.</p></div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <input
