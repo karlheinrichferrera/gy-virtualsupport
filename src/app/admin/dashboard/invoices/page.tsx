@@ -60,9 +60,9 @@ function downloadAllInvoices(items: { vaId: string; vaName: string; clientName: 
     item.invoice.status,
   ].map(escapeCsv).join(","));
 
-  const totalAmount = items.reduce((s, i) => s + parseFloat(i.invoice.amount.replace("$", "") || "0"), 0);
-  const totalFee = items.reduce((s, i) => s + parseFloat(i.invoice.transactionFee.replace("$", "") || "0"), 0);
-  const totalDisbursed = items.reduce((s, i) => s + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
+  const totalAmount = items.reduce((s, i) => s + parseFloat(i.invoice.amount.replace(/[$,\s]/g, "") || "0"), 0);
+  const totalFee = items.reduce((s, i) => s + parseFloat(i.invoice.transactionFee.replace(/[$,\s]/g, "") || "0"), 0);
+  const totalDisbursed = items.reduce((s, i) => s + parseFloat(i.invoice.amountDisbursed.replace(/[$,\s]/g, "") || "0"), 0);
   const totalRow = ["TOTAL", "", "", "", "", `$${totalAmount.toFixed(2)}`, `$${totalFee.toFixed(2)}`, `$${totalDisbursed.toFixed(2)}`, ""].map(escapeCsv).join(",");
 
   const csv = [headers.join(","), ...rows, "", totalRow].join("\n");
@@ -76,6 +76,8 @@ function downloadAllInvoices(items: { vaId: string; vaName: string; clientName: 
 }
 
 function parseCoveredDates(dateCovered: string): { start: string | null; end: string | null } {
+  const isoDates = dateCovered.match(/\b\d{4}-\d{2}-\d{2}\b/g);
+  if (isoDates?.length) return { start: isoDates[0], end: isoDates[isoDates.length - 1] };
   const parts = dateCovered.split(/\s*[-–—]\s*/);
   if (parts.length >= 2) {
     const start = parts[0].trim();
@@ -171,9 +173,9 @@ export default function AdminInvoicesPage() {
     return true;
   });
 
-  const totalDisbursed = allInvoices
+  const totalDisbursed = filtered
     .filter((i) => i.invoice.status === "Paid")
-    .reduce((sum, i) => sum + parseFloat(i.invoice.amountDisbursed.replace("$", "") || "0"), 0);
+    .reduce((sum, i) => sum + parseFloat(i.invoice.amountDisbursed.replace(/[$,\s]/g, "") || "0"), 0);
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm";
 
@@ -258,6 +260,7 @@ export default function AdminInvoicesPage() {
           <Calendar size={16} className="text-muted" />
           <input
             type="date"
+            aria-label="Date from"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -265,6 +268,7 @@ export default function AdminInvoicesPage() {
           <span className="text-sm text-muted">to</span>
           <input
             type="date"
+            aria-label="Date to"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
