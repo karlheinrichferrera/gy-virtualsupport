@@ -7,6 +7,7 @@ import { ensureVASessionSchema } from "./va-session-schema";
 import { ensureClientSessionSchema } from "./client-session-schema";
 import { ensureRequestApprovalSchema } from "./request-approval-schema";
 import { ensureClientInvoiceSchema } from "./client-invoice-schema";
+import { ensureTimeproofAutomationSchema } from "./timeproof-automation-schema";
 
 export async function ensureTables() {
   await sql`
@@ -233,6 +234,7 @@ export async function ensureTables() {
   await ensureClientInvoiceSchema();
   await ensureClientSessionSchema();
   await ensureRequestApprovalSchema();
+  await ensureTimeproofAutomationSchema();
 }
 
 export { sql };

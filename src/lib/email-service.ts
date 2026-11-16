@@ -107,6 +107,8 @@ export async function queueAutomaticEmails() {
       CROSS JOIN LATERAL (SELECT CASE WHEN n.type='request' AND n.client_id=c.id
         THEN NULLIF(TRIM(c.request_notification_recipients),'') ELSE NULL END AS delegates) routing
       CROSS JOIN LATERAL unnest(COALESCE(string_to_array(routing.delegates,','),ARRAY[c.email])) target(email)
+      WHERE c.leave_request_emails_enabled OR n.type!='request'
+        OR NOT (n.title LIKE 'Leave request %' OR n.title LIKE 'Shift Adjustment request %')
     )
     , jobs AS (
     INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,cc_emails,from_name,from_email,subject,body,template_data,image_token,source,source_id,expires_at,client_invoice_id)
@@ -140,6 +142,12 @@ export async function processEmailQueue(limit = 5) {
       OR (j.source='invoice' AND NOT j.is_resend AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status)) NOT IN ('draft','paid')))
       OR (j.source='invoice' AND j.is_resend AND NOT EXISTS (SELECT 1 FROM client_invoices i WHERE i.id=j.source_id AND LOWER(TRIM(i.status))!='draft'))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.id=j.source_id))
+      OR (j.source='notification' AND EXISTS (
+        SELECT 1 FROM notifications n JOIN client_accounts c ON c.id=n.client_id
+        WHERE n.id=j.source_id AND n.audience='client' AND n.type='request'
+          AND NOT c.leave_request_emails_enabled
+          AND (n.title LIKE 'Leave request %' OR n.title LIKE 'Shift Adjustment request %')
+      ))
       OR (j.source='invoice' AND NOT j.is_resend AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_invoices_since IS NOT NULL AND j.created_at>=s.auto_invoices_since))
       OR (j.source='notification' AND NOT EXISTS (SELECT 1 FROM email_settings s WHERE s.singleton=true AND s.auto_notifications_since IS NOT NULL AND j.created_at>=s.auto_notifications_since))
     )`;

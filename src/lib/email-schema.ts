@@ -17,6 +17,10 @@ export async function ensureEmailSchema() {
   // Set this account's initial request-email routing once; retain it if its login email changes.
   await sql`UPDATE client_accounts SET request_notification_recipients='zanyette@goldenyearsdesign.com,karl@goldenyearsdesign.com'
     WHERE LOWER(TRIM(email))='devin@goldenyearsdesign.com' AND request_notification_recipients IS NULL`;
+  await sql`ALTER TABLE client_accounts ADD COLUMN IF NOT EXISTS leave_request_emails_enabled BOOLEAN NOT NULL DEFAULT true`;
+  // Devin keeps portal notices and VA receipts; only his client leave/shift emails are disabled.
+  await sql`UPDATE client_accounts SET leave_request_emails_enabled=false
+    WHERE LOWER(TRIM(email))='devin@goldenyearsdesign.com' AND leave_request_emails_enabled=true`;
   await sql`CREATE TABLE IF NOT EXISTS email_va_contacts (
     va_id TEXT PRIMARY KEY REFERENCES va_profiles(id) ON DELETE CASCADE,
     email TEXT NOT NULL,

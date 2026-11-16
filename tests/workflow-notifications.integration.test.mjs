@@ -290,10 +290,11 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       assert.equal((await load('notifications').recipientNotifications('client','1')).length,1,'The new selected client is notified after a material edit');
       assert.equal((await sql`SELECT status FROM leave_requests WHERE request_id=${request.id}`).rows[0].status,'Pending');
     });
-    await t.test('Devin request emails go only to Zanyette and Karl while other client and invoice routing stays intact',async()=>{
+    await t.test('Devin leave and shift client emails are disabled while VA receipts, overtime and other clients stay active',async()=>{
       await reset();await sql`INSERT INTO va_client_assignments VALUES ('va-1',3)`;
       await load('email-schema').ensureEmailSchema();
       const service=load('email-service');await service.setEmailAutomation(true,true);
+      await sql`INSERT INTO email_va_contacts(va_id,email) SELECT id,email FROM va_profiles WHERE id='va-1' ON CONFLICT(va_id) DO NOTHING`;
       await Promise.all([actions.addRequest('va-1',{...request,id:'DEVIN-LEAVE',clientId:3}),actions.addRequest('va-1',{...request,id:'DEVIN-LEAVE',clientId:3})]);
       await actions.addRequest('va-1',{...request,id:'DEVIN-SHIFT',type:'Shift Adjustment',clientId:3});
       const entry={vaId:'va-1',clientId:3,punchDate:'2026-10-18',timeIn:'15:00',timeOut:'17:00',notes:'Client review',createdAt:'Today',entryType:'overtime',status:'pending',submissionKey:randomUUID()};
@@ -301,11 +302,11 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       const inbox=await load('notifications').recipientNotifications('client','3');assert.equal(inbox.length,3,'Portal notifications remain attached to the selected client account');
       await service.queueAutomaticEmails();await service.queueAutomaticEmails();
       const jobs=async()=> (await sql`SELECT j.* FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.audience='client' AND n.type='request' AND n.client_id=3 ORDER BY j.id`).rows;
-      const mail=await jobs();assert.equal(mail.length,6);
+      const mail=await jobs();assert.equal(mail.length,2);
       const addresses=['karl@goldenyearsdesign.com','zanyette@goldenyearsdesign.com'];
       for(const notification of inbox){
         const copies=mail.filter(j=>j.source_id===notification.id);
-        assert.deepEqual(copies.flatMap(j=>j.to_emails).sort(),addresses);
+        assert.deepEqual(copies.flatMap(j=>j.to_emails).sort(),notification.title.startsWith('Overtime')?addresses:[]);
         assert.ok(copies.every(j=>j.to_emails.length===1&&j.cc_emails.length===0&&j.bcc_emails.length===0));
       }
       assert.ok(mail.every(j=>!j.to_emails.includes('devin@goldenyearsdesign.com')));
@@ -314,13 +315,30 @@ test('VA workflow notices and client invoice publication are atomic and recipien
       await sql`INSERT INTO notifications(audience,client_id,title,message,type,published_at) VALUES ('client',3,'General client notice','Normal notification','admin',NOW())`;
       await actions.addClientInvoice({clientId:3,invoiceNumber:'DEVIN-INVOICE',billCoverage:'October',amount:'$100',invoiceDueDate:'2026-10-25',status:'Pending',invoiceLink:''});
       await service.queueAutomaticEmails();await service.queueAutomaticEmails();
-      assert.equal((await jobs()).length,8,'An edited request also routes one copy to each delegate');
+      assert.equal((await jobs()).length,2,'Edited leave requests remain portal-only for Devin');
       const other=(await sql`SELECT j.to_emails FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.audience='client' AND n.client_id=1 AND n.type='request'`).rows;
       assert.deepEqual(other.map(j=>j.to_emails),[['client-one@example.invalid']]);
       const general=(await sql`SELECT j.to_emails FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id WHERE n.title='General client notice'`).rows;
       assert.deepEqual(general.map(j=>j.to_emails),[['devin@goldenyearsdesign.com']]);
       const invoices=(await sql`SELECT to_emails FROM email_jobs WHERE source='invoice'`).rows;
       assert.deepEqual(invoices.map(j=>j.to_emails),[['devin@goldenyearsdesign.com']]);
+      const receipts=(await sql`SELECT j.id FROM email_jobs j JOIN notifications n ON j.source='notification' AND j.source_id=n.id
+        WHERE n.audience='va' AND n.type='request' AND (n.title LIKE 'Leave request %' OR n.title LIKE 'Shift Adjustment request %')`).rows;
+      assert.equal(receipts.length,3,'VA acknowledgements are still queued, including the other client request');
+      const leave=inbox.find(n=>n.title.startsWith('Leave'));
+      await sql`INSERT INTO email_jobs(idempotency_key,connection_id,to_emails,subject,body,source,source_id)
+        SELECT 'legacy-muted-request',connection_id,'["karl@goldenyearsdesign.com"]'::jsonb,'Old leave email','Previously queued','notification',${leave.id}
+        FROM outlook_connection WHERE singleton=true`;
+      await service.processEmailQueue(20);
+      assert.equal((await sql`SELECT status FROM email_jobs WHERE idempotency_key='legacy-muted-request'`).rows[0].status,'cancelled');
+      assert.ok(!sentMails.some(mail=>mail.subject==='Old leave email'));
+      assert.equal(sentMails.filter(mail=>mail.to.includes('one@example.invalid') && (mail.subject==='Leave request received' || mail.subject==='Shift Adjustment request received')).length,3,'VA emails remain deliverable');
+      assert.equal((await load('notifications').recipientNotifications('client','3')).filter(n=>n.type==='request').length,4,'Email suppression keeps portal notices');
+      await sql`UPDATE client_accounts SET email='renamed-devin@example.invalid' WHERE id=3`;
+      await load('email-schema').ensureEmailSchema();
+      assert.equal((await sql`SELECT leave_request_emails_enabled FROM client_accounts WHERE id=3`).rows[0].leave_request_emails_enabled,false);
+      await sql`UPDATE client_accounts SET email='devin@goldenyearsdesign.com' WHERE id=3`;
+
     });
     await t.test('approval migration preserves completed history, upgrades pending rows and is repeatable',async()=>{
       await reset();await sql`INSERT INTO leave_requests(request_id,va_id,type,status,remarks) VALUES ('OLD-DONE','va-1','Leave','Approved','Prior approval'),('OLD-PENDING','va-1','Leave','Pending','')`;
